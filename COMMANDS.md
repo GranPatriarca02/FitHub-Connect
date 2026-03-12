@@ -1,0 +1,118 @@
+# FitHub-Connect - Guia de comandos
+
+## Requisitos previos
+
+| Herramienta | Version necesaria | Descarga |
+|---|---|---|
+| JDK | 21 o superior | https://adoptium.net/temurin/releases/?version=21 (o usar el JBR que viene con Android Studio) |
+| Node.js | 18 o superior | https://nodejs.org |
+| npm | Viene incluido con Node.js | - |
+| Git | Cualquier version | https://git-scm.com |
+
+---
+
+## Setup rapido en un PC nuevo
+
+```powershell
+git clone https://github.com/TU_USUARIO/FitHub-Connect.git
+cd FitHub-Connect
+
+# ejecutar el script de setup automatico
+.\setup.ps1
+```
+
+Despues del setup hay que editar `backend/.env` y meter la contrasena real de Supabase.
+
+---
+
+## Backend (Kotlin + Ktor)
+
+Los comandos del backend se ejecutan desde la carpeta `backend/`.
+
+```powershell
+cd backend
+```
+
+| Comando | Para que sirve |
+|---|---|
+| `.\gradlew run` | Arranca el servidor en http://localhost:8080. La primera vez crea las tablas en Supabase. |
+| `.\gradlew build -x test` | Compila el proyecto sin pasar los tests. Sirve para comprobar que no hay errores de codigo. |
+| `.\gradlew build` | Compila y ejecuta los tests. |
+| `.\gradlew clean` | Borra los archivos compilados de la carpeta build/. |
+| `.\gradlew wrapper` | Regenera el Gradle Wrapper si se pierde el gradle-wrapper.jar. |
+
+### Endpoints de la API
+
+| Metodo | Ruta | Descripcion |
+|---|---|---|
+| GET | `/availability/{monitorId}` | Devuelve los horarios disponibles de un monitor. |
+| POST | `/availability/{monitorId}/update` | Actualiza la disponibilidad de un monitor. Recibe un JSON con el dia, hora de inicio, hora de fin y si esta disponible. |
+
+Ejemplo de body para el POST:
+```json
+{
+  "dayOfWeek": "MONDAY",
+  "startTime": "09:00",
+  "endTime": "17:00",
+  "isAvailable": true
+}
+```
+
+---
+
+## Frontend movil (React Native + Expo)
+
+Los comandos del frontend se ejecutan desde la carpeta `mobile/`.
+
+```powershell
+cd mobile
+```
+
+| Comando | Para que sirve |
+|---|---|
+| `npm install` | Instala todas las dependencias del proyecto. |
+| `npx expo start` | Arranca el servidor de desarrollo de Expo. Se puede escanear el QR con el movil usando la app Expo Go. |
+| `npx expo start --android` | Abre directamente en el emulador de Android. |
+| `npx expo start --ios` | Abre en el simulador de iOS (solo funciona en Mac). |
+| `npx expo start --web` | Abre en el navegador. |
+
+---
+
+## Base de datos (Supabase)
+
+La base de datos es un PostgreSQL alojado en Supabase.
+
+- Host: `aws-1-eu-west-3.pooler.supabase.com`
+- Puerto: `5432`
+- Base de datos: `postgres`
+- Usuario: `postgres.faorfurslbzfgbbxmbrt`
+
+Las tablas se generan solas cuando se arranca el backend la primera vez:
+- `users` - Usuarios del sistema (clientes y entrenadores).
+- `monitors` - Datos del entrenador (especialidad, tarifa por hora, biografia).
+- `routines` - Rutinas de entrenamiento vinculadas a un entrenador.
+- `availabilities` - Franjas horarias disponibles de cada entrenador por dia de la semana.
+
+---
+
+## Estructura del proyecto
+
+```
+FitHub-Connect/
+├── backend/                    # Servidor API (Kotlin + Ktor)
+│   ├── src/main/kotlin/com/example/
+│   │   ├── db/                 # Conexion a base de datos
+│   │   ├── models/             # Modelos de datos (User, Monitor, etc.)
+│   │   ├── models/dto/         # Objetos de transferencia
+│   │   ├── routes/             # Endpoints de la API
+│   │   ├── Application.kt     # Punto de entrada del servidor
+│   │   ├── Routing.kt         # Rutas generales
+│   │   └── Serialization.kt   # Configuracion JSON
+│   ├── .env                    # Variables de entorno (NO se sube a Git)
+│   ├── .env.example            # Plantilla de variables de entorno
+│   └── build.gradle.kts        # Dependencias del backend
+├── mobile/                     # App movil (React Native + Expo)
+├── setup.ps1                   # Script de setup automatico
+├── COMMANDS.md                 # Esta guia
+└── .gitignore                  # Archivos ignorados por Git
+```

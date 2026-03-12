@@ -1,32 +1,65 @@
 # FitHub Connect
 
-Proyecto final académico del curso de Desarrollo de Aplicaciones Multiplataforma (DAM).
+Proyecto final del curso de Desarrollo de Aplicaciones Multiplataforma (DAM).
 
-FitHub Connect es una plataforma social orientada al fitness que unifica conceptos de diferentes redes sociales:
-- Funcionalidades sociales para compartir rutinas y entrenamientos (visibilidad pública/privada).
-- Perfiles profesionales y roles estructurados (Usuarios estándar y Entrenadores).
-- Sistema de suscripciones y monetización de servicios (control de peso, dietas, rutinas personalizadas).
+FitHub Connect es una plataforma orientada al fitness que conecta entrenadores con usuarios. Permite gestionar rutinas, contratar monitores y consultar disponibilidad horaria.
 
-## Estructura del Proyecto (Monorepo)
+## Estructura del proyecto
 
-Este repositorio contiene todo el código fuente del proyecto, dividido en las siguientes carpetas principales:
+```
+FitHub-Connect/
+├── backend/     # Servidor API (Kotlin + Ktor)
+├── mobile/      # App movil (React Native + Expo)
+├── setup.ps1    # Script de configuracion automatica
+└── COMMANDS.md  # Guia de comandos del proyecto
+```
 
-* `/backend`: Código del servidor. Desarrollado en Kotlin utilizando el framework Ktor.
-* `/app-kmp`: Código de la aplicación cliente (próximamente). Se desarrollará utilizando Kotlin Multiplatform para abarcar dispositivos móviles.
+## Requisitos
 
-## Requisitos Previos
+- Java JDK 21 o superior (o usar el JBR de Android Studio)
+- Node.js 18 o superior
+- Git
 
-Para colaborar en este proyecto, necesitas tener instalado:
-* IntelliJ IDEA (Community o Ultimate).
-* Java Development Kit (JDK) 17 o superior.
-* Git.
+## Configuracion rapida
 
-## Cómo ejecutar el servidor backend en local
+### Opcion 1: Script automatico (Windows)
 
-1. Clona este repositorio en tu equipo local.
-2. Abre **IntelliJ IDEA** y selecciona "Open".
-3. Navega hasta la carpeta del proyecto y selecciona la subcarpeta `/backend`. Es importante abrir esta carpeta directamente para que IntelliJ detecte la configuración de Gradle.
-4. Espera a que Gradle descargue las dependencias y sincronice el proyecto.
-5. Ve a la ruta `src/main/kotlin/...` y abre el archivo `Application.kt`.
-6. Haz clic en el icono de ejecución (Play) situado junto a la función `main`.
-7. El servidor se iniciará y estará disponible en: `http://localhost:8080`
+Abrir PowerShell en la carpeta del proyecto y ejecutar:
+
+```powershell
+.\setup.ps1
+```
+
+El script comprueba que tienes Java y Node instalados, genera el Gradle Wrapper si falta, copia el `.env.example` como `.env` y avisa de lo que falta por configurar.
+
+Despues de ejecutarlo hay que editar `backend/.env` y poner la contrasena real de la base de datos.
+
+### Opcion 2: Manual
+
+1. Clonar el repositorio
+2. Copiar `backend/.env.example` a `backend/.env` y rellenar la contrasena de Supabase
+3. Para el backend: `cd backend && .\gradlew run`
+4. Para la app movil: `cd mobile && npm install && npx expo start`
+
+## Como ejecutar
+
+### Backend
+```bash
+cd backend
+.\gradlew run
+```
+El servidor arranca en http://localhost:8080. La primera vez crea las tablas en la base de datos automaticamente.
+
+### App movil
+```bash
+cd mobile
+npm install
+npx expo start
+```
+Escanear el QR con Expo Go en el movil o pulsar `w` para abrir en el navegador.
+
+## Base de datos
+
+PostgreSQL alojado en Supabase. Las tablas se generan solas al arrancar el backend.
+
+Para mas detalles sobre comandos y endpoints consultar [COMMANDS.md](COMMANDS.md).

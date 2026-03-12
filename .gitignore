@@ -18,17 +18,29 @@ hs_err_pid*
 replay_pid*
 .kotlin/
 
-# Gradle (Evita subir los compilados pesados de cualquier subcarpeta)
+# Entorno (secretos)
+.env
+
+# Gradle
 .gradle/
 build/
 **/build/
 
-# IntelliJ IDEA (Evita subir tu configuración personal del editor)
+# IntelliJ IDEA
 .idea/
 *.iml
 *.iws
 out/
 
-# Sistema Operativo (Archivos ocultos basura de Mac y Windows)
+# Node
+node_modules/
+npm-debug.log*
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Sistema operativo
 .DS_Store
 Thumbs.db
