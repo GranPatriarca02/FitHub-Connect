@@ -116,3 +116,53 @@ FitHub-Connect/
 ├── COMMANDS.md                 # Esta guia
 └── .gitignore                  # Archivos ignorados por Git
 ```
+
+---
+
+## Servidor de Produccion (Webdock)
+
+El backend esta desplegado en un servidor VPS de Webdock. La API es accesible desde cualquier sitio a traves de la URL de produccion.
+
+- **URL de la API**: `https://fithub.vps.webdock.cloud`
+- **IP del servidor**: `92.113.147.5`
+- **Usuario SSH**: `admin`
+
+Para conectarse al servidor y gestionarlo, abre una terminal de Windows y ejecuta:
+```powershell
+ssh admin@fithub.vps.webdock.cloud
+```
+*(Pedira la contrasena del panel de Webdock o se conectara directamente si tienes la clave SSH configurada).*
+
+### Comandos utiles en el servidor
+
+Una vez dentro del servidor por SSH, tienes estos comandos para controlar el backend:
+
+| Comando en el servidor | Para que sirve |
+|---|---|
+| `sudo systemctl status fithub` | Ver si el backend de Kotlin esta corriendo y si hay algun error. |
+| `sudo systemctl restart fithub` | Reiniciar el backend (se hace despues de subir una version nueva del codigo). |
+| `sudo systemctl stop fithub` | Detener el backend. |
+| `sudo journalctl -u fithub -f` | Ver los **logs en tiempo real** de forma continua. Perfecto para ver las peticiones que llegan, los `println()` del codigo o los errores (pulsa `Ctrl+C` para salir). |
+
+### Como subir una version nueva del codigo al servidor
+
+Si haces cambios en el codigo del backend (por ejemplo, anades una tabla nueva) y quieres que esten en el servidor:
+
+1. **En tu ordenador (en la carpeta `backend`):**
+   Crea el archivo ejecutable nuevo:
+   ```powershell
+   .\gradlew clean shadowJar
+   ```
+
+2. **Sube el archivo al servidor:**
+   ```powershell
+   scp build\libs\ktor-backend-all.jar admin@fithub.vps.webdock.cloud:/home/admin/
+   ```
+
+3. **En el servidor (conectado por SSH):**
+   Mueve el archivo al directorio de la aplicacion y reinicia:
+   ```bash
+   sudo mv /home/admin/ktor-backend-all.jar /var/www/fithub/
+   sudo chown admin:admin /var/www/fithub/ktor-backend-all.jar
+   sudo systemctl restart fithub
+   ```
