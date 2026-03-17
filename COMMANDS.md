@@ -71,10 +71,17 @@ cd mobile
 | Comando | Para que sirve |
 |---|---|
 | `npm install` | Instala todas las dependencias del proyecto. |
-| `npx expo start` | Arranca el servidor de desarrollo de Expo. Se puede escanear el QR con el movil usando la app Expo Go. |
+| `npm start` | Arranca el servidor de desarrollo apuntando al **Backend en Local** (`.env`). |
+| `npm run start:prod` | Arranca el servidor apuntando al **Backend de Produccion en Webdock**. |
 | `npx expo start --android` | Abre directamente en el emulador de Android. |
 | `npx expo start --ios` | Abre en el simulador de iOS (solo funciona en Mac). |
 | `npx expo start --web` | Abre en el navegador. |
+
+### Cambiar entre Entorno Local y Produccion
+El proyecto movil esta configurado para leer las URLs de un archivo `.env` automaticamente usando `react-native-dotenv`.
+
+1. **Si quieres probar en local (tu PC):** simplemente ejecuta `npm start` (leera el archivo `mobile/.env`).
+2. **Si quieres probar el servidor oficial:** ejecuta `npm run start:prod` y se pasara a usar la IP de Webdock magicamente.
 
 ---
 
