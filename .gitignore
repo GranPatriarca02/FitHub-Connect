@@ -26,6 +26,10 @@ replay_pid*
 build/
 **/build/
 
+# Allow gradle wrapper
+!gradle/wrapper/gradle-wrapper.jar
+!backend/gradle/wrapper/gradle-wrapper.jar
+
 # IntelliJ IDEA
 .idea/
 *.iml
