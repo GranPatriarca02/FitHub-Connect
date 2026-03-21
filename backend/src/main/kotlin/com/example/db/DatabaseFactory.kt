@@ -5,11 +5,10 @@ import com.zaxxer.hikari.HikariDataSource
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
-import com.example.models.Users
-import com.example.models.Monitors
-import com.example.models.Routines
-import com.example.models.Availabilities
+import com.example.models.*
 import io.github.cdimascio.dotenv.dotenv
+import java.time.DayOfWeek
+import java.time.LocalTime
 
 object DatabaseFactory {
     fun init() {
@@ -17,6 +16,53 @@ object DatabaseFactory {
         Database.connect(pool)
         transaction {
             SchemaUtils.create(Users, Monitors, Routines, Availabilities)
+            
+            if (User.count() == 0L) {
+                seedDatabase()
+            }
+        }
+    }
+
+    private fun seedDatabase() {
+        val user1 = User.new {
+            name = "Carlos Garcia"
+            email = "carlos@example.com"
+            passwordHash = "hash"
+            role = UserRole.TRAINER
+        }
+        val user2 = User.new {
+            name = "Ana Lopez"
+            email = "ana@example.com"
+            passwordHash = "hash"
+            role = UserRole.TRAINER
+        }
+
+        val monitor1 = Monitor.new {
+            user = user1
+            specialty = "Musculacion"
+            hourlyRate = 25.0.toBigDecimal()
+            bio = "Entrenador personal certificado con 5 años de experiencia."
+        }
+        val monitor2 = Monitor.new {
+            user = user2
+            specialty = "Yoga"
+            hourlyRate = 20.0.toBigDecimal()
+            bio = "Instructora experta en Yoga y Pilates."
+        }
+
+        Availability.new {
+            monitor = monitor1
+            dayOfWeek = DayOfWeek.MONDAY
+            startTime = LocalTime.of(9, 0)
+            endTime = LocalTime.of(14, 0)
+            isAvailable = true
+        }
+        Availability.new {
+            monitor = monitor2
+            dayOfWeek = DayOfWeek.TUESDAY
+            startTime = LocalTime.of(10, 0)
+            endTime = LocalTime.of(13, 0)
+            isAvailable = true
         }
     }
 

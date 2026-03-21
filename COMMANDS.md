@@ -107,10 +107,19 @@ El proyecto movil usa variables de entorno con el prefijo `EXPO_PUBLIC_` que Exp
 - `mobile/.env` → contiene `EXPO_PUBLIC_API_URL=http://localhost:8080` (entorno local)
 - `mobile/.env.produccion` → contiene `EXPO_PUBLIC_API_URL=https://fithub.vps.webdock.cloud` (produccion)
 
-1. **Si quieres probar en local (tu PC):** simplemente ejecuta `npm start` (leera el archivo `mobile/.env`).
-2. **Si quieres probar el servidor oficial:** ejecuta `npm run start:prod` y se usara la URL de Webdock.
+#### 🎯 Escenario A: Probar con el Servidor Webdock (Recomendado para la presentacion)
+El servidor ya esta encendido 24/7. **Solo necesitas ejecutar el frontend**.
+1. Abre un terminal en `mobile/`
+2. Ejecuta `npm run start:prod`
+*(El movil hablara automaticamente con la nube)*
 
-> **Nota:** Si pruebas con un movil fisico en local, cambia `localhost` en `.env` por la IP de tu PC (ej: `192.168.1.X:8080`).
+#### 🛠️ Escenario B: Desarrollar en Local (Tu PC)
+Necesitas arrancar **las dos cosas** (Backend y Frontend).
+1. Abre un terminal en `backend/` y arranca con `.\gradlew run`
+2. Abre otro terminal en `mobile/` y arranca con `npm start`
+*(El movil hablara con el backend de tu ordenador)*
+
+> **Nota para el Escenario B:** Si pruebas con un movil fisico en local, cambia `localhost` en `mobile/.env` por la IP de tu PC en el WiFi (ej: `192.168.1.56:8080`).
 
 ---
 

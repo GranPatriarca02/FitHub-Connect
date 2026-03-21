@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "expo start --tunnel",
-    "start:prod": "set EXPO_PUBLIC_API_URL=https://fithub.vps.webdock.cloud&& expo start --tunnel",
+    "start": "expo start",
+    "start:prod": "set EXPO_PUBLIC_API_URL=https://fithub.vps.webdock.cloud&& expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web"
