@@ -45,16 +45,40 @@ cd backend
 
 | Metodo | Ruta | Descripcion |
 |---|---|---|
+| GET | `/` | Health check. Devuelve `FitHub Connect API v0.1`. |
+| GET | `/monitors` | Lista todos los monitores con nombre, especialidad y tarifa. |
+| GET | `/monitors/{id}` | Devuelve el detalle de un monitor con su disponibilidad semanal. |
 | GET | `/availability/{monitorId}` | Devuelve los horarios disponibles de un monitor. |
 | POST | `/availability/{monitorId}/update` | Actualiza la disponibilidad de un monitor. Recibe un JSON con el dia, hora de inicio, hora de fin y si esta disponible. |
 
-Ejemplo de body para el POST:
+Ejemplo de body para el POST de disponibilidad:
 ```json
 {
   "dayOfWeek": "MONDAY",
   "startTime": "09:00",
   "endTime": "17:00",
   "isAvailable": true
+}
+```
+
+Ejemplo de respuesta de GET `/monitors`:
+```json
+[
+  { "id": 1, "name": "Carlos Garcia", "specialty": "Musculacion", "hourlyRate": 25.0 }
+]
+```
+
+Ejemplo de respuesta de GET `/monitors/1`:
+```json
+{
+  "id": 1,
+  "name": "Carlos Garcia",
+  "specialty": "Musculacion",
+  "hourlyRate": 25.0,
+  "bio": "Entrenador personal con 5 anos de experiencia",
+  "availability": [
+    { "id": 1, "monitorId": 1, "dayOfWeek": "MONDAY", "startTime": "09:00", "endTime": "14:00", "isAvailable": true }
+  ]
 }
 ```
 
@@ -78,10 +102,15 @@ cd mobile
 | `npx expo start --web` | Abre en el navegador. |
 
 ### Cambiar entre Entorno Local y Produccion
-El proyecto movil esta configurado para leer las URLs de un archivo `.env` automaticamente usando `react-native-dotenv`.
+El proyecto movil usa variables de entorno con el prefijo `EXPO_PUBLIC_` que Expo lee automaticamente.
+
+- `mobile/.env` → contiene `EXPO_PUBLIC_API_URL=http://localhost:8080` (entorno local)
+- `mobile/.env.produccion` → contiene `EXPO_PUBLIC_API_URL=https://fithub.vps.webdock.cloud` (produccion)
 
 1. **Si quieres probar en local (tu PC):** simplemente ejecuta `npm start` (leera el archivo `mobile/.env`).
-2. **Si quieres probar el servidor oficial:** ejecuta `npm run start:prod` y se pasara a usar la IP de Webdock magicamente.
+2. **Si quieres probar el servidor oficial:** ejecuta `npm run start:prod` y se usara la URL de Webdock.
+
+> **Nota:** Si pruebas con un movil fisico en local, cambia `localhost` en `.env` por la IP de tu PC (ej: `192.168.1.X:8080`).
 
 ---
 
@@ -110,15 +139,21 @@ FitHub-Connect/
 │   ├── src/main/kotlin/com/example/
 │   │   ├── db/                 # Conexion a base de datos
 │   │   ├── models/             # Modelos de datos (User, Monitor, etc.)
-│   │   ├── models/dto/         # Objetos de transferencia
-│   │   ├── routes/             # Endpoints de la API
+│   │   ├── models/dto/         # DTOs (AvailabilityDto, MonitorDto)
+│   │   ├── routes/             # Endpoints (AvailabilityRoutes, MonitorRoutes)
 │   │   ├── Application.kt     # Punto de entrada del servidor
-│   │   ├── Routing.kt         # Rutas generales
+│   │   ├── Routing.kt         # Rutas generales + CORS
 │   │   └── Serialization.kt   # Configuracion JSON
 │   ├── .env                    # Variables de entorno (NO se sube a Git)
 │   ├── .env.example            # Plantilla de variables de entorno
 │   └── build.gradle.kts        # Dependencias del backend
 ├── mobile/                     # App movil (React Native + Expo)
+│   ├── src/
+│   │   ├── api.js              # Modulo centralizado de llamadas HTTP
+│   │   └── screens/            # Pantallas (Login, Home, MonitorList, MonitorDetail)
+│   ├── .env                    # Variables de entorno local
+│   ├── .env.produccion         # Variables de entorno produccion
+│   └── package.json            # Dependencias y scripts
 ├── setup.ps1                   # Script de setup automatico
 ├── COMMANDS.md                 # Esta guia
 └── .gitignore                  # Archivos ignorados por Git

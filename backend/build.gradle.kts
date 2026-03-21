@@ -20,6 +20,7 @@ dependencies {
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.ktor.server.netty)
+    implementation(libs.ktor.server.cors)
     implementation(libs.logback.classic)
     
     // Base de datos (Exposed + HikariCP + PostgreSQL)
