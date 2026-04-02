@@ -1,147 +1,231 @@
-// Listado de monitores — carga datos reales del backend
-import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { getMonitors } from '../api';
+import React, { useState } from 'react';
+import {
+  View, Text, FlatList, TouchableOpacity,
+  StyleSheet, TextInput
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+
+// Datos de prueba temporales
+const MOCK_MONITORS = [
+  { id: 1, name: 'Carlos Garcia', specialty: 'Musculacion', hourlyRate: 25, rating: 4.8, sessions: 120 },
+  { id: 2, name: 'Ana Lopez', specialty: 'Yoga y meditacion', hourlyRate: 20, rating: 4.9, sessions: 95 },
+  { id: 3, name: 'David Ruiz', specialty: 'CrossFit', hourlyRate: 30, rating: 4.7, sessions: 200 },
+  { id: 4, name: 'Laura Fernandez', specialty: 'Pilates', hourlyRate: 22, rating: 4.6, sessions: 80 },
+  { id: 5, name: 'Miguel Torres', specialty: 'Funcional y HIIT', hourlyRate: 28, rating: 4.8, sessions: 150 },
+];
+
+const ESPECIALIDADES = ['Todos', 'Musculacion', 'Yoga', 'CrossFit', 'Pilates', 'Funcional'];
 
 export default function MonitorListScreen({ navigation }) {
-  const [monitors, setMonitors] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [filtro, setFiltro] = useState('Todos');
+  const [busqueda, setBusqueda] = useState('');
 
-  useEffect(() => {
-    loadMonitors();
-  }, []);
-
-  const loadMonitors = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getMonitors();
-      setMonitors(data);
-    } catch (err) {
-      console.error('Error cargando monitores:', err);
-      setError('No se pudieron cargar los monitores. Comprueba que el backend esta arrancado.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#4CAF50" />
-        <Text style={styles.loadingText}>Cargando monitores...</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={loadMonitors}>
-          <Text style={styles.retryText}>Reintentar</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  if (monitors.length === 0) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.emptyText}>No hay monitores registrados todavia</Text>
-      </View>
-    );
-  }
+  const monitorsFiltrados = MOCK_MONITORS.filter((m) => {
+    const coincideBusqueda = m.name.toLowerCase().includes(busqueda.toLowerCase()) ||
+      m.specialty.toLowerCase().includes(busqueda.toLowerCase());
+    const coincideFiltro = filtro === 'Todos' || m.specialty.toLowerCase().includes(filtro.toLowerCase());
+    return coincideBusqueda && coincideFiltro;
+  });
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Monitores Disponibles</Text>
-      <FlatList
-        data={monitors}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.card}
-            onPress={() => navigation.navigate('MonitorDetail', { monitorId: item.id, monitorName: item.name })}
-          >
-            <Text style={styles.name}>{item.name}</Text>
-            <Text style={styles.specialty}>{item.specialty || 'Sin especialidad'}</Text>
-            <Text style={styles.rate}>
-              {item.hourlyRate ? `${item.hourlyRate} euros/hora` : 'Tarifa no definida'}
-            </Text>
-          </TouchableOpacity>
-        )}
-      />
-    </View>
+    <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
+      <View style={styles.container}>
+
+        {/* Buscador */}
+        <View style={styles.searchBar}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar monitor o especialidad..."
+            placeholderTextColor="#555"
+            value={busqueda}
+            onChangeText={setBusqueda}
+          />
+        </View>
+
+        {/* Filtros de especialidad */}
+        <FlatList
+          data={ESPECIALIDADES}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item) => item}
+          style={styles.filterList}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={[styles.filterChip, filtro === item && styles.filterChipActive]}
+              onPress={() => setFiltro(item)}
+            >
+              <Text style={[styles.filterChipText, filtro === item && styles.filterChipTextActive]}>
+                {item}
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
+
+        {/* Resultados */}
+        <Text style={styles.resultCount}>
+          {monitorsFiltrados.length} {monitorsFiltrados.length === 1 ? 'monitor' : 'monitores'}
+        </Text>
+
+        <FlatList
+          data={monitorsFiltrados}
+          keyExtractor={(item) => item.id.toString()}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 20 }}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() => navigation.navigate('MonitorDetail', { monitor: item })}
+              activeOpacity={0.8}
+            >
+              <View style={styles.cardHeader}>
+                <LinearGradient
+                  colors={['#4CAF50', '#2E7D32']}
+                  style={styles.avatarCircle}
+                >
+                  <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
+                </LinearGradient>
+                <View style={styles.cardInfo}>
+                  <Text style={styles.cardName}>{item.name}</Text>
+                  <Text style={styles.cardSpecialty}>{item.specialty}</Text>
+                </View>
+                <View style={styles.ratingBadge}>
+                  <Text style={styles.ratingText}>{item.rating}</Text>
+                </View>
+              </View>
+              <View style={styles.cardFooter}>
+                <Text style={styles.cardSessions}>{item.sessions} sesiones</Text>
+                <Text style={styles.cardRate}>{item.hourlyRate}€/hora</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
+      </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  gradient: { flex: 1 },
   container: {
     flex: 1,
-    backgroundColor: '#121212',
-    padding: 20,
+    padding: 16,
+    paddingTop: 12,
   },
-  centered: {
-    flex: 1,
-    backgroundColor: '#121212',
-    justifyContent: 'center',
+  searchBar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
+    backgroundColor: '#1e1e1e',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
   },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
+  searchIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
     color: '#fff',
-    marginBottom: 20,
+    fontSize: 14,
+  },
+  filterList: {
+    marginBottom: 14,
+    flexGrow: 0,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    backgroundColor: '#1e1e1e',
+    borderRadius: 20,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+  },
+  filterChipActive: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  filterChipText: {
+    color: '#888',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  filterChipTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  resultCount: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 10,
   },
   card: {
     backgroundColor: '#1e1e1e',
-    borderRadius: 12,
+    borderRadius: 18,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: '#2a2a2a',
   },
-  name: {
-    fontSize: 18,
-    fontWeight: '600',
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  avatarCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarText: {
     color: '#fff',
-    marginBottom: 4,
+    fontSize: 20,
+    fontWeight: 'bold',
   },
-  specialty: {
-    fontSize: 14,
-    color: '#4CAF50',
+  cardInfo: {
+    flex: 1,
+  },
+  cardName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
     marginBottom: 2,
   },
-  rate: {
+  cardSpecialty: {
     fontSize: 13,
-    color: '#aaa',
+    color: '#4CAF50',
   },
-  loadingText: {
-    color: '#aaa',
-    marginTop: 12,
-    fontSize: 14,
+  ratingBadge: {
+    backgroundColor: '#1a2a1a',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
   },
-  errorText: {
-    color: '#ff5252',
-    fontSize: 15,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  retryButton: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  retryText: {
-    color: '#fff',
+  ratingText: {
+    fontSize: 13,
+    color: '#4CAF50',
     fontWeight: '600',
   },
-  emptyText: {
-    color: '#aaa',
-    fontSize: 15,
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#2a2a2a',
+  },
+  cardSessions: {
+    fontSize: 13,
+    color: '#666',
+  },
+  cardRate: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
   },
 });

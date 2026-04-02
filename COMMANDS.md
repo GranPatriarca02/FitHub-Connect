@@ -117,6 +117,11 @@ cd mobile
 | `npx expo start --ios`     | Abre en el simulador de iOS (solo funciona en Mac).                                     |
 | `npx expo start --web`     | Abre en el navegador.                                                                   |
 
+### Diferencia entre npm y npx
+
+- **`npm` (Node Package Manager)**: Sirve para instalar y gestionar dependencias. Cuando haces `npm install`, guarda las librerias en tu proyecto. Tambien sirve para lanzar scripts ya definidos en tu archivo `package.json` (ejemplo: `npm start`).
+- **`npx` (Node Package Execute)**: Sirve para **ejecutar** herramientas que forman parte de tus dependencias directas o bajarlas al vuelo. Por ejemplo, `npx expo` garantiza que estas ejecutando la herramienta de Expo que este proyecto especifico necesita, sin instalar versiones globales en tu PC.
+
 ### Cambiar entre Entorno Local y Produccion
 
 El proyecto movil usa variables de entorno con el prefijo `EXPO_PUBLIC_` que Expo lee automaticamente.
@@ -124,7 +129,7 @@ El proyecto movil usa variables de entorno con el prefijo `EXPO_PUBLIC_` que Exp
 - `mobile/.env` → contiene `EXPO_PUBLIC_API_URL=http://localhost:8080` (entorno local)
 - `mobile/.env.produccion` → contiene `EXPO_PUBLIC_API_URL=https://fithub.vps.webdock.cloud` (produccion)
 
-#### 🎯 Escenario A: Probar con el Servidor Webdock (Recomendado para la presentacion)
+#### Escenario A: Probar con el Servidor Webdock (Recomendado para la presentacion)
 
 El servidor ya esta encendido 24/7. **Solo necesitas ejecutar el frontend**.
 
@@ -132,7 +137,7 @@ El servidor ya esta encendido 24/7. **Solo necesitas ejecutar el frontend**.
 2. Ejecuta `npm run start:prod`
    _(El movil hablara automaticamente con la nube)_
 
-#### 🛠️ Escenario B: Desarrollar en Local (Tu PC)
+#### Escenario B: Desarrollar en Local (Tu PC)
 
 Necesitas arrancar **las dos cosas** (Backend y Frontend).
 

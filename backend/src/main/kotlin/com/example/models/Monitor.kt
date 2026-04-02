@@ -7,7 +7,7 @@ import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.ReferenceOption
 
 object Monitors : IntIdTable("monitors") {
-    // Relacion 1 a 1 con la tabla Users
+    // FK a usuario
     val userId = reference("user_id", Users, onDelete = ReferenceOption.CASCADE).uniqueIndex()
     val specialty = varchar("specialty", 100).nullable()
     val hourlyRate = decimal("hourly_rate", precision = 10, scale = 2).nullable()

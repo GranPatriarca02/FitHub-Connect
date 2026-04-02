@@ -1,5 +1,5 @@
-// Modulo centralizado para llamadas al backend
-// Lee la URL base del .env (API_URL) o usa localhost por defecto
+// Cliente HTTP
+// URL base
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || process.env.API_URL || 'http://localhost:8080';
 

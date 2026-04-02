@@ -10,7 +10,7 @@ import org.jetbrains.exposed.sql.javatime.time
 
 object Availabilities : IntIdTable("availabilities") {
     val monitorId = reference("monitor_id", Monitors)
-    // Dia de la semana como enumeracion de Java (MONDAY, TUESDAY, etc.)
+    // Dia de la semana
     val dayOfWeek = enumeration("day_of_week", DayOfWeek::class)
     val startTime = time("start_time")
     val endTime = time("end_time")

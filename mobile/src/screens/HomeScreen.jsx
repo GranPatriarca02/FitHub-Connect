@@ -1,62 +1,201 @@
-// Pantalla principal con acceso a las secciones
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import {
+  View, Text, TouchableOpacity, StyleSheet,
+  ScrollView, Dimensions
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const { width } = Dimensions.get('window');
 
 export default function HomeScreen({ navigation }) {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Bienvenido a FitHub</Text>
+    <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
 
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => navigation.navigate('MonitorList')}
-      >
-        <Text style={styles.cardTitle}>Monitores</Text>
-        <Text style={styles.cardDesc}>Busca entrenadores y consulta su disponibilidad</Text>
-      </TouchableOpacity>
+        {/* Cabecera */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>Hola de nuevo</Text>
+            <Text style={styles.appName}>FitHub Connect</Text>
+          </View>
+          <TouchableOpacity style={styles.avatar} onPress={() => {}}>
+            <Text style={styles.avatarText}>U</Text>
+          </TouchableOpacity>
+        </View>
 
-      <TouchableOpacity style={styles.card} onPress={() => {}}>
-        <Text style={styles.cardTitle}>Mis Rutinas</Text>
-        <Text style={styles.cardDesc}>Revisa tus rutinas de entrenamiento</Text>
-      </TouchableOpacity>
+        {/* Banner destacado */}
+        <LinearGradient
+          colors={['#1b5e20', '#2E7D32', '#4CAF50']}
+          style={styles.banner}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <Text style={styles.bannerLabel}>Destacado</Text>
+          <Text style={styles.bannerTitle}>Encuentra tu monitor ideal</Text>
+          <Text style={styles.bannerSub}>Mas de 20 entrenadores certificados</Text>
+          <TouchableOpacity
+            style={styles.bannerBtn}
+            onPress={() => navigation.navigate('MonitorList')}
+          >
+            <Text style={styles.bannerBtnText}>Ver monitores</Text>
+          </TouchableOpacity>
+        </LinearGradient>
 
-      <TouchableOpacity style={styles.card} onPress={() => {}}>
-        <Text style={styles.cardTitle}>Mi Perfil</Text>
-        <Text style={styles.cardDesc}>Configura tu cuenta y preferencias</Text>
-      </TouchableOpacity>
-    </View>
+        {/* Secciones */}
+        <Text style={styles.sectionTitle}>Que quieres hacer?</Text>
+
+        <View style={styles.cardGrid}>
+          <ActionCard
+            title="Monitores"
+            desc="Busca y contrata entrenadores"
+            icon=""
+            onPress={() => navigation.navigate('MonitorList')}
+          />
+          <ActionCard
+            title="Mis rutinas"
+            desc="Revisa tus entrenamientos"
+            icon=""
+            onPress={() => {}}
+          />
+          <ActionCard
+            title="Disponibilidad"
+            desc="Gestiona tus horarios"
+            icon=""
+            onPress={() => {}}
+          />
+          <ActionCard
+            title="Mi perfil"
+            desc="Configuracion y cuenta"
+            icon=""
+            onPress={() => {}}
+          />
+        </View>
+
+      </ScrollView>
+    </LinearGradient>
+  );
+}
+
+function ActionCard({ title, desc, icon, onPress }) {
+  return (
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
+      <Text style={styles.cardIcon}>{icon}</Text>
+      <Text style={styles.cardTitle}>{title}</Text>
+      <Text style={styles.cardDesc}>{desc}</Text>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
+  gradient: { flex: 1 },
   container: {
-    flex: 1,
-    backgroundColor: '#121212',
     padding: 20,
-    paddingTop: 60,
+    paddingTop: 56,
+    paddingBottom: 40,
   },
-  title: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: '#fff',
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 24,
   },
-  card: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 12,
-    padding: 20,
+  greeting: {
+    fontSize: 14,
+    color: '#888',
+    marginBottom: 2,
+  },
+  appName: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  avatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: 'bold',
+  },
+  banner: {
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 28,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  bannerLabel: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  bannerTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  bannerSub: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.8)',
     marginBottom: 16,
+  },
+  bannerBtn: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  bannerBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 14,
+  },
+  cardGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  card: {
+    width: (width - 52) / 2,
+    backgroundColor: '#1e1e1e',
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+  },
+  cardIcon: {
+    fontSize: 28,
+    marginBottom: 10,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#4CAF50',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
     marginBottom: 4,
   },
   cardDesc: {
-    fontSize: 14,
-    color: '#aaa',
+    fontSize: 12,
+    color: '#777',
+    lineHeight: 16,
   },
 });

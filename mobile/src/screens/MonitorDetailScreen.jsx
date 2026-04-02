@@ -1,194 +1,320 @@
-// Detalle de un monitor con su disponibilidad semanal real
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { getMonitorDetail } from '../api';
+import React, { useState } from 'react';
+import {
+  View, Text, ScrollView, TouchableOpacity,
+  StyleSheet, Alert
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
-// Traduccion de dias de la semana
-const DAY_NAMES = {
-  MONDAY: 'Lunes',
-  TUESDAY: 'Martes',
-  WEDNESDAY: 'Miercoles',
-  THURSDAY: 'Jueves',
-  FRIDAY: 'Viernes',
-  SATURDAY: 'Sabado',
-  SUNDAY: 'Domingo',
-};
+// Disponibilidad de ejemplo
+const MOCK_AVAILABILITY = [
+  { day: 'Lunes', shortDay: 'L', start: '09:00', end: '14:00', available: true },
+  { day: 'Martes', shortDay: 'M', start: '10:00', end: '13:00', available: true },
+  { day: 'Miercoles', shortDay: 'X', start: '09:00', end: '14:00', available: true },
+  { day: 'Jueves', shortDay: 'J', start: '16:00', end: '20:00', available: true },
+  { day: 'Viernes', shortDay: 'V', start: '09:00', end: '12:00', available: true },
+  { day: 'Sabado', shortDay: 'S', start: '', end: '', available: false },
+  { day: 'Domingo', shortDay: 'D', start: '', end: '', available: false },
+];
 
 export default function MonitorDetailScreen({ route }) {
-  const { monitorId } = route.params;
-  const [monitor, setMonitor] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { monitor } = route.params;
+  const [diaSeleccionado, setDiaSeleccionado] = useState(null);
 
-  useEffect(() => {
-    loadDetail();
-  }, []);
-
-  const loadDetail = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getMonitorDetail(monitorId);
-      setMonitor(data);
-    } catch (err) {
-      console.error('Error cargando detalle:', err);
-      setError('No se pudo cargar el detalle del monitor.');
-    } finally {
-      setLoading(false);
+  const handleContratar = () => {
+    if (!diaSeleccionado) {
+      Alert.alert('Selecciona un horario', 'Elige un dia disponible antes de continuar.');
+      return;
     }
+    Alert.alert(
+      'Solicitud enviada',
+      `Has solicitado una sesion con ${monitor.name} el ${diaSeleccionado.day} de ${diaSeleccionado.start} a ${diaSeleccionado.end}.`,
+    );
   };
 
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#4CAF50" />
-        <Text style={styles.loadingText}>Cargando detalle...</Text>
-      </View>
-    );
-  }
-
-  if (error || !monitor) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>{error || 'Monitor no encontrado'}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={loadDetail}>
-          <Text style={styles.retryText}>Reintentar</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  // Ordenar disponibilidad por dia de la semana
-  const dayOrder = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
-  const sortedAvailability = [...(monitor.availability || [])].sort(
-    (a, b) => dayOrder.indexOf(a.dayOfWeek) - dayOrder.indexOf(b.dayOfWeek)
-  );
-
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.name}>{monitor.name}</Text>
-        <Text style={styles.specialty}>{monitor.specialty || 'Sin especialidad'}</Text>
-        <Text style={styles.rate}>
-          {monitor.hourlyRate ? `${monitor.hourlyRate} euros/hora` : 'Tarifa no definida'}
-        </Text>
-        {monitor.bio ? <Text style={styles.bio}>{monitor.bio}</Text> : null}
-      </View>
+    <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
 
-      <Text style={styles.sectionTitle}>Disponibilidad semanal</Text>
+        {/* Cabecera del monitor */}
+        <View style={styles.profileCard}>
+          <LinearGradient colors={['#4CAF50', '#2E7D32']} style={styles.avatarLarge}>
+            <Text style={styles.avatarText}>{monitor.name.charAt(0)}</Text>
+          </LinearGradient>
+          <Text style={styles.name}>{monitor.name}</Text>
+          <Text style={styles.specialty}>{monitor.specialty}</Text>
 
-      {sortedAvailability.length === 0 ? (
-        <Text style={styles.emptyText}>Este monitor aun no ha definido su disponibilidad</Text>
-      ) : (
-        sortedAvailability.map((slot, index) => (
-          <View key={index} style={[styles.slot, !slot.isAvailable && styles.slotUnavailable]}>
-            <Text style={styles.slotDay}>{DAY_NAMES[slot.dayOfWeek] || slot.dayOfWeek}</Text>
-            <Text style={styles.slotTime}>
-              {slot.isAvailable ? `${slot.startTime} - ${slot.endTime}` : 'No disponible'}
-            </Text>
+          <View style={styles.statsRow}>
+            <View style={styles.stat}>
+              <Text style={styles.statValue}>{monitor.rating}</Text>
+              <Text style={styles.statLabel}>Valoracion</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.stat}>
+              <Text style={styles.statValue}>{monitor.sessions}</Text>
+              <Text style={styles.statLabel}>Sesiones</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.stat}>
+              <Text style={styles.statValue}>{monitor.hourlyRate}€</Text>
+              <Text style={styles.statLabel}>Por hora</Text>
+            </View>
           </View>
-        ))
-      )}
-    </ScrollView>
+        </View>
+
+        {/* Disponibilidad semanal */}
+        <Text style={styles.sectionTitle}>Disponibilidad semanal</Text>
+        <Text style={styles.sectionHint}>Toca un dia disponible para seleccionarlo</Text>
+
+        {/* Vista rapida de dias */}
+        <View style={styles.dayRow}>
+          {MOCK_AVAILABILITY.map((slot) => (
+            <TouchableOpacity
+              key={slot.day}
+              style={[
+                styles.dayCircle,
+                slot.available && styles.dayCircleAvailable,
+                diaSeleccionado?.day === slot.day && styles.dayCircleSelected,
+                !slot.available && styles.dayCircleDisabled,
+              ]}
+              onPress={() => slot.available && setDiaSeleccionado(slot)}
+              disabled={!slot.available}
+            >
+              <Text style={[
+                styles.dayCircleText,
+                slot.available && styles.dayCircleTextAvailable,
+                diaSeleccionado?.day === slot.day && styles.dayCircleTextSelected,
+              ]}>
+                {slot.shortDay}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Detalle de horarios */}
+        {MOCK_AVAILABILITY.filter((s) => s.available).map((slot) => (
+          <TouchableOpacity
+            key={slot.day}
+            style={[
+              styles.slotCard,
+              diaSeleccionado?.day === slot.day && styles.slotCardSelected,
+            ]}
+            onPress={() => setDiaSeleccionado(slot)}
+            activeOpacity={0.8}
+          >
+            <View>
+              <Text style={styles.slotDay}>{slot.day}</Text>
+              <Text style={styles.slotTime}>{slot.start} – {slot.end}</Text>
+            </View>
+            <View style={[
+              styles.slotBadge,
+              diaSeleccionado?.day === slot.day && styles.slotBadgeSelected
+            ]}>
+              <Text style={[
+                styles.slotBadgeText,
+                diaSeleccionado?.day === slot.day && styles.slotBadgeTextSelected
+              ]}>
+                {diaSeleccionado?.day === slot.day ? 'Seleccionado' : 'Disponible'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+
+        {/* Boton de contratar */}
+        <TouchableOpacity style={styles.ctaWrapper} onPress={handleContratar} activeOpacity={0.85}>
+          <LinearGradient
+            colors={['#4CAF50', '#2E7D32']}
+            style={styles.ctaButton}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+          >
+            <Text style={styles.ctaText}>
+              {diaSeleccionado ? `Reservar – ${diaSeleccionado.day}` : 'Selecciona un horario'}
+            </Text>
+          </LinearGradient>
+        </TouchableOpacity>
+
+      </ScrollView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  gradient: { flex: 1 },
   container: {
-    flex: 1,
-    backgroundColor: '#121212',
     padding: 20,
+    paddingTop: 12,
+    paddingBottom: 40,
   },
-  centered: {
-    flex: 1,
-    backgroundColor: '#121212',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  header: {
+  profileCard: {
     backgroundColor: '#1e1e1e',
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: '#2a2a2a',
+  },
+  avatarLarge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  avatarText: {
+    color: '#fff',
+    fontSize: 36,
+    fontWeight: 'bold',
   },
   name: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#fff',
     marginBottom: 4,
   },
   specialty: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#4CAF50',
+    marginBottom: 20,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+  },
+  stat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
     marginBottom: 2,
   },
-  rate: {
-    fontSize: 14,
-    color: '#aaa',
-    marginBottom: 8,
+  statLabel: {
+    fontSize: 11,
+    color: '#666',
   },
-  bio: {
-    fontSize: 14,
-    color: '#ccc',
-    marginTop: 8,
-    lineHeight: 20,
+  divider: {
+    width: 1,
+    height: 32,
+    backgroundColor: '#2a2a2a',
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: '#fff',
-    marginBottom: 12,
+    marginBottom: 4,
   },
-  slot: {
+  sectionHint: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 16,
+  },
+  dayRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#1e1e1e',
-    borderRadius: 8,
-    padding: 14,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#333',
+    marginBottom: 20,
   },
-  slotUnavailable: {
-    opacity: 0.4,
+  dayCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#1e1e1e',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+  },
+  dayCircleAvailable: {
+    borderColor: '#2E7D32',
+  },
+  dayCircleSelected: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  dayCircleDisabled: {
+    opacity: 0.25,
+  },
+  dayCircleText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#555',
+  },
+  dayCircleTextAvailable: {
+    color: '#4CAF50',
+  },
+  dayCircleTextSelected: {
+    color: '#fff',
+  },
+  slotCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#1e1e1e',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+  },
+  slotCardSelected: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#1a2a1a',
   },
   slotDay: {
     fontSize: 15,
+    fontWeight: '600',
     color: '#fff',
-    fontWeight: '500',
+    marginBottom: 2,
   },
   slotTime: {
-    fontSize: 15,
-    color: '#4CAF50',
+    fontSize: 13,
+    color: '#888',
   },
-  loadingText: {
-    color: '#aaa',
-    marginTop: 12,
-    fontSize: 14,
+  slotBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    backgroundColor: '#2a2a2a',
+    borderRadius: 10,
   },
-  errorText: {
-    color: '#ff5252',
-    fontSize: 15,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  retryButton: {
+  slotBadgeSelected: {
     backgroundColor: '#4CAF50',
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 8,
   },
-  retryText: {
+  slotBadgeText: {
+    fontSize: 12,
+    color: '#888',
+    fontWeight: '500',
+  },
+  slotBadgeTextSelected: {
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  emptyText: {
-    color: '#aaa',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 20,
+  ctaWrapper: {
+    marginTop: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  ctaButton: {
+    paddingVertical: 18,
+    alignItems: 'center',
+  },
+  ctaText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

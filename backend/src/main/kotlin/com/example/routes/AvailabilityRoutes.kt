@@ -18,7 +18,7 @@ import java.time.LocalTime
 fun Application.availabilityRoutes() {
     routing {
         route("/availability") {
-            // Devuelve la disponibilidad de un monitor por su ID
+            // Obtener horarios disponibles
             get("/{monitorId}") {
                 val monitorId = call.parameters["monitorId"]?.toIntOrNull()
                 if (monitorId == null) {
@@ -42,8 +42,7 @@ fun Application.availabilityRoutes() {
                 call.respond(HttpStatusCode.OK, availabilityList)
             }
 
-            // Actualiza la disponibilidad de un monitor
-            // En produccion el monitorId se sacaria del token JWT
+            // Guardar disponibilidad
             post("/{monitorId}/update") {
                 val monitorId = call.parameters["monitorId"]?.toIntOrNull()
                 if (monitorId == null) {
@@ -63,10 +62,10 @@ fun Application.availabilityRoutes() {
                 val end = LocalTime.parse(req.endTime)
 
                 transaction {
-                    // Comprueba que el monitor existe
+                    // Validar monitor
                     val monitor = Monitor.findById(monitorId) ?: return@transaction
 
-                    // Busca si ya hay una regla para ese dia o crea una nueva
+                    // Guardar horario
                     val existing = Availability.find { 
                         (Availabilities.monitorId eq monitorId) and (Availabilities.dayOfWeek eq day) 
                     }.firstOrNull()

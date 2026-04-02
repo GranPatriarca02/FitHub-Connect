@@ -14,7 +14,7 @@ fun Application.monitorRoutes() {
     routing {
         route("/monitors") {
 
-            // Lista todos los monitores con nombre, especialidad y tarifa
+            // Obtener todos los monitores
             get {
                 val list = transaction {
                     Monitor.all().map { monitor ->
@@ -29,7 +29,7 @@ fun Application.monitorRoutes() {
                 call.respond(HttpStatusCode.OK, list)
             }
 
-            // Detalle de un monitor con su disponibilidad semanal
+            // Obtener detalle de un monitor
             get("/{id}") {
                 val monitorId = call.parameters["id"]?.toIntOrNull()
                 if (monitorId == null) {

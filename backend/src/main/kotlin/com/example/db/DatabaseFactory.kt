@@ -9,13 +9,14 @@ import com.example.models.*
 import io.github.cdimascio.dotenv.dotenv
 import java.time.DayOfWeek
 import java.time.LocalTime
+import java.time.LocalDateTime
 
 object DatabaseFactory {
     fun init() {
         val pool = hikari()
         Database.connect(pool)
         transaction {
-            SchemaUtils.create(Users, Monitors, Routines, Availabilities)
+            SchemaUtils.createMissingTablesAndColumns(Users, Monitors, Routines, Availabilities, Bookings)
             
             if (User.count() == 0L) {
                 seedDatabase()
@@ -27,13 +28,13 @@ object DatabaseFactory {
         val user1 = User.new {
             name = "Carlos Garcia"
             email = "carlos@example.com"
-            passwordHash = "hash"
+            passwordHash = "hash_seed"
             role = UserRole.TRAINER
         }
         val user2 = User.new {
             name = "Ana Lopez"
             email = "ana@example.com"
-            passwordHash = "hash"
+            passwordHash = "hash_seed"
             role = UserRole.TRAINER
         }
 
@@ -64,13 +65,40 @@ object DatabaseFactory {
             endTime = LocalTime.of(13, 0)
             isAvailable = true
         }
+
+        val user3 = User.new {
+            name = "Usuario Prueba"
+            email = "usuario@example.com"
+            passwordHash = "hash_seed"
+            role = UserRole.MEMBER
+        }
+
+        Booking.new {
+            user = user3
+            monitor = monitor1
+            date = LocalDateTime.now().plusDays(2).withHour(10).withMinute(0)
+            startTime = "10:00"
+            endTime = "11:00"
+            status = BookingStatus.PENDING
+            notes = "Quiero centrarme en pecho y triceps."
+        }
+
+        Booking.new {
+            user = user3
+            monitor = monitor2
+            date = LocalDateTime.now().plusDays(3).withHour(11).withMinute(0)
+            startTime = "11:00"
+            endTime = "12:00"
+            status = BookingStatus.CONFIRMED
+            notes = "Mi primera clase de yoga."
+        }
     }
 
     private fun hikari(): HikariDataSource {
         val config = HikariConfig()
         config.driverClassName = "org.postgresql.Driver"
         
-        // Carga las variables del fichero .env si existe
+        // Cargar variables de entorno
         val dotenv = dotenv {
             ignoreIfMissing = true
         }
