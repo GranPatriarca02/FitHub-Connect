@@ -19,9 +19,11 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 fun Application.bookingRoutes() {
-    routing {
+    // Inicializamos dotenv fuera del routing para usarlo en los endpoints
+    val dotenv = dotenv()
 
-        // Crear una nueva reserva de sesion (Integrado con Stripe)
+    routing {
+        // Crear una nueva reserva de sesion - Integrado con Stripe.
         post("/bookings") {
             val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
                 ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Falta la cabecera X-User-Id."))
@@ -84,6 +86,40 @@ fun Application.bookingRoutes() {
 
             } catch (e: Exception) {
                 call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Error al procesar el pago: ${e.message}"))
+            }
+        }
+
+        // Confirmación automática de pago desde Stripe.
+        post("/bookings/webhook") {
+            val payload = call.receiveText()
+            val sigHeader = call.request.headers["Stripe-Signature"]
+            val endpointSecret = dotenv["STRIPE_WEBHOOK_SECRET"] ?: "" // Manejamos en caso de que no exista.
+            try {
+                val event = Webhook.constructEvent(payload, sigHeader, endpointSecret)
+
+                if ("payment_intent.succeeded" == event.type) {
+                    val paymentIntent = event.dataObjectDeserializer.getObject().get() as PaymentIntent
+                    val bookingId = paymentIntent.metadata["booking_id"]?.toIntOrNull()
+
+                    if (bookingId != null) {
+                        transaction {
+                            val booking = Booking.findById(bookingId)
+                            if (booking != null) {
+                                // Confirmamos la reserva
+                                booking.status = BookingStatus.CONFIRMED
+                                
+                                // Convertimos al usuario en premium
+                                val user = booking.user
+                                user.role = UserRole.CLIENT_PREMIUM
+                                
+                                println("PAGO OK: Reserva $bookingId confirmada. El Usuario: ${user.name} ahora es PREMIUM.")
+                            }
+                        }
+                    }
+                }
+                call.respond(HttpStatusCode.OK)
+            } catch (e: Exception) {
+                call.respond(HttpStatusCode.BadRequest, "Webhook Error: ${e.message}")
             }
         }
 
