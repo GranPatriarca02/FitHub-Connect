@@ -16,14 +16,17 @@ object DatabaseFactory {
         val pool = hikari()
         Database.connect(pool)
         transaction {
+            // Crear tablas y columnas necesarias si no existen en la base de datos.
             SchemaUtils.createMissingTablesAndColumns(Users, Monitors, Routines, Availabilities, Bookings)
             
-            if (User.count() == 0L) {
+            // USUARIOS TEST. INABILITADOS
+            /* if (User.count() == 0L) {
                 seedDatabase()
-            }
+            }*/
         }
     }
 
+    // METODO PARA TESTEAR, AHORA INHABILITADO.
     private fun seedDatabase() {
         val user1 = User.new {
             name = "Carlos Garcia"
@@ -98,14 +101,15 @@ object DatabaseFactory {
         val config = HikariConfig()
         config.driverClassName = "org.postgresql.Driver"
         
-        // Cargar variables de entorno
         val dotenv = dotenv {
             ignoreIfMissing = true
         }
 
+        // Configuración de conexión
         config.jdbcUrl = dotenv["JDBC_DATABASE_URL"] ?: System.getenv("JDBC_DATABASE_URL") ?: "jdbc:postgresql://aws-1-eu-west-3.pooler.supabase.com:5432/postgres"
         config.username = dotenv["JDBC_DATABASE_USERNAME"] ?: System.getenv("JDBC_DATABASE_USERNAME") ?: "postgres.faorfurslbzfgbbxmbrt"
         config.password = dotenv["JDBC_DATABASE_PASSWORD"] ?: System.getenv("JDBC_DATABASE_PASSWORD") ?: ""
+        // Ajustes del pool para no saturar la conexión de Supabase
         config.maximumPoolSize = System.getenv("JDBC_MAX_POOL_SIZE")?.toIntOrNull() ?: 3
         config.isAutoCommit = false
         config.transactionIsolation = "TRANSACTION_REPEATABLE_READ"
