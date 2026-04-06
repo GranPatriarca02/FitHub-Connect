@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator
+  StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Animated, Easing
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,9 +15,38 @@ export default function LoginScreen({ navigation }) {
   const [tipoCuenta, setTipoCuenta] = useState('Usuario');
   const [cargando, setCargando] = useState(false);
 
+  // NOTIFICACIONES
+  const [notificacion, setNotificacion] = useState({ visible: false, mensaje: '', tipo: 'error' });
+  const translateY = useRef(new Animated.Value(-100)).current;
+
+  const mostrarPopUp = (mensaje, tipo) => {
+    setNotificacion({ visible: true, mensaje, tipo });
+
+    // Animación de entrada
+    Animated.spring(translateY, {
+      toValue: 50, // Posición en pantalla
+      useNativeDriver: true,
+      friction: 7,
+      tension: 40
+    }).start();
+
+    // Animación de salida después de 2.5 segundos
+    setTimeout(() => {
+      Animated.timing(translateY, {
+        toValue: -120,
+        duration: 400,
+        useNativeDriver: true,
+        easing: Easing.in(Easing.exp)
+      }).start(() => {
+        setNotificacion({ ...notificacion, visible: false });
+        if (tipo === 'success') navigation.replace('Home');
+      });
+    }, 2200);
+  };
+
   const handleEntrar = async () => {
     if (!email || !password) {
-      Alert.alert("Error", "Debes rellenar todos los campos para continuar.");
+      mostrarPopUp("Debes rellenar todos los campos", "error");
       return;
     }
 
@@ -47,14 +76,14 @@ export default function LoginScreen({ navigation }) {
         await AsyncStorage.setItem('userRole', data.role); // Esto guardará "FREE", "TRAINER" o "CLIENT_PREMIUM"
         await AsyncStorage.setItem('userId', data.userId.toString());
         await AsyncStorage.setItem('userName', data.name);
-
-        navigation.replace('Home');
+        mostrarPopUp(modo === 'login' ? `Has logueado correctamente, ¡Bienvenido, ${data.name}!` : "¡Cuenta creada con éxito!", "success");
       } else {
-        Alert.alert("Error", data.error || "Ocurrió un error inesperado.");
+        mostrarPopUp(data.error || "Ocurrió un error inesperado.", "error");
       }
     } catch (error) {
       console.error(error);
       Alert.alert("Error de conexión", "No se pudo conectar con el servidor");
+      mostrarPopUp("No se pudo conectar con el servidor", "error");
     } finally {
       setCargando(false);
     }
@@ -62,6 +91,24 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
+      {notificacion.visible && (
+        <Animated.View style={[
+          styles.popUpCard,
+          { transform: [{ translateY }] },
+          notificacion.tipo === 'error' ? styles.popUpError : styles.popUpSuccess
+        ]}>
+          <View style={styles.popUpContent}>
+            <View style={[
+              styles.iconCircle,
+              { backgroundColor: notificacion.tipo === 'error' ? '#FF5252' : '#4CAF50' }
+            ]}>
+              <Text style={styles.popUpIconText}>{notificacion.tipo === 'error' ? '✕' : '✓'}</Text>
+            </View>
+            <Text style={styles.popUpText}>{notificacion.mensaje}</Text>
+          </View>
+        </Animated.View>
+      )}
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
@@ -326,5 +373,54 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  popUpCard: {
+    position: 'absolute',
+    top: 0,
+    left: '5%',
+    right: '5%',
+    maxWidth: Platform.OS === 'web' ? 400 : '90%', // En web no ocupa toda la pantalla
+    alignSelf: 'center',
+    zIndex: 9999,
+    borderRadius: 12,
+    padding: 15,
+    borderWidth: 1,
+    // Sombra para móvil
+    elevation: 10,
+    // Sombra para Web
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  popUpError: {
+    backgroundColor: '#1a0a0a',
+    borderColor: '#FF5252',
+  },
+  popUpSuccess: {
+    backgroundColor: '#0a1a0a',
+    borderColor: '#4CAF50',
+  },
+  popUpContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  popUpIconText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  popUpText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
