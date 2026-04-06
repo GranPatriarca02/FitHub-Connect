@@ -4,6 +4,8 @@ import {
   StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 
 export default function LoginScreen({ navigation }) {
   const [modo, setModo] = useState('login'); // 'login' o 'registro'
@@ -13,8 +15,49 @@ export default function LoginScreen({ navigation }) {
   const [tipoCuenta, setTipoCuenta] = useState('Usuario');
   const [cargando, setCargando] = useState(false);
 
-  const handleEntrar = () => {    // TODO: Llamar a API real
-    navigation.replace('Home');
+  const handleEntrar = async () => {
+    if (!email || !password) {
+      Alert.alert("Error", "Debes rellenar todos los campos para continuar.");
+      return;
+    }
+
+    setCargando(true);
+
+    try {
+      // Determinar la ruta: login o registro
+      const endpoint = modo === 'login' ? '/auth/login' : '/auth/register';
+
+      // Cuerpo de la petición
+      const body = modo === 'login'
+        ? { email, password }
+        : { name: nombre, email, password, role: tipoCuenta === 'Usuario' ? 'FREE' : 'TRAINER' };
+
+      // Petición al servidor
+      const response = await fetch(`http://192.168.1.129:8080${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Guardamos Token y ROL en el almacenamiento persistente
+        await AsyncStorage.setItem('userToken', data.token);
+        await AsyncStorage.setItem('userRole', data.role); // Esto guardará "FREE", "TRAINER" o "CLIENT_PREMIUM"
+        await AsyncStorage.setItem('userId', data.userId.toString());
+        await AsyncStorage.setItem('userName', data.name);
+
+        navigation.replace('Home');
+      } else {
+        Alert.alert("Error", data.error || "Ocurrió un error inesperado.");
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error de conexión", "No se pudo conectar con el servidor");
+    } finally {
+      setCargando(false);
+    }
   };
 
   return (
@@ -107,8 +150,8 @@ export default function LoginScreen({ navigation }) {
                 <Text style={styles.label}>Tipo de cuenta</Text>
                 <View style={styles.roleRow}>
                   {['Usuario', 'Monitor'].map((rol) => (
-                    <TouchableOpacity 
-                      key={rol} 
+                    <TouchableOpacity
+                      key={rol}
                       style={[styles.roleChip, tipoCuenta === rol && styles.roleChipActive]}
                       onPress={() => setTipoCuenta(rol)}
                       activeOpacity={0.7}

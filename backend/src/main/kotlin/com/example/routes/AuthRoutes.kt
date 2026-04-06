@@ -1,5 +1,6 @@
 package com.example.routes
 
+import com.example.models.*
 import com.example.models.User
 import com.example.models.UserRole
 import com.example.models.Users
@@ -34,13 +35,14 @@ fun Application.authRoutes() {
         post("/auth/register") {
             val body = call.receive<RegisterRequest>()
 
+            // 1. Validar Rol.
             val role = try {
                 UserRole.valueOf(body.role.uppercase())
             } catch (e: IllegalArgumentException) {
                 call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Rol no valido. Usa FREE, MEMBER o TRAINER."))
                 return@post
             }
-
+            // 2. Verificar si el email ya existe
             val existente = transaction {
                 User.find { Users.email eq body.email }.firstOrNull()
             }
@@ -48,14 +50,25 @@ fun Application.authRoutes() {
                 call.respond(HttpStatusCode.Conflict, mapOf("error" to "Ya existe una cuenta con ese email."))
                 return@post
             }
-
+           // 3. Crear Usuario y, si es monitor, su perfil profesional
             val user = transaction {
-                User.new {
+                val newUser = User.new {
                     name = body.name
                     email = body.email
                     passwordHash = hashPassword(body.password)
                     this.role = role
                 }
+
+                // En caso de ser un usuario MONITOR, Creamos la entrada en la tabla Monitors.
+                if (role == UserRole.TRAINER) {
+                    Monitor.new {
+                        this.user = newUser
+                        this.specialty = "General" // Valores por defecto iniciales
+                        this.hourlyRate = 0.0.toBigDecimal()
+                        this.bio = "Nuevo monitor en FitHub Connect."
+                    }
+                }
+                newUser
             }
 
             call.respond(
@@ -132,7 +145,22 @@ fun Application.authRoutes() {
             val user = transaction { User.findById(id) }
                 ?: return@post call.respond(HttpStatusCode.NotFound, mapOf("error" to "Usuario no encontrado."))
 
-            transaction { user.role = newRole }
+            transaction { 
+                user.role = newRole 
+                
+                // Si el rol es TRAINER, creamos su perfil en la tabla Monitors si no existe
+                if (newRole == UserRole.TRAINER) {
+                    val existeMonitor = Monitor.find { Monitors.userId eq user.id }.firstOrNull()
+                    if (existeMonitor == null) {
+                        Monitor.new {
+                            this.user = user
+                            this.specialty = "Especialista"
+                            this.hourlyRate = 0.0.toBigDecimal()
+                            this.bio = "Perfil actualizado a Monitor."
+                        }
+                    }
+                }
+            }
 
             call.respond(mapOf(
                 "message" to "Rol actualizado correctamente.",

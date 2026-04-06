@@ -1,13 +1,37 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, Dimensions
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen({ navigation }) {
+  const [role, setRole] = useState('FREE');
+  const [userName, setUserName] = useState('');
+
+  // Carga los datos cada vez que la pantalla gana el foco (vuelve de otra pantalla)
+  useFocusEffect(
+    useCallback(() => {
+      const loadUserData = async () => {
+        try {
+          const savedRole = await AsyncStorage.getItem('userRole');
+          const savedName = await AsyncStorage.getItem('userName');
+          if (savedRole) setRole(savedRole);
+          if (savedName) setUserName(savedName);
+        } catch (e) {
+          console.error("Error cargando datos del usuario", e);
+        }
+      };
+      loadUserData();
+    }, [])
+  );
+
+  const isPremium = role === 'CLIENT_PREMIUM';
+
   return (
     <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
@@ -15,12 +39,23 @@ export default function HomeScreen({ navigation }) {
         {/* Cabecera */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Hola de nuevo</Text>
-            <Text style={styles.appName}>FitHub Connect</Text>
+            <Text style={styles.greeting}>Hola de nuevo,</Text>
+            <Text style={styles.appName}>{userName || 'FitHub Connect'}</Text>
           </View>
-          <TouchableOpacity style={styles.avatar} onPress={() => {}}>
-            <Text style={styles.avatarText}>U</Text>
-          </TouchableOpacity>
+
+          <View style={styles.headerRight}>
+            {/* BADGE DE MEMBRESÍA */}
+            <View style={[styles.premiumBadge, { borderColor: isPremium ? '#4CAF50' : '#333' }]}>
+              <Text style={styles.badgeLabel}>PREMIUM</Text>
+              <Text style={[styles.badgeStatus, { color: isPremium ? '#4CAF50' : '#FF5252' }]}>
+                {isPremium ? 'SÍ' : 'No'}
+              </Text>
+            </View>
+
+            <TouchableOpacity style={styles.avatar} onPress={() => { }}>
+              <Text style={styles.avatarText}>{userName ? userName.charAt(0).toUpperCase() : 'U'}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Banner destacado */}
@@ -32,7 +67,7 @@ export default function HomeScreen({ navigation }) {
         >
           <Text style={styles.bannerLabel}>Destacado</Text>
           <Text style={styles.bannerTitle}>Encuentra tu monitor ideal</Text>
-          <Text style={styles.bannerSub}>Mas de 20 entrenadores certificados</Text>
+          <Text style={styles.bannerSub}>Más de 20 entrenadores certificados</Text>
           <TouchableOpacity
             style={styles.bannerBtn}
             onPress={() => navigation.navigate('MonitorList')}
@@ -42,32 +77,32 @@ export default function HomeScreen({ navigation }) {
         </LinearGradient>
 
         {/* Secciones */}
-        <Text style={styles.sectionTitle}>Que quieres hacer?</Text>
+        <Text style={styles.sectionTitle}>¿Qué quieres hacer?</Text>
 
         <View style={styles.cardGrid}>
           <ActionCard
             title="Monitores"
             desc="Busca y contrata entrenadores"
-            icon=""
+            icon="🏋️‍♂️"
             onPress={() => navigation.navigate('MonitorList')}
           />
           <ActionCard
             title="Mis rutinas"
             desc="Revisa tus entrenamientos"
-            icon=""
-            onPress={() => {}}
+            icon="📝"
+            onPress={() => { }}
           />
           <ActionCard
             title="Disponibilidad"
             desc="Gestiona tus horarios"
-            icon=""
-            onPress={() => {}}
+            icon="⏰"
+            onPress={() => { }}
           />
           <ActionCard
             title="Mi perfil"
-            desc="Configuracion y cuenta"
-            icon=""
-            onPress={() => {}}
+            desc="Configuración y cuenta"
+            icon="⚙️"
+            onPress={() => { }}
           />
         </View>
 
@@ -99,6 +134,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   greeting: {
     fontSize: 14,
     color: '#888',
@@ -108,6 +148,26 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  // ESTILOS DEL BADGE
+  premiumBadge: {
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeLabel: {
+    fontSize: 7,
+    color: '#aaa',
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  badgeStatus: {
+    fontSize: 13,
+    fontWeight: '900',
   },
   avatar: {
     width: 42,
