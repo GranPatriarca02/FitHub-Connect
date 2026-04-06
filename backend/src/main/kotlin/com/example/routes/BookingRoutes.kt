@@ -1,14 +1,11 @@
 package com.example.routes
 
-import com.example.models.Booking
-import com.example.models.BookingStatus
-import com.example.models.Bookings
-import com.example.models.Monitor
-import com.example.models.User
-import com.example.models.UserRole
+import com.example.models.*
 import com.example.models.dto.BookingRequest
 import com.example.models.dto.BookingResponse
-import com.example.services.PaymentService // Importamos el servicio de Stripe
+import com.example.services.PaymentService
+import com.stripe.model.PaymentIntent
+import com.stripe.net.Webhook
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
@@ -16,176 +13,133 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
 fun Application.bookingRoutes() {
-    // Inicializamos dotenv fuera del routing para usarlo en los endpoints
-    val dotenv = dotenv()
+    // Cargamos variables de entorno (como las keys de Stripe) sin que pete si falta el .env
+    val env = io.github.cdimascio.dotenv.dotenv { ignoreIfMissing = true }
 
     routing {
-        // Crear una nueva reserva de sesion - Integrado con Stripe.
+        // 1. CREAR RESERVA
         post("/bookings") {
+            // Pillamos el ID del usuario de la cabecera; si no viene, cortamos aquí
             val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
-                ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Falta la cabecera X-User-Id."))
+                ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Falta ID"))
 
-            val user = transaction { User.findById(userId) }
-                ?: return@post call.respond(HttpStatusCode.NotFound, mapOf("error" to "Usuario no encontrado."))
-
-            // Solo permitimos el rol PREMIUM)
-            if (user.role != UserRole.CLIENT_PREMIUM) {
-                call.respond(
-                    HttpStatusCode.Forbidden,
-                    mapOf("error" to "Necesitas una suscripción activa para poder reservar sesiones")
-                )
-                return@post
-            }
-
-            // Transformamos JSON que envia la app al objeto que entiende Kotlin.
             val body = call.receive<BookingRequest>()
 
-            val monitor = transaction { Monitor.findById(body.monitorId) }
-                ?: return@post call.respond(HttpStatusCode.NotFound, mapOf("error" to "Monitor no encontrado."))
-
-            val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
-            val fechaHora = LocalDateTime.parse("${body.date} ${body.startTime}", formatter)
+            // Verificamos de un tirón que tanto el cliente como el monitor existan en la base de datos
+            val (user, monitor) = transaction {
+                User.findById(userId) to Monitor.findById(body.monitorId)
+            }
+            
+            if (user == null || monitor == null) 
+                return@post call.respond(HttpStatusCode.NotFound, mapOf("error" to "Usuario o Monitor no encontrado"))
 
             try {
-                val response = transaction {
-                    // 1. Creamos la reserva en la base de datos (Exposed)
+                // Todo este bloque es atómico: o se crea la reserva con su pago o no se hace nada
+                val result = transaction {
                     val booking = Booking.new {
                         this.user = user
                         this.monitor = monitor
-                        this.date = fechaHora
+                        this.date = LocalDateTime.now()
                         this.startTime = body.startTime
                         this.endTime = body.endTime
                         this.status = BookingStatus.PENDING
                         this.notes = body.notes
-                        this.amount = monitor.hourlyRate ?: 0.0.toBigDecimal() // Guardamos el precio
+                        // El precio se saca de la tarifa del monitor en ese momento
+                        this.amount = monitor.hourlyRate ?: 0.0.toBigDecimal()
                     }
 
-                    // 2. Creamos el intento de pago en Stripe
-                    val intent = PaymentService.createPaymentIntent(
-                        amount = booking.amount,
-                        bookingId = booking.id.value
-                    )
-
-                    // 3. Guardamos el ID del pago en nuestra reserva
+                    // Generamos el intento de pago en Stripe y vinculamos el ID de la reserva
+                    val intent = PaymentService.createPaymentIntent(booking.amount, booking.id.value)
                     booking.paymentId = intent.id
 
-                    // 4. Preparamos la respuesta para la App (incluye clientSecret)
+                    // Devolvemos lo justo para que el frontend pueda completar el pago
                     mapOf(
                         "bookingId" to booking.id.value,
-                        "monitorName" to monitor.user.name,
-                        "clientSecret" to intent.clientSecret, // LLAVE PARA EL FRONTEND
-                        "amount" to booking.amount.toDouble(),
-                        "status" to booking.status.name
+                        "clientSecret" to intent.clientSecret
                     )
                 }
-                // Respondemos al cliente.
-                call.respond(HttpStatusCode.Created, response)
-
+                call.respond(HttpStatusCode.Created, result)
             } catch (e: Exception) {
-                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Error al procesar el pago: ${e.message}"))
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (e.message ?: "Error desconocido")))
             }
         }
 
-        // Confirmación automática de pago desde Stripe.
+        // 2. WEBHOOK DE STRIPE (Escucha cuando el pago se confirma fuera de nuestra app)
         post("/bookings/webhook") {
             val payload = call.receiveText()
-            val sigHeader = call.request.headers["Stripe-Signature"]
-            val endpointSecret = dotenv["STRIPE_WEBHOOK_SECRET"] ?: "" // Manejamos en caso de que no exista.
+            val sigHeader = call.request.headers["Stripe-Signature"] ?: ""
+            val endpointSecret = env["STRIPE_WEBHOOK_SECRET"] ?: ""
+            
             try {
+                // Validamos que la petición venga realmente de Stripe y no sea un fake
                 val event = Webhook.constructEvent(payload, sigHeader, endpointSecret)
 
                 if ("payment_intent.succeeded" == event.type) {
-                    val paymentIntent = event.dataObjectDeserializer.getObject().get() as PaymentIntent
-                    val bookingId = paymentIntent.metadata["booking_id"]?.toIntOrNull()
-
-                    if (bookingId != null) {
+                    val dataObject = event.dataObjectDeserializer.`object`.orElse(null)
+                    if (dataObject is PaymentIntent) {
+                        // Recuperamos el ID de reserva que guardamos en los metadatos de Stripe
+                        val bId = dataObject.metadata["bookingId"]?.toIntOrNull()
                         transaction {
-                            val booking = Booking.findById(bookingId)
-                            if (booking != null) {
-                                // Confirmamos la reserva
-                                booking.status = BookingStatus.CONFIRMED
-                                
-                                // Convertimos al usuario en premium
-                                val user = booking.user
-                                user.role = UserRole.CLIENT_PREMIUM
-                                
-                                println("PAGO OK: Reserva $bookingId confirmada. El Usuario: ${user.name} ahora es PREMIUM.")
+                            bId?.let { id ->
+                                Booking.findById(id)?.let { 
+                                    it.status = BookingStatus.CONFIRMED
+                                    // Al pagar una reserva, subimos al usuario a categoría Premium
+                                    it.user.role = UserRole.PREMIUM 
+                                }
                             }
                         }
                     }
                 }
                 call.respond(HttpStatusCode.OK)
             } catch (e: Exception) {
-                call.respond(HttpStatusCode.BadRequest, "Webhook Error: ${e.message}")
+                call.respond(HttpStatusCode.BadRequest, "Error en el Webhook")
             }
         }
 
-        // Ver reservas de un cliente
+        // 3. OBTENER RESERVAS DE UN USUARIO
         get("/bookings/user/{userId}") {
             val userId = call.parameters["userId"]?.toIntOrNull()
-                ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID no valido."))
+                ?: return@get call.respond(HttpStatusCode.BadRequest, "ID inválido")
 
-            val bookings = transaction {
+            val result = transaction {
+                // Buscamos todas las reservas asociadas al usuario y las mapeamos al DTO de respuesta
                 Booking.find { Bookings.userId eq userId }.map { b ->
                     BookingResponse(
                         bookingId = b.id.value,
                         monitorId = b.monitor.id.value,
                         monitorName = b.monitor.user.name,
-                        date = b.date.toLocalDate().toString(),
+                        date = b.date.toString(),
                         startTime = b.startTime,
                         endTime = b.endTime,
                         status = b.status.name,
-                        notes = b.notes
+                        notes = b.notes ?: ""
                     )
                 }
             }
-
-            call.respond(bookings)
+            call.respond(result)
         }
 
-        // Ver reservas que tiene asignadas un entrenador
-        get("/bookings/monitor/{monitorId}") {
-            val monitorId = call.parameters["monitorId"]?.toIntOrNull()
-                ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID no valido."))
-
-            val bookings = transaction {
-                Booking.find { Bookings.monitorId eq monitorId }.map { b ->
-                    BookingResponse(
-                        bookingId = b.id.value,
-                        monitorId = b.monitor.id.value,
-                        monitorName = b.monitor.user.name,
-                        date = b.date.toLocalDate().toString(),
-                        startTime = b.startTime,
-                        endTime = b.endTime,
-                        status = b.status.name,
-                        notes = b.notes
-                    )
-                }
-            }
-
-            call.respond(bookings)
-        }
-
-        // Aceptar o rechazar una reserva
+        // 4. ACTUALIZAR ESTADO (Para cancelar, completar, etc.)
         patch("/bookings/{id}/status") {
-            val bookingId = call.parameters["id"]?.toIntOrNull()
-                ?: return@patch call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID no valido."))
-
+            val bId = call.parameters["id"]?.toIntOrNull()
             val body = call.receive<Map<String, String>>()
-            val newStatus = body["status"]?.let {
-                try { BookingStatus.valueOf(it.uppercase()) }
-                catch (e: IllegalArgumentException) { null }
-            } ?: return@patch call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Estado no valido."))
+            val newStatusStr = body["status"]?.uppercase() ?: ""
 
-            val booking = transaction { Booking.findById(bookingId) }
-                ?: return@patch call.respond(HttpStatusCode.NotFound, mapOf("error" to "Reserva no encontrada."))
+            val success = transaction {
+                val b = Booking.findById(bId ?: -1)
+                if (b != null) {
+                    try {
+                        // Intentamos convertir el string a un enum válido
+                        b.status = BookingStatus.valueOf(newStatusStr)
+                        true
+                    } catch (e: Exception) { false }
+                } else false
+            }
 
-            transaction { booking.status = newStatus }
-
-            call.respond(mapOf("message" to "Estado actualizado a ${newStatus.name}."))
+            if (success) call.respond(mapOf("message" to "Estado actualizado"))
+            else call.respond(HttpStatusCode.BadRequest, "No se pudo actualizar")
         }
     }
 }
