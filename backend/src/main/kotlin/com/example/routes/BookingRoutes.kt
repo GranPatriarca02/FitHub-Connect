@@ -8,6 +8,7 @@ import com.example.models.User
 import com.example.models.UserRole
 import com.example.models.dto.BookingRequest
 import com.example.models.dto.BookingResponse
+import com.example.services.PaymentService // Importamos el servicio de Stripe
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
@@ -20,7 +21,7 @@ import java.time.format.DateTimeFormatter
 fun Application.bookingRoutes() {
     routing {
 
-        // Crear una nueva reserva de sesion
+        // Crear una nueva reserva de sesion (Integrado con Stripe)
         post("/bookings") {
             val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
                 ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Falta la cabecera X-User-Id."))
@@ -44,31 +45,44 @@ fun Application.bookingRoutes() {
             val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
             val fechaHora = LocalDateTime.parse("${body.date} ${body.startTime}", formatter)
 
-            val booking = transaction {
-                Booking.new {
-                    this.user = user
-                    this.monitor = monitor
-                    this.date = fechaHora
-                    this.startTime = body.startTime
-                    this.endTime = body.endTime
-                    this.status = BookingStatus.PENDING
-                    this.notes = body.notes
-                }
-            }
+            try {
+                val response = transaction {
+                    // 1. Creamos la reserva en la base de datos (Exposed)
+                    val booking = Booking.new {
+                        this.user = user
+                        this.monitor = monitor
+                        this.date = fechaHora
+                        this.startTime = body.startTime
+                        this.endTime = body.endTime
+                        this.status = BookingStatus.PENDING
+                        this.notes = body.notes
+                        this.amount = monitor.hourlyRate ?: 0.0.toBigDecimal() // Guardamos el precio
+                    }
 
-            call.respond(
-                HttpStatusCode.Created,
-                BookingResponse(
-                    bookingId = booking.id.value,
-                    monitorId = monitor.id.value,
-                    monitorName = monitor.user.name,
-                    date = body.date,
-                    startTime = body.startTime,
-                    endTime = body.endTime,
-                    status = BookingStatus.PENDING.name,
-                    notes = body.notes
-                )
-            )
+                    // 2. Creamos el intento de pago en Stripe
+                    val intent = PaymentService.createPaymentIntent(
+                        amount = booking.amount,
+                        bookingId = booking.id.value
+                    )
+
+                    // 3. Guardamos el ID del pago en nuestra reserva
+                    booking.paymentId = intent.id
+
+                    // 4. Preparamos la respuesta para la App (incluye clientSecret)
+                    mapOf(
+                        "bookingId" to booking.id.value,
+                        "monitorName" to monitor.user.name,
+                        "clientSecret" to intent.clientSecret, // LLAVE PARA EL FRONTEND
+                        "amount" to booking.amount.toDouble(),
+                        "status" to booking.status.name
+                    )
+                }
+
+                call.respond(HttpStatusCode.Created, response)
+
+            } catch (e: Exception) {
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Error al procesar el pago: ${e.message}"))
+            }
         }
 
         // Ver reservas de un cliente

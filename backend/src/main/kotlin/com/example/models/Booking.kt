@@ -26,6 +26,8 @@ object Bookings : IntIdTable("bookings") {
     val status = enumerationByName("status", 20, BookingStatus::class).default(BookingStatus.PENDING)
     val notes = text("notes").nullable()
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
+    val amount = decimal("amount", 10, 2).default(0.0.toBigDecimal())
+    val paymentId = varchar("payment_id", 255).nullable()
 }
 
 class Booking(id: EntityID<Int>) : IntEntity(id) {
@@ -39,4 +41,6 @@ class Booking(id: EntityID<Int>) : IntEntity(id) {
     var status by Bookings.status
     var notes by Bookings.notes
     var createdAt by Bookings.createdAt
+    var amount by Bookings.amount
+    var paymentId by Bookings.paymentId
 }

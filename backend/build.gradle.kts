@@ -32,6 +32,9 @@ dependencies {
     implementation(libs.hikaricp)
     implementation(libs.dotenv)
 
+        // Stripe SDK para procesamiento de pagos
+    implementation("com.stripe:stripe-java:24.0.0")
+
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.kotlin.test.junit)
 }
