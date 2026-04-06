@@ -29,14 +29,16 @@ fun Application.bookingRoutes() {
             val user = transaction { User.findById(userId) }
                 ?: return@post call.respond(HttpStatusCode.NotFound, mapOf("error" to "Usuario no encontrado."))
 
-            if (user.role == UserRole.FREE) {
+            // Solo permitimos el rol PREMIUM)
+            if (user.role != UserRole.CLIENT_PREMIUM) {
                 call.respond(
                     HttpStatusCode.Forbidden,
-                    mapOf("error" to "Solo los usuarios con membresia o entrenadores pueden contratar sesiones.")
+                    mapOf("error" to "Necesitas una suscripción activa para poder reservar sesiones")
                 )
                 return@post
             }
 
+            // Transformamos JSON que envia la app al objeto que entiende Kotlin.
             val body = call.receive<BookingRequest>()
 
             val monitor = transaction { Monitor.findById(body.monitorId) }
@@ -77,7 +79,7 @@ fun Application.bookingRoutes() {
                         "status" to booking.status.name
                     )
                 }
-
+                // Respondemos al cliente.
                 call.respond(HttpStatusCode.Created, response)
 
             } catch (e: Exception) {
