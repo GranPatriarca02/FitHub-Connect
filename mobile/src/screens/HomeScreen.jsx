@@ -1,19 +1,20 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  ScrollView, Dimensions
+  ScrollView, Dimensions, Platform
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient'; // Para esos fondos con degradado pro
+import AsyncStorage from '@react-native-async-storage/async-storage'; // Para leer los datos guardados en el móvil
+import { useFocusEffect } from '@react-navigation/native'; // Vital para refrescar datos al volver a esta pantalla
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get('window'); // Sacamos el ancho de la pantalla para que las cards se ajusten solas
 
 export default function HomeScreen({ navigation }) {
+  // Estados para el nombre y el rol
   const [role, setRole] = useState('FREE');
   const [userName, setUserName] = useState('');
 
-  // Carga los datos cada vez que la pantalla gana el foco (vuelve de otra pantalla)
+  // HOOK clave: se ejecuta cada vez que el usuario entra en Home.
   useFocusEffect(
     useCallback(() => {
       const loadUserData = async () => {
@@ -23,20 +24,22 @@ export default function HomeScreen({ navigation }) {
           if (savedRole) setRole(savedRole);
           if (savedName) setUserName(savedName);
         } catch (e) {
-          console.error("Error cargando datos del usuario", e);
+          console.error("No pudimos leer los datos de AsyncStorage", e);
         }
       };
       loadUserData();
     }, [])
   );
 
+  // Variable de apoyo para no escribir "role === 'CLIENT_PREMIUM'" en todos lados
   const isPremium = role === 'CLIENT_PREMIUM';
 
   return (
+    // El fondo oscuro principal con un toque azul al final
     <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
 
-        {/* Cabecera */}
+        {/* __ CABECERA __ */}
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>Hola de nuevo,</Text>
@@ -44,21 +47,34 @@ export default function HomeScreen({ navigation }) {
           </View>
 
           <View style={styles.headerRight}>
-            {/* BADGE DE MEMBRESÍA */}
-            <View style={[styles.premiumBadge, { borderColor: isPremium ? '#4CAF50' : '#333' }]}>
-              <Text style={styles.badgeLabel}>PREMIUM</Text>
-              <Text style={[styles.badgeStatus, { color: isPremium ? '#4CAF50' : '#FF5252' }]}>
-                {isPremium ? 'SÍ' : 'No'}
+            {/* Contenedor para el Badge (Icono + Texto) */}
+            <View style={styles.badgeContainer}>
+              {/* LÓGICA DE ICONOS: Candado si es Free, Check si es Premium */}
+              <Text style={styles.statusIcon}>
+                {isPremium ? '✅' : '🚫'}
+              </Text>
+
+              <Text style={[
+                styles.cardTitle, // Usamos la misma base de fuente que las cards
+                {
+                  color: isPremium ? '#4CAF50' : '#FF5252',
+                  marginBottom: 0,
+                  fontSize: 14 // Un pelín más pequeño para que quepa bien con el icono
+                }
+              ]}>
+                PREMIUM
               </Text>
             </View>
 
             <TouchableOpacity style={styles.avatar} onPress={() => { }}>
-              <Text style={styles.avatarText}>{userName ? userName.charAt(0).toUpperCase() : 'U'}</Text>
+              <Text style={styles.avatarText}>
+                {userName ? userName.charAt(0).toUpperCase() : 'U'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Banner destacado */}
+        {/* __ BANNER DE PUBLICIDAD __*/}
         <LinearGradient
           colors={['#1b5e20', '#2E7D32', '#4CAF50']}
           style={styles.banner}
@@ -76,7 +92,6 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </LinearGradient>
 
-        {/* Secciones */}
         <Text style={styles.sectionTitle}>¿Qué quieres hacer?</Text>
 
         <View style={styles.cardGrid}>
@@ -107,7 +122,7 @@ export default function HomeScreen({ navigation }) {
         </View>
 
       </ScrollView>
-    </LinearGradient>
+    </LinearGradient >
   );
 }
 
@@ -121,11 +136,12 @@ function ActionCard({ title, desc, icon, onPress }) {
   );
 }
 
+// ___ ESTILOS REPARADOS PARA MÓVIL ___
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
   container: {
-    padding: 20,
-    paddingTop: 56,
+    paddingHorizontal: width * 0.05,
+    paddingTop: Platform.OS === 'android' ? 40 : 56, // Ajuste para notch en Android
     paddingBottom: 40,
   },
   header: {
@@ -149,25 +165,14 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
   },
-  // ESTILOS DEL BADGE
-  premiumBadge: {
-    backgroundColor: '#1a1a1a',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  // Nuevo estilo para alinear icono y texto del badge
+  badgeContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6, // Espacio entre el emoji y la palabra PREMIUM
   },
-  badgeLabel: {
-    fontSize: 7,
-    color: '#aaa',
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
-  badgeStatus: {
-    fontSize: 13,
-    fontWeight: '900',
+  statusIcon: {
+    fontSize: 16, // Tamaño adecuado para el emoji
   },
   avatar: {
     width: 42,
@@ -186,11 +191,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 24,
     marginBottom: 28,
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
   },
   bannerLabel: {
     fontSize: 11,
@@ -233,10 +233,11 @@ const styles = StyleSheet.create({
   cardGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: 12,
   },
   card: {
-    width: (width - 52) / 2,
+    width: (width - (width * 0.10) - 12) / 2,
     backgroundColor: '#1e1e1e',
     borderRadius: 18,
     padding: 18,
