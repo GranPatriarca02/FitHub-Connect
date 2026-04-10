@@ -62,7 +62,8 @@ export default function LoginScreen({ navigation }) {
         : { name: nombre, email, password, role: tipoCuenta === 'Usuario' ? 'FREE' : 'TRAINER' };
 
       // Petición al servidor
-      const response = await fetch(`http://192.168.1.129:8080${endpoint}`, {
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080';
+      const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
