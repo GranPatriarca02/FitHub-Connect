@@ -3,6 +3,7 @@ package com.example.routes
 import com.example.models.*
 import com.example.models.dto.BookingRequest
 import com.example.models.dto.BookingResponse
+import com.example.models.dto.CheckoutResponse
 import com.example.services.PaymentService
 import com.stripe.Stripe
 import com.stripe.model.PaymentIntent
@@ -56,9 +57,10 @@ fun Application.bookingRoutes() {
                     val intent = PaymentService.createPaymentIntent(booking.amount, booking.id.value)
                     booking.paymentId = intent.id
 
-                    mapOf(
-                        "bookingId" to booking.id.value,
-                        "clientSecret" to intent.clientSecret
+                    CheckoutResponse(
+                        bookingId = booking.id.value,
+                        clientSecret = intent.clientSecret,
+                        amount = booking.amount.toDouble()
                     )
                 }
                 call.respond(HttpStatusCode.Created, result)

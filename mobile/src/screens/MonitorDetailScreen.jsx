@@ -38,7 +38,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
     try {
       // 1. Datos básicos
       const userId = await AsyncStorage.getItem('userId');
-      const API_URL = 'http://192.168.1.131:8080';
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080';
 
       if (isWeb) {
         // ___ LÓGICA WEB ___
@@ -83,6 +83,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
           },
           body: JSON.stringify({
             monitorId: monitor.id,
+            date: "2026-04-15", // Mock de la fecha para el TFG
             startTime: diaSeleccionado.start,
             endTime: diaSeleccionado.end,
           }),
