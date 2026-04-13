@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Alert
+  StyleSheet, Alert, ActivityIndicator, Platform
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useStripePlatform } from './StripeHelper';
+
 
 // Disponibilidad de ejemplo
 const MOCK_AVAILABILITY = [
@@ -16,26 +19,125 @@ const MOCK_AVAILABILITY = [
   { day: 'Domingo', shortDay: 'D', start: '', end: '', available: false },
 ];
 
-export default function MonitorDetailScreen({ route }) {
+export default function MonitorDetailScreen({ route, navigation }) {
   const { monitor } = route.params;
   const [diaSeleccionado, setDiaSeleccionado] = useState(null);
+  const [cargando, setCargando] = useState(false);
 
-  const handleContratar = () => {
+  // --- USAMOS EL HELPER EN LUGAR DEL HOOK DIRECTO ---
+  const { initPaymentSheet, presentPaymentSheet, isWeb } = useStripePlatform();
+
+  const handleContratar = async () => {
     if (!diaSeleccionado) {
       Alert.alert('Selecciona un horario', 'Elige un dia disponible antes de continuar.');
       return;
     }
-    Alert.alert(
-      'Solicitud enviada',
-      `Has solicitado una sesion con ${monitor.name} el ${diaSeleccionado.day} de ${diaSeleccionado.start} a ${diaSeleccionado.end}.`,
-    );
+
+    setCargando(true);
+
+    try {
+      // 1. Datos básicos
+      const userId = await AsyncStorage.getItem('userId');
+      const API_URL = 'http://192.168.1.131:8080';
+
+      if (isWeb) {
+        // ___ LÓGICA WEB ___
+        console.log("Iniciando flujo de pago Web...");
+
+        // 1. Llamada al backend para crear la sesión de Stripe Checkout
+        const response = await fetch(`${API_URL}/create-checkout-session`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Id': userId
+          },
+          body: JSON.stringify({
+            monitorId: monitor.id,
+            monitorName: monitor.name,
+            price: monitor.hourlyRate,
+            startTime: diaSeleccionado.start,
+            endTime: diaSeleccionado.end,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data.error || 'Error al crear sesión de pago');
+
+        // 2. Redirigir a la URL de Stripe si existe
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          Alert.alert('Error', 'No se pudo generar la pasarela de pago.');
+        }
+
+      } else {
+        // ___ LÓGICA TELEFONO ANDR - IOS ___
+
+        // 2. Crear reserva y obtener clientSecret
+        const response = await fetch(`${API_URL}/bookings`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Id': userId
+          },
+          body: JSON.stringify({
+            monitorId: monitor.id,
+            startTime: diaSeleccionado.start,
+            endTime: diaSeleccionado.end,
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Error al crear la reserva');
+
+        // 3. Inicializar pasarela nativa
+        const { error: initError } = await initPaymentSheet({
+          paymentIntentClientSecret: data.clientSecret,
+          merchantDisplayName: 'FitHub Connect',
+          appearance: {
+            colors: {
+              primary: '#4CAF50',
+              background: '#121212',
+              componentBackground: '#1e1e1e',
+              text: '#ffffff',
+            },
+            shapes: { borderRadius: 12 }
+          }
+        });
+
+        if (initError) throw new Error(initError.message);
+
+        // 4. Mostrar pasarela nativa
+        const { error: paymentError } = await presentPaymentSheet();
+
+        if (paymentError) {
+          if (paymentError.code !== 'Canceled') {
+            Alert.alert('Error en el pago', paymentError.message);
+          }
+        } else {
+          // 5. ¡Éxito!
+          await AsyncStorage.setItem('userRole', 'CLIENT_PREMIUM');
+          Alert.alert(
+            '¡Éxito!',
+            `Sesión reservada. ¡Ya eres PREMIUM!`,
+            [{ text: 'Aceptar', onPress: () => navigation.navigate('Home') }]
+          );
+        }
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', error.message || 'No se pudo conectar con el servidor.');
+    } finally {
+      setCargando(false);
+    }
   };
 
   return (
     <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
 
-        {/* Cabecera del monitor */}
+        {/* Perfil del monitor */}
         <View style={styles.profileCard}>
           <LinearGradient colors={['#4CAF50', '#2E7D32']} style={styles.avatarLarge}>
             <Text style={styles.avatarText}>{monitor.name.charAt(0)}</Text>
@@ -61,11 +163,10 @@ export default function MonitorDetailScreen({ route }) {
           </View>
         </View>
 
-        {/* Disponibilidad semanal */}
         <Text style={styles.sectionTitle}>Disponibilidad semanal</Text>
         <Text style={styles.sectionHint}>Toca un dia disponible para seleccionarlo</Text>
 
-        {/* Vista rapida de dias */}
+        {/* Fila de días */}
         <View style={styles.dayRow}>
           {MOCK_AVAILABILITY.map((slot) => (
             <TouchableOpacity
@@ -90,7 +191,7 @@ export default function MonitorDetailScreen({ route }) {
           ))}
         </View>
 
-        {/* Detalle de horarios */}
+        {/* Tarjetas de horario */}
         {MOCK_AVAILABILITY.filter((s) => s.available).map((slot) => (
           <TouchableOpacity
             key={slot.day}
@@ -119,17 +220,26 @@ export default function MonitorDetailScreen({ route }) {
           </TouchableOpacity>
         ))}
 
-        {/* Boton de contratar */}
-        <TouchableOpacity style={styles.ctaWrapper} onPress={handleContratar} activeOpacity={0.85}>
+        {/* Botón CTA */}
+        <TouchableOpacity
+          style={[styles.ctaWrapper, cargando && { opacity: 0.7 }]}
+          onPress={handleContratar}
+          activeOpacity={0.85}
+          disabled={cargando}
+        >
           <LinearGradient
             colors={['#4CAF50', '#2E7D32']}
             style={styles.ctaButton}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
           >
-            <Text style={styles.ctaText}>
-              {diaSeleccionado ? `Reservar – ${diaSeleccionado.day}` : 'Selecciona un horario'}
-            </Text>
+            {cargando ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.ctaText}>
+                {diaSeleccionado ? `Pagar Reserva – ${monitor.hourlyRate}€` : 'Selecciona un horario'}
+              </Text>
+            )}
           </LinearGradient>
         </TouchableOpacity>
 
@@ -138,13 +248,10 @@ export default function MonitorDetailScreen({ route }) {
   );
 }
 
+// --- ESTILOS (Sin cambios) ---
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
-  container: {
-    padding: 20,
-    paddingTop: 12,
-    paddingBottom: 40,
-  },
+  container: { padding: 20, paddingTop: 12, paddingBottom: 40 },
   profileCard: {
     backgroundColor: '#1e1e1e',
     borderRadius: 20,
@@ -161,68 +268,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 6,
   },
-  avatarText: {
-    color: '#fff',
-    fontSize: 36,
-    fontWeight: 'bold',
-  },
-  name: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  specialty: {
-    fontSize: 14,
-    color: '#4CAF50',
-    marginBottom: 20,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-  },
-  stat: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 2,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: '#666',
-  },
-  divider: {
-    width: 1,
-    height: 32,
-    backgroundColor: '#2a2a2a',
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  sectionHint: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 16,
-  },
-  dayRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
+  avatarText: { color: '#fff', fontSize: 36, fontWeight: 'bold' },
+  name: { fontSize: 22, fontWeight: 'bold', color: '#fff', marginBottom: 4 },
+  specialty: { fontSize: 14, color: '#4CAF50', marginBottom: 20 },
+  statsRow: { flexDirection: 'row', alignItems: 'center', width: '100%' },
+  stat: { flex: 1, alignItems: 'center' },
+  statValue: { fontSize: 16, fontWeight: '700', color: '#fff', marginBottom: 2 },
+  statLabel: { fontSize: 11, color: '#666' },
+  divider: { width: 1, height: 32, backgroundColor: '#2a2a2a' },
+  sectionTitle: { fontSize: 17, fontWeight: '700', color: '#fff', marginBottom: 4 },
+  sectionHint: { fontSize: 12, color: '#666', marginBottom: 16 },
+  dayRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
   dayCircle: {
     width: 38,
     height: 38,
@@ -233,27 +290,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2a2a2a',
   },
-  dayCircleAvailable: {
-    borderColor: '#2E7D32',
-  },
-  dayCircleSelected: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
-  },
-  dayCircleDisabled: {
-    opacity: 0.25,
-  },
-  dayCircleText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#555',
-  },
-  dayCircleTextAvailable: {
-    color: '#4CAF50',
-  },
-  dayCircleTextSelected: {
-    color: '#fff',
-  },
+  dayCircleAvailable: { borderColor: '#2E7D32' },
+  dayCircleSelected: { backgroundColor: '#4CAF50', borderColor: '#4CAF50' },
+  dayCircleDisabled: { opacity: 0.25 },
+  dayCircleText: { fontSize: 13, fontWeight: '600', color: '#555' },
+  dayCircleTextAvailable: { color: '#4CAF50' },
+  dayCircleTextSelected: { color: '#fff' },
   slotCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -265,56 +307,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2a2a2a',
   },
-  slotCardSelected: {
-    borderColor: '#4CAF50',
-    backgroundColor: '#1a2a1a',
-  },
-  slotDay: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 2,
-  },
-  slotTime: {
-    fontSize: 13,
-    color: '#888',
-  },
-  slotBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    backgroundColor: '#2a2a2a',
-    borderRadius: 10,
-  },
-  slotBadgeSelected: {
-    backgroundColor: '#4CAF50',
-  },
-  slotBadgeText: {
-    fontSize: 12,
-    color: '#888',
-    fontWeight: '500',
-  },
-  slotBadgeTextSelected: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  ctaWrapper: {
-    marginTop: 16,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  ctaButton: {
-    paddingVertical: 18,
-    alignItems: 'center',
-  },
-  ctaText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
+  slotCardSelected: { borderColor: '#4CAF50', backgroundColor: '#1a2a1a' },
+  slotDay: { fontSize: 15, fontWeight: '600', color: '#fff', marginBottom: 2 },
+  slotTime: { fontSize: 13, color: '#888' },
+  slotBadge: { paddingHorizontal: 12, paddingVertical: 5, backgroundColor: '#2a2a2a', borderRadius: 10 },
+  slotBadgeSelected: { backgroundColor: '#4CAF50' },
+  slotBadgeText: { fontSize: 12, color: '#888', fontWeight: '500' },
+  slotBadgeTextSelected: { color: '#fff', fontWeight: '700' },
+  ctaWrapper: { marginTop: 16, borderRadius: 16, overflow: 'hidden' },
+  ctaButton: { paddingVertical: 18, alignItems: 'center', minHeight: 60 },
+  ctaText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
 });

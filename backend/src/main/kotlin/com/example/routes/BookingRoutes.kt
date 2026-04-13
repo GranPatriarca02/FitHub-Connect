@@ -4,7 +4,10 @@ import com.example.models.*
 import com.example.models.dto.BookingRequest
 import com.example.models.dto.BookingResponse
 import com.example.services.PaymentService
+import com.stripe.Stripe
 import com.stripe.model.PaymentIntent
+import com.stripe.model.checkout.Session
+import com.stripe.param.checkout.SessionCreateParams
 import com.stripe.net.Webhook
 import io.ktor.http.*
 import io.ktor.server.application.*
@@ -15,19 +18,21 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDateTime
 
 fun Application.bookingRoutes() {
-    // Cargamos variables de entorno (como las keys de Stripe) sin que pete si falta el .env
+    // 1. Cargamos las variables del archivo .env
     val env = io.github.cdimascio.dotenv.dotenv { ignoreIfMissing = true }
 
+    // 2. CONFIGURACIÓN CRÍTICA: Asignamos la clave secreta de Stripe globalmente
+    // Esto soluciona el error "No API key provided"
+    Stripe.apiKey = env["STRIPE_SECRET_KEY"] ?: "sk_test_tu_clave_aqui"
+
     routing {
-        // 1. CREAR RESERVA
+        // --- 1. CREAR RESERVA (Nativo) ---
         post("/bookings") {
-            // Pillamos el ID del usuario de la cabecera; si no viene, cortamos aquí
             val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
                 ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Falta ID"))
 
             val body = call.receive<BookingRequest>()
 
-            // Verificamos de un tirón que tanto el cliente como el monitor existan en la base de datos
             val (user, monitor) = transaction {
                 User.findById(userId) to Monitor.findById(body.monitorId)
             }
@@ -36,7 +41,6 @@ fun Application.bookingRoutes() {
                 return@post call.respond(HttpStatusCode.NotFound, mapOf("error" to "Usuario o Monitor no encontrado"))
 
             try {
-                // Todo este bloque es atómico: o se crea la reserva con su pago o no se hace nada
                 val result = transaction {
                     val booking = Booking.new {
                         this.user = user
@@ -46,15 +50,12 @@ fun Application.bookingRoutes() {
                         this.endTime = body.endTime
                         this.status = BookingStatus.PENDING
                         this.notes = body.notes
-                        // El precio se saca de la tarifa del monitor en ese momento
                         this.amount = monitor.hourlyRate ?: 0.0.toBigDecimal()
                     }
 
-                    // Generamos el intento de pago en Stripe y vinculamos el ID de la reserva
                     val intent = PaymentService.createPaymentIntent(booking.amount, booking.id.value)
                     booking.paymentId = intent.id
 
-                    // Devolvemos lo justo para que el frontend pueda completar el pago
                     mapOf(
                         "bookingId" to booking.id.value,
                         "clientSecret" to intent.clientSecret
@@ -66,26 +67,65 @@ fun Application.bookingRoutes() {
             }
         }
 
-        // 2. WEBHOOK DE STRIPE (Escucha cuando el pago se confirma fuera de nuestra app)
+        // --- 2. CREAR SESIÓN DE CHECKOUT (Web) ---
+        post("/create-checkout-session") {
+            try {
+                val rawBody = call.receiveText()
+                val request = io.ktor.serialization.kotlinx.json.DefaultJson.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(rawBody)
+                
+                val monitorName = request["monitorName"]?.toString()?.replace("\"", "") ?: "Monitor"
+                val priceString = request["price"]?.toString()?.replace("\"", "") ?: "0.0"
+                val price = priceString.toDoubleOrNull() ?: 0.0
+
+                val params = SessionCreateParams.builder()
+                    .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
+                    .setMode(SessionCreateParams.Mode.PAYMENT)
+                    .setSuccessUrl("http://localhost:8081/home?payment=success")
+                    .setCancelUrl("http://localhost:8081/monitor-detail")
+                    .addLineItem(
+                        SessionCreateParams.LineItem.builder()
+                            .setQuantity(1L)
+                            .setPriceData(
+                                SessionCreateParams.LineItem.PriceData.builder()
+                                    .setCurrency("eur")
+                                    .setUnitAmount((price * 100).toLong())
+                                    .setProductData(
+                                        SessionCreateParams.LineItem.PriceData.ProductData.builder()
+                                            .setName("Sesión con $monitorName")
+                                            .build()
+                                    )
+                                    .build()
+                            )
+                            .build()
+                    )
+                    .build()
+
+                val session = Session.create(params)
+                call.respond(mapOf("url" to session.url))
+                
+            } catch (e: Exception) {
+                println("ERROR CRÍTICO STRIPE: ${e.localizedMessage}")
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Error desconocido")))
+            }
+        }
+
+        // --- 3. WEBHOOK ---
         post("/bookings/webhook") {
             val payload = call.receiveText()
             val sigHeader = call.request.headers["Stripe-Signature"] ?: ""
             val endpointSecret = env["STRIPE_WEBHOOK_SECRET"] ?: ""
             
             try {
-                // Validamos que la petición venga realmente de Stripe y no sea un fake
                 val event = Webhook.constructEvent(payload, sigHeader, endpointSecret)
 
                 if ("payment_intent.succeeded" == event.type) {
                     val dataObject = event.dataObjectDeserializer.`object`.orElse(null)
                     if (dataObject is PaymentIntent) {
-                        // Recuperamos el ID de reserva que guardamos en los metadatos de Stripe
                         val bId = dataObject.metadata["bookingId"]?.toIntOrNull()
                         transaction {
                             bId?.let { id ->
                                 Booking.findById(id)?.let { 
                                     it.status = BookingStatus.CONFIRMED
-                                    // Al pagar una reserva, subimos al usuario a categoría Premium
                                     it.user.role = UserRole.PREMIUM 
                                 }
                             }
@@ -98,13 +138,12 @@ fun Application.bookingRoutes() {
             }
         }
 
-        // 3. OBTENER RESERVAS DE UN USUARIO
+        // --- 4. OBTENER RESERVAS ---
         get("/bookings/user/{userId}") {
             val userId = call.parameters["userId"]?.toIntOrNull()
                 ?: return@get call.respond(HttpStatusCode.BadRequest, "ID inválido")
 
             val result = transaction {
-                // Buscamos todas las reservas asociadas al usuario y las mapeamos al DTO de respuesta
                 Booking.find { Bookings.userId eq userId }.map { b ->
                     BookingResponse(
                         bookingId = b.id.value,
@@ -119,27 +158,6 @@ fun Application.bookingRoutes() {
                 }
             }
             call.respond(result)
-        }
-
-        // 4. ACTUALIZAR ESTADO (Para cancelar, completar, etc.)
-        patch("/bookings/{id}/status") {
-            val bId = call.parameters["id"]?.toIntOrNull()
-            val body = call.receive<Map<String, String>>()
-            val newStatusStr = body["status"]?.uppercase() ?: ""
-
-            val success = transaction {
-                val b = Booking.findById(bId ?: -1)
-                if (b != null) {
-                    try {
-                        // Intentamos convertir el string a un enum válido
-                        b.status = BookingStatus.valueOf(newStatusStr)
-                        true
-                    } catch (e: Exception) { false }
-                } else false
-            }
-
-            if (success) call.respond(mapOf("message" to "Estado actualizado"))
-            else call.respond(HttpStatusCode.BadRequest, "No se pudo actualizar")
         }
     }
 }

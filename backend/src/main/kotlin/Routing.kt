@@ -7,16 +7,21 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 
 fun Application.configureRouting() {
-    // Permitir peticiones desde la app movil
     install(CORS) {
-        anyHost()
+        anyHost() // Permite cualquier origen
+        
         allowMethod(HttpMethod.Get)
         allowMethod(HttpMethod.Post)
         allowMethod(HttpMethod.Put)
         allowMethod(HttpMethod.Delete)
         allowMethod(HttpMethod.Options)
+
         allowHeader(HttpHeaders.ContentType)
         allowHeader(HttpHeaders.Authorization)
+        allowHeader("X-User-Id")
+        
+        // Opcional para evitar bloqueos en navegadores
+        allowNonSimpleContentTypes = true 
     }
 
     routing {
