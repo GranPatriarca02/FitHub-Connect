@@ -18,7 +18,7 @@ object PaymentService {
         val params = PaymentIntentCreateParams.builder()
             .setAmount((amount.toDouble() * 100).toLong())
             .setCurrency("eur")
-            .putMetadata("booking_id", bookingId.toString())
+            .putMetadata("bookingId", bookingId.toString())
             .build()
 
         return PaymentIntent.create(params)
