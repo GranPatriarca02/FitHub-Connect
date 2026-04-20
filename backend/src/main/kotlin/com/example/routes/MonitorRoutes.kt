@@ -9,6 +9,8 @@ import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.*
+import com.example.models.dto.OccupiedSlotDto
 
 fun Application.monitorRoutes() {
     routing {
@@ -17,7 +19,8 @@ fun Application.monitorRoutes() {
             // Obtener todos los monitores
             get {
                 val list = transaction {
-                    Monitor.all().map { monitor ->
+                    val allMonitors = Monitor.all().toList()
+                    allMonitors.map { monitor ->
                         MonitorListItem(
                             id = monitor.id.value,
                             name = monitor.user.name,
@@ -53,13 +56,25 @@ fun Application.monitorRoutes() {
                         )
                     }
 
+                    // OBTENER SLOTS OCUPADOS (RESERVAS ACTIVAS)
+                    val occupiedSlots = Booking.find {
+                        (Bookings.monitorId eq monitorId) and 
+                        (Bookings.status neq BookingStatus.CANCELLED)
+                    }.map {
+                        OccupiedSlotDto(
+                            date = it.date.toLocalDate().toString(),
+                            startTime = it.startTime
+                        )
+                    }
+
                     MonitorDetailResponse(
                         id = monitor.id.value,
                         name = monitor.user.name,
                         specialty = monitor.specialty,
                         hourlyRate = monitor.hourlyRate?.toDouble(),
                         bio = monitor.bio,
-                        availability = availabilityList
+                        availability = availabilityList,
+                        occupiedSlots = occupiedSlots
                     )
                 }
 

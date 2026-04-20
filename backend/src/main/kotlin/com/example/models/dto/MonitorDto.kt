@@ -11,11 +11,18 @@ data class MonitorListItem(
 )
 
 @Serializable
+data class OccupiedSlotDto(
+    val date: String,     // "2026-04-20"
+    val startTime: String // "10:00"
+)
+
+@Serializable
 data class MonitorDetailResponse(
     val id: Int,
     val name: String,
     val specialty: String?,
     val hourlyRate: Double?,
     val bio: String?,
-    val availability: List<AvailabilityDto>
+    val availability: List<AvailabilityDto>,
+    val occupiedSlots: List<OccupiedSlotDto> = emptyList()
 )

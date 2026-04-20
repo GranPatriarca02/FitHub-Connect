@@ -11,6 +11,9 @@ import HomeScreen from './src/screens/HomeScreen';
 import MonitorListScreen from './src/screens/MonitorListScreen';
 import MonitorDetailScreen from './src/screens/MonitorDetailScreen';
 
+import AccountScreen from './src/screens/AccountScreen.jsx';
+import SubscriptionBenefitsScreen from './src/screens/SubscriptionBenefitsScreen.jsx';
+
 const Stack = createNativeStackNavigator();
 
 export default function App() {
@@ -26,8 +29,7 @@ export default function App() {
       } catch (e) {
         console.error("Error leyendo el token", e);
       } finally {
-        // Pequeño retraso.
-        setTimeout(() => setCargando(false), 500);
+        setCargando(false);
       }
     };
 
@@ -75,6 +77,20 @@ export default function App() {
           name="MonitorDetail"
           component={MonitorDetailScreen}
           options={{ title: 'Detalle del Monitor' }}
+        />
+        <Stack.Screen
+          name="Account"
+          component={AccountScreen}
+          options={{ title: 'Mi Cuenta' }}
+        />
+        <Stack.Screen
+          name="SubscriptionBenefits"
+          component={SubscriptionBenefitsScreen}
+          options={{ 
+            title: 'Hazte Premium',
+            headerShown: false,
+            presentation: 'modal'
+          }}
         />
       </Stack.Navigator>
     </NavigationContainer>

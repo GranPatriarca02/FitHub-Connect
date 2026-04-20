@@ -3,11 +3,15 @@ import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Animated, Easing
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+
 export default function LoginScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [modo, setModo] = useState('login'); // 'login' o 'registro'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -74,10 +78,11 @@ export default function LoginScreen({ navigation }) {
       if (response.ok) {
         // Guardamos Token y ROL en el almacenamiento persistente
         await AsyncStorage.setItem('userToken', data.token);
-        await AsyncStorage.setItem('userRole', data.role); // Esto guardará "FREE", "TRAINER" o "CLIENT_PREMIUM"
+        await AsyncStorage.setItem('userRole', data.role);
         await AsyncStorage.setItem('userId', data.userId.toString());
         await AsyncStorage.setItem('userName', data.name);
-        mostrarPopUp(modo === 'login' ? `Has logueado correctamente, ¡Bienvenido, ${data.name}!` : "¡Cuenta creada con éxito!", "success");
+        await AsyncStorage.setItem('userEmail', data.email);
+        mostrarPopUp(modo === 'login' ? `Has logueado correctamente, Bienvenido, ${data.name}!` : "Cuenta creada con éxito!", "success");
       } else {
         mostrarPopUp(data.error || "Ocurrió un error inesperado.", "error");
       }
@@ -103,7 +108,11 @@ export default function LoginScreen({ navigation }) {
               styles.iconCircle,
               { backgroundColor: notificacion.tipo === 'error' ? '#FF5252' : '#4CAF50' }
             ]}>
-              <Text style={styles.popUpIconText}>{notificacion.tipo === 'error' ? '✕' : '✓'}</Text>
+              <Ionicons 
+                name={notificacion.tipo === 'error' ? 'close' : 'checkmark'} 
+                size={16} 
+                color="#fff" 
+              />
             </View>
             <Text style={styles.popUpText}>{notificacion.mensaje}</Text>
           </View>
@@ -114,7 +123,7 @@ export default function LoginScreen({ navigation }) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
       >
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 20 }]} keyboardShouldPersistTaps="handled">
 
           {/* Cabecera con logo de texto */}
           <View style={styles.header}>
@@ -243,10 +252,7 @@ const styles = StyleSheet.create({
   gradient: { flex: 1 },
   flex: { flex: 1 },
   container: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 24,
-    paddingTop: 60,
+    paddingHorizontal: 24,
     paddingBottom: 40,
   },
   header: {
