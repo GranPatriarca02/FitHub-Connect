@@ -13,6 +13,9 @@ import MonitorDetailScreen from './src/screens/MonitorDetailScreen';
 
 import AccountScreen from './src/screens/AccountScreen.jsx';
 import SubscriptionBenefitsScreen from './src/screens/SubscriptionBenefitsScreen.jsx';
+import TrainerAvailabilityScreen from './src/screens/TrainerAvailabilityScreen.jsx';
+import TrainerProfileScreen from './src/screens/TrainerProfileScreen.jsx';
+import VideosScreen from './src/screens/VideosScreen.jsx';
 
 const Stack = createNativeStackNavigator();
 
@@ -91,6 +94,21 @@ export default function App() {
             headerShown: false,
             presentation: 'modal'
           }}
+        />
+        <Stack.Screen
+          name="TrainerAvailability"
+          component={TrainerAvailabilityScreen}
+          options={{ title: 'Mi Disponibilidad' }}
+        />
+        <Stack.Screen
+          name="TrainerProfile"
+          component={TrainerProfileScreen}
+          options={{ title: 'Perfil Profesional' }}
+        />
+        <Stack.Screen
+          name="Videos"
+          component={VideosScreen}
+          options={{ title: 'Videos' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

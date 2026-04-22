@@ -1,0 +1,625 @@
+import React, { useState, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  ActivityIndicator, Alert, TextInput, Modal, Linking, Platform
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { API_URL } from '../api';
+
+// Extrae el thumbnail de YouTube si la URL es de YT
+const getYoutubeThumbnail = (url) => {
+  const match = url.match(
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+  );
+  return match ? `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg` : null;
+};
+
+export default function VideosScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
+  const [userRole, setUserRole] = useState('FREE');
+  const [userId, setUserId] = useState(null);
+
+  const [videos, setVideos] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+
+  // Campos del modal de publicar video
+  const [nuevoTitulo, setNuevoTitulo] = useState('');
+  const [nuevaDesc, setNuevaDesc] = useState('');
+  const [nuevaUrl, setNuevaUrl] = useState('');
+
+  useFocusEffect(
+    useCallback(() => {
+      const cargar = async () => {
+        setCargando(true);
+        try {
+          const role = await AsyncStorage.getItem('userRole') || 'FREE';
+          const uid = await AsyncStorage.getItem('userId');
+          setUserRole(role);
+          setUserId(uid);
+
+          const endpoint = role === 'TRAINER' ? '/videos/my' : '/videos';
+          const headers = { 'X-User-Role': role };
+          if (uid) headers['X-User-Id'] = uid;
+
+          const res = await fetch(`${API_URL}${endpoint}`, { headers });
+          if (res.ok) {
+            const data = await res.json();
+            setVideos(data);
+          }
+        } catch (e) {
+          Alert.alert('Error', 'No se pudieron cargar los videos');
+        } finally {
+          setCargando(false);
+        }
+      };
+      cargar();
+    }, [])
+  );
+
+  const isTrainer = userRole === 'TRAINER';
+  const isPremium = userRole === 'PREMIUM';
+
+  const handleAbrirVideo = (url) => {
+    Linking.openURL(url).catch(() =>
+      Alert.alert('Error', 'No se pudo abrir el video')
+    );
+  };
+
+  const handlePublicar = async () => {
+    if (!nuevoTitulo.trim() || !nuevaUrl.trim()) {
+      Alert.alert('Campos obligatorios', 'El título y la URL son necesarios');
+      return;
+    }
+    setGuardando(true);
+    try {
+      const res = await fetch(`${API_URL}/videos`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId,
+        },
+        body: JSON.stringify({
+          title: nuevoTitulo.trim(),
+          description: nuevaDesc.trim() || null,
+          videoUrl: nuevaUrl.trim(),
+          isPremium: true,
+        }),
+      });
+      if (!res.ok) throw new Error('Error al publicar el video');
+
+      setModalVisible(false);
+      setNuevoTitulo('');
+      setNuevaDesc('');
+      setNuevaUrl('');
+
+      // Recargar lista
+      const res2 = await fetch(`${API_URL}/videos/my`, {
+        headers: { 'X-User-Id': userId, 'X-User-Role': 'TRAINER' },
+      });
+      if (res2.ok) setVideos(await res2.json());
+
+      Alert.alert('¡Publicado!', 'Tu video ya está disponible para los usuarios Premium.');
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const handleEliminar = (video) => {
+    Alert.alert(
+      'Eliminar video',
+      `¿Quieres eliminar "${video.title}"?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await fetch(`${API_URL}/videos/${video.id}`, {
+                method: 'DELETE',
+                headers: { 'X-User-Id': userId },
+              });
+              setVideos((prev) => prev.filter((v) => v.id !== video.id));
+            } catch (e) {
+              Alert.alert('Error', 'No se pudo eliminar el video');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // -------- RENDER TARJETA DE VIDEO --------
+  const VideoCard = ({ video, showDelete = false }) => {
+    const thumb = video.thumbnailUrl || getYoutubeThumbnail(video.videoUrl);
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => handleAbrirVideo(video.videoUrl)}
+        activeOpacity={0.85}
+      >
+        {/* Miniatura */}
+        <View style={styles.thumbnailContainer}>
+          {thumb ? (
+            <View style={styles.thumbnailPlaceholder}>
+              {/* En web usaríamos <Image>, en native igual; aquí usamos color + icono para evitar dependencias extras */}
+              <LinearGradient
+                colors={['#1a2a1a', '#2E7D32']}
+                style={styles.thumbGradient}
+              >
+                <MaterialCommunityIcons name="play-circle" size={44} color="rgba(255,255,255,0.8)" />
+              </LinearGradient>
+            </View>
+          ) : (
+            <LinearGradient
+              colors={['#1a1a2e', '#16213e']}
+              style={styles.thumbGradient}
+            >
+              <MaterialCommunityIcons name="play-circle" size={44} color="rgba(255,255,255,0.8)" />
+            </LinearGradient>
+          )}
+          {/* Badge GRATIS / PREMIUM */}
+          <View style={[styles.badge, video.isPremium ? styles.badgePremium : styles.badgeFree]}>
+            <Text style={styles.badgeText}>{video.isPremium ? 'PREMIUM' : 'GRATIS'}</Text>
+          </View>
+        </View>
+
+        {/* Info */}
+        <View style={styles.cardBody}>
+          <Text style={styles.cardTitle} numberOfLines={2}>{video.title}</Text>
+          {video.description ? (
+            <Text style={styles.cardDesc} numberOfLines={2}>{video.description}</Text>
+          ) : null}
+          <View style={styles.cardFooter}>
+            <View style={styles.trainerTag}>
+              <MaterialCommunityIcons
+                name={video.trainerName ? 'dumbbell' : 'shield-check'}
+                size={13}
+                color={video.trainerName ? '#4FC3F7' : '#4CAF50'}
+              />
+              <Text style={[styles.trainerName, !video.trainerName && { color: '#4CAF50' }]}>
+                {video.trainerName || 'FitHub Official'}
+              </Text>
+            </View>
+            {showDelete && (
+              <TouchableOpacity onPress={() => handleEliminar(video)} style={styles.deleteBtn}>
+                <Ionicons name="trash-outline" size={16} color="#FF5252" />
+              </TouchableOpacity>
+            )}
+            <View style={styles.playHint}>
+              <Ionicons name="play" size={13} color="#4CAF50" />
+              <Text style={styles.playHintText}>Ver</Text>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // -------- VISTA TRAINER --------
+  if (isTrainer) {
+    return (
+      <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
+        <ScrollView
+          contentContainerStyle={[styles.container, { paddingTop: insets.top + 16 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.pageHeader}>
+            <View style={styles.headerIconWrap}>
+              <MaterialCommunityIcons name="video-plus" size={26} color="#4FC3F7" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.pageTitle}>Mis Videos</Text>
+              <Text style={styles.pageSub}>Contenido Premium que has publicado</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.publishBtn}
+              onPress={() => setModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add" size={22} color="#fff" />
+              <Text style={styles.publishBtnText}>Publicar</Text>
+            </TouchableOpacity>
+          </View>
+
+          {cargando ? (
+            <ActivityIndicator color="#4CAF50" style={{ marginTop: 40 }} />
+          ) : videos.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialCommunityIcons name="video-off-outline" size={56} color="#2a2a2a" />
+              <Text style={styles.emptyTitle}>Sin videos publicados</Text>
+              <Text style={styles.emptyText}>
+                Pulsa "Publicar" para compartir tu primer video con los usuarios Premium
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyBtn}
+                onPress={() => setModalVisible(true)}
+              >
+                <Text style={styles.emptyBtnText}>Publicar mi primer video</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            videos.map((v) => (
+              <VideoCard key={v.id} video={v} showDelete={true} />
+            ))
+          )}
+        </ScrollView>
+
+        {/* Modal publicar video */}
+        <PublishModal
+          visible={modalVisible}
+          onClose={() => setModalVisible(false)}
+          titulo={nuevoTitulo}
+          setTitulo={setNuevoTitulo}
+          desc={nuevaDesc}
+          setDesc={setNuevaDesc}
+          url={nuevaUrl}
+          setUrl={setNuevaUrl}
+          onPublish={handlePublicar}
+          guardando={guardando}
+        />
+      </LinearGradient>
+    );
+  }
+
+  // -------- VISTA FREE / PREMIUM --------
+  const videosGratis = videos.filter((v) => !v.isPremium);
+  const videosPremium = videos.filter((v) => v.isPremium);
+
+  return (
+    <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
+      <ScrollView
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + 16 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.pageHeader}>
+          <View style={styles.headerIconWrap}>
+            <MaterialCommunityIcons name="play-box-multiple" size={26} color="#4CAF50" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.pageTitle}>Videos</Text>
+            <Text style={styles.pageSub}>
+              {isPremium ? 'Acceso completo a todo el contenido' : 'Contenido gratuito de FitHub'}
+            </Text>
+          </View>
+        </View>
+
+        {cargando ? (
+          <ActivityIndicator color="#4CAF50" style={{ marginTop: 40 }} />
+        ) : (
+          <>
+            {/* Sección GRATIS */}
+            <Text style={styles.sectionLabel}>Contenido Gratuito</Text>
+            {videosGratis.length === 0 ? (
+              <Text style={styles.noContent}>No hay videos gratuitos disponibles.</Text>
+            ) : (
+              videosGratis.map((v) => <VideoCard key={v.id} video={v} />)
+            )}
+
+            {/* Sección PREMIUM */}
+            <View style={styles.premiumSectionHeader}>
+              <Text style={styles.sectionLabel}>Contenido Premium</Text>
+              {isPremium && (
+                <View style={styles.unlockedBadge}>
+                  <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
+                  <Text style={styles.unlockedText}>Desbloqueado</Text>
+                </View>
+              )}
+            </View>
+
+            {isPremium ? (
+              videosPremium.length === 0 ? (
+                <Text style={styles.noContent}>Los entrenadores aún no han publicado videos.</Text>
+              ) : (
+                videosPremium.map((v) => <VideoCard key={v.id} video={v} />)
+              )
+            ) : (
+              /* Sección bloqueada para FREE */
+              <TouchableOpacity
+                style={styles.lockedSection}
+                onPress={() => navigation.navigate('SubscriptionBenefits')}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={['#1a1200', '#2a1f00']}
+                  style={styles.lockedGradient}
+                >
+                  <View style={styles.lockIconWrap}>
+                    <Ionicons name="lock-closed" size={32} color="#FFD700" />
+                  </View>
+                  <Text style={styles.lockedTitle}>Contenido exclusivo para Premium</Text>
+                  <Text style={styles.lockedDesc}>
+                    Accede a todos los videos de nuestros entrenadores certificados con una suscripción Premium.
+                  </Text>
+                  <View style={styles.lockedBtn}>
+                    <Text style={styles.lockedBtnText}>Hazte Premium — Ver planes</Text>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
+      </ScrollView>
+    </LinearGradient>
+  );
+}
+
+// -------- MODAL PUBLICAR --------
+function PublishModal({ visible, onClose, titulo, setTitulo, desc, setDesc, url, setUrl, onPublish, guardando }) {
+  return (
+    <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <LinearGradient colors={['#1e1e1e', '#121212']} style={styles.modalCard}>
+          <View style={styles.modalTopRow}>
+            <Text style={styles.modalTitle}>Publicar video</Text>
+            <TouchableOpacity onPress={onClose} disabled={guardando}>
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.modalSub}>El video será accesible para todos los usuarios Premium</Text>
+
+          <Text style={styles.fieldLabel}>Título *</Text>
+          <TextInput
+            style={styles.fieldInput}
+            value={titulo}
+            onChangeText={setTitulo}
+            placeholder="Ej: Técnica perfecta de press de banca"
+            placeholderTextColor="#444"
+            maxLength={100}
+          />
+
+          <Text style={styles.fieldLabel}>Descripción</Text>
+          <TextInput
+            style={[styles.fieldInput, styles.fieldInputMulti]}
+            value={desc}
+            onChangeText={setDesc}
+            placeholder="Describe brevemente el contenido del video..."
+            placeholderTextColor="#444"
+            multiline
+            numberOfLines={3}
+            maxLength={300}
+          />
+
+          <Text style={styles.fieldLabel}>URL del video *</Text>
+          <TextInput
+            style={styles.fieldInput}
+            value={url}
+            onChangeText={setUrl}
+            placeholder="https://www.youtube.com/watch?v=..."
+            placeholderTextColor="#444"
+            autoCapitalize="none"
+            keyboardType="url"
+          />
+          <Text style={styles.fieldHint}>Soporta YouTube, Vimeo o cualquier enlace de video</Text>
+
+          <View style={styles.modalBtns}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={guardando}>
+              <Text style={styles.cancelBtnText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.confirmBtn, guardando && { opacity: 0.6 }]}
+              onPress={onPublish}
+              disabled={guardando}
+              activeOpacity={0.85}
+            >
+              <LinearGradient colors={['#4CAF50', '#2E7D32']} style={styles.confirmGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                {guardando ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.confirmBtnText}>Publicar</Text>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </View>
+    </Modal>
+  );
+}
+
+// -------- ESTILOS --------
+const styles = StyleSheet.create({
+  gradient: { flex: 1 },
+  container: { padding: 20, paddingBottom: 50 },
+
+  pageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 28,
+  },
+  headerIconWrap: {
+    width: 50,
+    height: 50,
+    borderRadius: 16,
+    backgroundColor: '#1a2a1a',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2a3a2a',
+  },
+  pageTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff', marginBottom: 2 },
+  pageSub: { fontSize: 12, color: '#666' },
+  publishBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 12,
+  },
+  publishBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4CAF50',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginBottom: 14,
+    marginTop: 4,
+  },
+  premiumSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 24,
+  },
+  unlockedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 14,
+  },
+  unlockedText: { fontSize: 11, color: '#4CAF50', fontWeight: '600' },
+  noContent: { color: '#555', fontSize: 13, marginBottom: 12 },
+
+  // Tarjeta de video
+  card: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: 18,
+    overflow: 'hidden',
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+  },
+  thumbnailContainer: { position: 'relative' },
+  thumbnailPlaceholder: { width: '100%', height: 160 },
+  thumbGradient: {
+    width: '100%',
+    height: 160,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  badgeFree: { backgroundColor: '#1b5e20' },
+  badgePremium: { backgroundColor: '#7B1FA2' },
+  badgeText: { color: '#fff', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+
+  cardBody: { padding: 14 },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: '#fff', marginBottom: 5 },
+  cardDesc: { fontSize: 12, color: '#777', marginBottom: 10, lineHeight: 17 },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  trainerTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+  },
+  trainerName: { fontSize: 11, color: '#4FC3F7', fontWeight: '600' },
+  deleteBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: '#2a1a1a',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#1a2a1a',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  playHintText: { fontSize: 11, color: '#4CAF50', fontWeight: '600' },
+
+  // Sección bloqueada
+  lockedSection: { borderRadius: 18, overflow: 'hidden', marginBottom: 14 },
+  lockedGradient: {
+    padding: 28,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#3a2a00',
+    borderRadius: 18,
+  },
+  lockIconWrap: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(255,215,0,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,215,0,0.2)',
+  },
+  lockedTitle: { fontSize: 17, fontWeight: 'bold', color: '#fff', textAlign: 'center', marginBottom: 8 },
+  lockedDesc: { fontSize: 13, color: '#888', textAlign: 'center', marginBottom: 20, lineHeight: 19 },
+  lockedBtn: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  lockedBtnText: { color: '#000', fontWeight: '700', fontSize: 13 },
+
+  // Empty state
+  emptyState: { alignItems: 'center', paddingVertical: 50, gap: 10 },
+  emptyTitle: { fontSize: 17, fontWeight: '700', color: '#444' },
+  emptyText: { fontSize: 13, color: '#333', textAlign: 'center', maxWidth: 260, lineHeight: 19 },
+  emptyBtn: {
+    marginTop: 10,
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  emptyBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
+  modalCard: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  modalTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
+  modalSub: { fontSize: 12, color: '#555', marginBottom: 22 },
+  fieldLabel: { fontSize: 12, color: '#666', marginBottom: 8, letterSpacing: 0.3 },
+  fieldInput: {
+    backgroundColor: '#2a2a2a',
+    color: '#fff',
+    fontSize: 14,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#333',
+    marginBottom: 16,
+  },
+  fieldInputMulti: { height: 80, textAlignVertical: 'top' },
+  fieldHint: { fontSize: 11, color: '#444', marginTop: -10, marginBottom: 20 },
+  modalBtns: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  cancelBtn: {
+    flex: 1,
+    backgroundColor: '#2a2a2a',
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: 'center',
+  },
+  cancelBtnText: { color: '#888', fontSize: 14, fontWeight: '600' },
+  confirmBtn: { flex: 2, borderRadius: 14, overflow: 'hidden' },
+  confirmGradient: { paddingVertical: 15, alignItems: 'center' },
+  confirmBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+});
