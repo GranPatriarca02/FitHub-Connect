@@ -17,14 +17,57 @@ object DatabaseFactory {
         Database.connect(pool)
         transaction {
             // Crear tablas y columnas necesarias si no existen en la base de datos.
-            SchemaUtils.createMissingTablesAndColumns(Users, Monitors, Routines, Availabilities, Bookings)
-            
+            SchemaUtils.createMissingTablesAndColumns(Users, Monitors, Routines, Availabilities, Bookings, Videos)
+
+            // Seed de videos gratuitos oficiales si la tabla esta vacia
+            if (Video.count() == 0L) {
+                seedFreeVideos()
+            }
+
             // USUARIOS TEST. INABILITADOS
             /* if (User.count() == 0L) {
                 seedDatabase()
             }*/
         }
     }
+
+    // Videos gratuitos curados por FitHub Official
+    private fun seedFreeVideos() {
+        val freeVideos = listOf(
+            Triple(
+                "Calentamiento completo para principiantes",
+                "Rutina de calentamiento de 10 minutos ideal para empezar cualquier entreno.",
+                "https://www.youtube.com/watch?v=R0mMyV5OtcM"
+            ),
+            Triple(
+                "Sentadillas perfectas — técnica y variantes",
+                "Aprende la técnica correcta de la sentadilla y sus variaciones para todos los niveles.",
+                "https://www.youtube.com/watch?v=aclHkVaku9U"
+            ),
+            Triple(
+                "Cardio HIIT en casa — 20 minutos",
+                "Entreno de alta intensidad sin necesidad de material. Quema calorías en casa.",
+                "https://www.youtube.com/watch?v=ml6cT4AZdqI"
+            ),
+            Triple(
+                "Estiramiento y vuelta a la calma",
+                "Sesión de estiramientos post-entreno para recuperarte mejor y evitar lesiones.",
+                "https://www.youtube.com/watch?v=sTANio_2E0Q"
+            )
+        )
+
+        freeVideos.forEach { (title, desc, url) ->
+            Video.new {
+                this.title       = title
+                this.description = desc
+                this.videoUrl    = url
+                this.isPremium   = false
+                this.monitor     = null
+            }
+        }
+    }
+
+
 
     // METODO PARA TESTEAR, AHORA INHABILITADO.
     private fun seedDatabase() {
