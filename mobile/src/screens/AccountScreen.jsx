@@ -29,6 +29,7 @@ export default function AccountScreen({ navigation }) {
   }, []);
 
   const isPremium = userData.role === 'PREMIUM';
+  const isTrainer = userData.role === 'TRAINER';
 
   if (cargando) {
     return (
@@ -50,9 +51,16 @@ export default function AccountScreen({ navigation }) {
                 <MaterialCommunityIcons name="check-decagram" size={24} color="#4CAF50" />
               </View>
             )}
+            {isTrainer && (
+              <View style={[styles.badgeLarge, { backgroundColor: '#1a1a2e' }]}>
+                <MaterialCommunityIcons name="dumbbell" size={20} color="#4FC3F7" />
+              </View>
+            )}
           </View>
           <Text style={styles.nameText}>{userData.name}</Text>
-          <Text style={styles.roleText}>{isPremium ? 'Miembro Premium' : 'Usuario Free'}</Text>
+          <Text style={styles.roleText}>
+            {isPremium ? 'Miembro Premium' : isTrainer ? 'Entrenador / Monitor' : 'Usuario Free'}
+          </Text>
         </View>
 
         <View style={styles.infoSection}>
@@ -69,8 +77,11 @@ export default function AccountScreen({ navigation }) {
             <Ionicons name="shield-checkmark-outline" size={20} color="#666" />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Estado de Cuenta</Text>
-              <Text style={[styles.infoValue, isPremium && { color: '#4CAF50' }]}>
-                {isPremium ? 'Verificado / Premium' : 'Pendiente de suscripción'}
+              <Text style={[styles.infoValue,
+                isPremium && { color: '#4CAF50' },
+                isTrainer && { color: '#4FC3F7' }
+              ]}>
+                {isPremium ? 'Verificado / Premium' : isTrainer ? 'Entrenador Verificado' : 'Pendiente de suscripción'}
               </Text>
             </View>
           </View>
