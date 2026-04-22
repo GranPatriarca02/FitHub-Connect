@@ -88,6 +88,7 @@ export default function HomeScreen({ navigation }) {
   );
 
   const isPremium = role === 'PREMIUM';
+  const isTrainer = role === 'TRAINER';
 
   const handleLogout = async () => {
     setMenuVisible(false);
@@ -135,13 +136,14 @@ export default function HomeScreen({ navigation }) {
           userName={userName}
           userEmail={userEmail}
           isPremium={isPremium}
+          isTrainer={isTrainer}
           navigation={navigation}
           onLogout={handleLogout}
           insets={insets}
         />
 
-        {/* __ BANNER HAZTE PREMIUM __ */}
-        {!isPremium && (
+        {/* __ BANNER HAZTE PREMIUM (solo para FREE) __ */}
+        {!isPremium && !isTrainer && (
           <TouchableOpacity 
             style={styles.premiumBanner} 
             activeOpacity={0.9}
@@ -166,31 +168,33 @@ export default function HomeScreen({ navigation }) {
         )}
 
         {/* __ BANNER DE PUBLICIDAD __*/}
-        <LinearGradient
-          colors={['#1b5e20', '#2E7D32', '#4CAF50']}
-          style={styles.banner}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.bannerLabel}>Destacado</Text>
-          <Text style={styles.bannerTitle}>Encuentra tu monitor ideal</Text>
-          <Text style={styles.bannerSub}>Más de 20 entrenadores certificados</Text>
-          <TouchableOpacity
-            style={styles.bannerBtn}
-            onPress={() => navigation.navigate('MonitorList')}
+        {!isTrainer && (
+          <LinearGradient
+            colors={['#1b5e20', '#2E7D32', '#4CAF50']}
+            style={styles.banner}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
           >
-            <Text style={styles.bannerBtnText}>Ver monitores</Text>
-          </TouchableOpacity>
-        </LinearGradient>
+            <Text style={styles.bannerLabel}>Destacado</Text>
+            <Text style={styles.bannerTitle}>Encuentra tu monitor ideal</Text>
+            <Text style={styles.bannerSub}>Más de 20 entrenadores certificados</Text>
+            <TouchableOpacity
+              style={styles.bannerBtn}
+              onPress={() => navigation.navigate('MonitorList')}
+            >
+              <Text style={styles.bannerBtnText}>Ver monitores</Text>
+            </TouchableOpacity>
+          </LinearGradient>
+        )}
 
         <Text style={styles.sectionTitle}>¿Qué quieres hacer?</Text>
 
         <View style={styles.cardGrid}>
           <ActionCard
-            title="Monitores"
-            desc="Busca y contrata entrenadores"
+            title={isTrainer ? 'Mi Escaparate' : 'Monitores'}
+            desc={isTrainer ? 'Especialidad y tarifas' : 'Busca y contrata entrenadores'}
             icon={<MaterialCommunityIcons name="dumbbell" size={28} color="#4CAF50" />}
-            onPress={() => navigation.navigate('MonitorList')}
+            onPress={() => isTrainer ? navigation.navigate('TrainerProfile') : navigation.navigate('MonitorList')}
           />
           <ActionCard
             title="Mis rutinas"
@@ -200,15 +204,15 @@ export default function HomeScreen({ navigation }) {
           />
           <ActionCard
             title="Disponibilidad"
-            desc="Gestiona tus horarios"
+            desc={isTrainer ? 'Publica tus horarios' : 'Gestiona tus horarios'}
             icon={<MaterialCommunityIcons name="clock-outline" size={28} color="#4CAF50" />}
-            onPress={() => { }}
+            onPress={() => isTrainer ? navigation.navigate('TrainerAvailability') : {}}
           />
           <ActionCard
-            title="Mi perfil"
-            desc="Configuración y cuenta"
-            icon={<Ionicons name="settings-sharp" size={28} color="#4CAF50" />}
-            onPress={() => navigation.navigate('Account')}
+            title="Videos"
+            desc={isTrainer ? 'Publica tu contenido' : 'Entrena con los mejores'}
+            icon={<MaterialCommunityIcons name="play-box-multiple" size={28} color="#4CAF50" />}
+            onPress={() => navigation.navigate('Videos')}
           />
         </View>
 
@@ -227,7 +231,7 @@ function ActionCard({ title, desc, icon, onPress }) {
   );
 }
 
-function ProfileMenu({ visible, onClose, userName, userEmail, isPremium, navigation, onLogout, insets }) {
+function ProfileMenu({ visible, onClose, userName, userEmail, isPremium, isTrainer, navigation, onLogout, insets }) {
   return (
     <Modal
       transparent={true}
@@ -262,7 +266,7 @@ function ProfileMenu({ visible, onClose, userName, userEmail, isPremium, navigat
           <Text style={styles.menuItemText}>Mi Cuenta</Text>
         </TouchableOpacity>
 
-        {!isPremium && (
+        {!isPremium && !isTrainer && (
           <TouchableOpacity 
             style={styles.menuItem} 
             onPress={() => {
