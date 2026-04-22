@@ -5,6 +5,7 @@ import com.example.routes.authRoutes
 import com.example.routes.availabilityRoutes
 import com.example.routes.bookingRoutes
 import com.example.routes.monitorRoutes
+import com.example.routes.videoRoutes
 import io.ktor.server.application.*
 
 fun main(args: Array<String>) {
@@ -19,4 +20,5 @@ fun Application.module() {
     availabilityRoutes()
     monitorRoutes()
     bookingRoutes()
+    videoRoutes()
 }
