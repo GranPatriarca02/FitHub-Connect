@@ -26,3 +26,10 @@ data class MonitorDetailResponse(
     val availability: List<AvailabilityDto>,
     val occupiedSlots: List<OccupiedSlotDto> = emptyList()
 )
+
+@Serializable
+data class UpdateTrainerProfileRequest(
+    val specialty: String,
+    val bio: String,
+    val hourlyRate: Double
+)

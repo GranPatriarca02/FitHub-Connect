@@ -4,17 +4,76 @@ import com.example.models.*
 import com.example.models.dto.AvailabilityDto
 import com.example.models.dto.MonitorDetailResponse
 import com.example.models.dto.MonitorListItem
+import com.example.models.dto.UpdateTrainerProfileRequest
+import com.example.models.dto.OccupiedSlotDto
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.*
-import com.example.models.dto.OccupiedSlotDto
 
 fun Application.monitorRoutes() {
     routing {
         route("/monitors") {
+
+            // Obtener el monitor del usuario autenticado (solo TRAINER)
+            get("/me") {
+                val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
+                if (userId == null) {
+                    call.respond(HttpStatusCode.BadRequest, "Header X-User-Id requerido")
+                    return@get
+                }
+
+                val monitor = transaction {
+                    Monitor.find { Monitors.userId eq userId }.firstOrNull()
+                }
+
+                if (monitor == null) {
+                    call.respond(HttpStatusCode.NotFound, "No se encontró perfil de monitor para este usuario")
+                    return@get
+                }
+
+                call.respond(HttpStatusCode.OK, mapOf(
+                    "monitorId" to monitor.id.value,
+                    "specialty" to monitor.specialty,
+                    "hourlyRate" to (monitor.hourlyRate?.toDouble() ?: 0.0),
+                    "bio" to (monitor.bio ?: "")
+                ))
+            }
+
+            // Actualizar el perfil profesional del monitor autenticado (solo TRAINER)
+            post("/me/update") {
+                val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
+                if (userId == null) {
+                    call.respond(HttpStatusCode.BadRequest, "Header X-User-Id requerido")
+                    return@post
+                }
+
+                val req = try {
+                    call.receive<UpdateTrainerProfileRequest>()
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.BadRequest, "Cuerpo de la petición no válido")
+                    return@post
+                }
+
+                val updatedMonitor = transaction {
+                    val monitor = Monitor.find { Monitors.userId eq userId }.firstOrNull()
+                    if (monitor != null) {
+                        monitor.specialty = req.specialty
+                        monitor.bio = req.bio
+                        monitor.hourlyRate = req.hourlyRate.toBigDecimal()
+                    }
+                    monitor
+                }
+
+                if (updatedMonitor == null) {
+                    call.respond(HttpStatusCode.NotFound, "No se encontró perfil de monitor para este usuario")
+                } else {
+                    call.respond(HttpStatusCode.OK, mapOf("message" to "Perfil profesional actualizado correctamente"))
+                }
+            }
 
             // Obtener todos los monitores
             get {
