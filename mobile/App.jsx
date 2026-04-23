@@ -16,6 +16,9 @@ import SubscriptionBenefitsScreen from './src/screens/SubscriptionBenefitsScreen
 import TrainerAvailabilityScreen from './src/screens/TrainerAvailabilityScreen.jsx';
 import TrainerProfileScreen from './src/screens/TrainerProfileScreen.jsx';
 import VideosScreen from './src/screens/VideosScreen.jsx';
+import RoutinesScreen from './src/screens/RoutinesScreen.jsx';
+import RoutineDetailScreen from './src/screens/RoutineDetailScreen.jsx';
+import ExercisesScreen from './src/screens/ExercisesScreen.jsx';
 
 const Stack = createNativeStackNavigator();
 
@@ -109,6 +112,21 @@ export default function App() {
           name="Videos"
           component={VideosScreen}
           options={{ title: 'Videos' }}
+        />
+        <Stack.Screen
+          name="Routines"
+          component={RoutinesScreen}
+          options={{ title: 'Rutinas' }}
+        />
+        <Stack.Screen
+          name="RoutineDetail"
+          component={RoutineDetailScreen}
+          options={{ title: 'Detalle de rutina' }}
+        />
+        <Stack.Screen
+          name="Exercises"
+          component={ExercisesScreen}
+          options={{ title: 'Ejercicios' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

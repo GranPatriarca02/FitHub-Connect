@@ -197,10 +197,10 @@ export default function HomeScreen({ navigation }) {
             onPress={() => isTrainer ? navigation.navigate('TrainerProfile') : navigation.navigate('MonitorList')}
           />
           <ActionCard
-            title="Mis rutinas"
-            desc="Revisa tus entrenamientos"
+            title={isTrainer ? 'Mis rutinas' : 'Mis rutinas'}
+            desc={isTrainer ? 'Diseña y comparte planes' : 'Tus entrenamientos'}
             icon={<MaterialCommunityIcons name="clipboard-text" size={28} color="#4CAF50" />}
-            onPress={() => { }}
+            onPress={() => navigation.navigate('Routines')}
           />
           <ActionCard
             title="Disponibilidad"
