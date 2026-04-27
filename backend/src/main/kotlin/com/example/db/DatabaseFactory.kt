@@ -17,11 +17,19 @@ object DatabaseFactory {
         Database.connect(pool)
         transaction {
             // Crear tablas y columnas necesarias si no existen en la base de datos.
-            SchemaUtils.createMissingTablesAndColumns(Users, Monitors, Routines, Availabilities, Bookings, Videos)
+            SchemaUtils.createMissingTablesAndColumns(
+                Users, Monitors, Routines, Availabilities, Bookings, Videos,
+                Exercises, RoutineExercises
+            )
 
             // Seed de videos gratuitos oficiales si la tabla esta vacia
             if (Video.count() == 0L) {
                 seedFreeVideos()
+            }
+
+            // Seed de ejercicios oficiales si la tabla esta vacia
+            if (Exercise.count() == 0L) {
+                seedOfficialExercises()
             }
 
             // USUARIOS TEST. INABILITADOS
@@ -68,6 +76,52 @@ object DatabaseFactory {
     }
 
 
+
+    // Catalogo inicial de ejercicios oficiales (sin creador)
+    private fun seedOfficialExercises() {
+        data class SeedEx(
+            val name: String,
+            val muscleGroup: String,
+            val equipment: String,
+            val difficulty: String,
+            val description: String
+        )
+
+        val official = listOf(
+            SeedEx("Press de banca",      "PECHO",    "Barra",         "Intermediate", "Ejercicio básico para desarrollar pecho, hombros y tríceps."),
+            SeedEx("Press inclinado con mancuernas", "PECHO", "Mancuernas", "Intermediate", "Enfatiza la parte superior del pectoral."),
+            SeedEx("Flexiones",           "PECHO",    "Peso corporal", "Beginner",     "Clásico ejercicio para pecho, hombros y core."),
+            SeedEx("Dominadas",           "ESPALDA",  "Peso corporal", "Advanced",     "Excelente para dorsales y bíceps."),
+            SeedEx("Remo con barra",      "ESPALDA",  "Barra",         "Intermediate", "Construye grosor de espalda y fuerza postural."),
+            SeedEx("Peso muerto",         "ESPALDA",  "Barra",         "Advanced",     "Ejercicio compuesto para espalda, piernas y core."),
+            SeedEx("Sentadilla",          "PIERNAS",  "Barra",         "Intermediate", "Rey de los ejercicios para el tren inferior."),
+            SeedEx("Prensa de piernas",   "PIERNAS",  "Máquina",       "Beginner",     "Gran desarrollo de cuádriceps con baja carga en zona lumbar."),
+            SeedEx("Zancadas",            "PIERNAS",  "Mancuernas",    "Beginner",     "Trabaja cuádriceps y glúteos de forma unilateral."),
+            SeedEx("Curl femoral",        "PIERNAS",  "Máquina",       "Beginner",     "Aislamiento del isquiotibial."),
+            SeedEx("Press militar",       "HOMBROS",  "Barra",         "Intermediate", "Desarrollo de deltoides y fuerza de empuje vertical."),
+            SeedEx("Elevaciones laterales","HOMBROS", "Mancuernas",    "Beginner",     "Aísla el deltoides medio."),
+            SeedEx("Curl de bíceps",      "BRAZOS",   "Mancuernas",    "Beginner",     "Aislamiento clásico para bíceps."),
+            SeedEx("Extensión de tríceps","BRAZOS",   "Polea",         "Beginner",     "Trabaja las tres cabezas del tríceps."),
+            SeedEx("Plancha",             "CORE",     "Peso corporal", "Beginner",     "Estabilización de core, ideal como isométrico."),
+            SeedEx("Crunch abdominal",    "CORE",     "Peso corporal", "Beginner",     "Aisla los rectos abdominales."),
+            SeedEx("Mountain climbers",   "CARDIO",   "Peso corporal", "Beginner",     "Cardio intenso con trabajo de core."),
+            SeedEx("Burpees",             "CARDIO",   "Peso corporal", "Intermediate", "HIIT cuerpo completo."),
+            SeedEx("Saltos a la comba",   "CARDIO",   "Comba",         "Beginner",     "Cardio explosivo y coordinación."),
+            SeedEx("Sentadilla búlgara",  "PIERNAS",  "Mancuernas",    "Intermediate", "Ejercicio unilateral para glúteos y cuádriceps.")
+        )
+
+        official.forEach { ex ->
+            Exercise.new {
+                name        = ex.name
+                description = ex.description
+                muscleGroup = ex.muscleGroup
+                difficulty  = ex.difficulty
+                equipment   = ex.equipment
+                videoUrl    = null
+                creator     = null
+            }
+        }
+    }
 
     // METODO PARA TESTEAR, AHORA INHABILITADO.
     private fun seedDatabase() {
