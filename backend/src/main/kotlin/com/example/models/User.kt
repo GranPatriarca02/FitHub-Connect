@@ -23,6 +23,9 @@ object Users : IntIdTable("users") {
     val passwordHash = varchar("password_hash", 255)
     val role = enumerationByName("role", 50, UserRole::class).default(UserRole.FREE)
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
+    // Campos de verificación (sistema de email)
+    val isVerified = bool("is_verified").default(false)
+    val verificationToken = varchar("verification_token", 255).nullable()
 }
 
 class User(id: EntityID<Int>) : IntEntity(id) {
@@ -33,4 +36,6 @@ class User(id: EntityID<Int>) : IntEntity(id) {
     var passwordHash by Users.passwordHash
     var role by Users.role
     var createdAt by Users.createdAt
+    var isVerified by Users.isVerified
+    var verificationToken by Users.verificationToken
 }

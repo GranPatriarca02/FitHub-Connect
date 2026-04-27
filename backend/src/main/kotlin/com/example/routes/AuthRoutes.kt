@@ -15,6 +15,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.security.MessageDigest
+import java.util.UUID
 
 // Cifra la contrasena por seguridad
 fun hashPassword(password: String): String {
@@ -42,14 +43,17 @@ fun Application.authRoutes() {
                 call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Rol no valido. Usa FREE, MEMBER o TRAINER."))
                 return@post
             }
+            
             // 2. Verificar si el email ya existe
-            val existente = transaction {
-                User.find { Users.email eq body.email }.firstOrNull()
+            val existente = transaction { 
+                User.find { Users.email eq body.email }.firstOrNull() 
             }
             if (existente != null) {
-                call.respond(HttpStatusCode.Conflict, mapOf("error" to "Ya existe una cuenta con ese email."))
-                return@post
+                return@post call.respond(HttpStatusCode.Conflict, mapOf("error" to "Ya existe una cuenta con el email que has indicado."))
             }
+            // Generamos la llave para el registro
+            val verificationToken = UUID.randomUUID().toString()
+            
            // 3. Crear Usuario y, si es monitor, su perfil profesional
             val user = transaction {
                 val newUser = User.new {
@@ -57,6 +61,9 @@ fun Application.authRoutes() {
                     email = body.email
                     passwordHash = hashPassword(body.password)
                     this.role = role
+                    // Guardamos la llave y marcamos como falso
+                    this.isVerified = false
+                    this.verificationToken = verificationToken
                 }
 
                 // En caso de ser un usuario MONITOR, Creamos la entrada en la tabla Monitors.
@@ -71,16 +78,9 @@ fun Application.authRoutes() {
                 newUser
             }
 
-            call.respond(
-                HttpStatusCode.Created,
-                AuthResponse(
-                    userId = user.id.value,
-                    name = user.name,
-                    email = user.email,
-                    role = user.role.name,
-                    token = generateToken(user.id.value, user.role.name)
-                )
-            )
+            // Creamos el usuario sin estar verificado
+            EmailService.sendVerificationEmail(user.email, verificationToken)
+            call.respond(HttpStatusCode.Created, mapOf("message" to "Has registrado tu cuenta, verifica tu correo electronico para activar tu cuenta"))
         }
 
         // Endpoint para iniciar sesion
