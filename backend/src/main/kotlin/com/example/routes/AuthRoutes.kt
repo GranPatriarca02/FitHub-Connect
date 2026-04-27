@@ -16,6 +16,7 @@ import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.security.MessageDigest
 import java.util.UUID
+import com.example.services.EmailService
 
 // Cifra la contrasena por seguridad
 fun hashPassword(password: String): String {
