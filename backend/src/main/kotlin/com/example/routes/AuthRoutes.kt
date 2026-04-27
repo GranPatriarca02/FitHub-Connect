@@ -16,6 +16,7 @@ import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.security.MessageDigest
 import java.util.UUID
+import com.example.services.EmailService
 
 // Cifra la contrasena por seguridad
 fun hashPassword(password: String): String {
@@ -83,6 +84,76 @@ fun Application.authRoutes() {
             call.respond(HttpStatusCode.Created, mapOf("message" to "Has registrado tu cuenta, verifica tu correo electronico para activar tu cuenta"))
         }
 
+
+        // Endpoint para registrar la verificación del correo.
+        get("/verify") {
+        // Token que viene en la URL
+            val verificationToken = call.request.queryParameters["token"]
+        
+            // Si no hay token, cortamos la petición
+            if (verificationToken.isNullOrBlank()) {
+                return@get call.respond(HttpStatusCode.BadRequest, "Token no encontrado")
+            }
+
+            // Entramos en la base de datos para validar al usuario
+            val isReady = transaction {
+                // Buscamos al usuario que tenga ese token asignado
+                val user = User.find { Users.verificationToken eq verificationToken }.firstOrNull()
+                
+                if (user != null) {
+                    user.isVerified = true
+                    user.verificationToken = null 
+                    true
+                } else {
+                    // En caso de que el token no exista o haya sido usado.
+                    false
+                }
+            }
+
+            // Código HTML que ve el usuario.
+            if (isReady) {
+                call.respondText("""
+                    <html>
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1">
+                            <style>
+                                body { 
+                                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                                    text-align: center; 
+                                    padding: 50px 20px; 
+                                    background-color: #0d0d0d; 
+                                    color: white; 
+                                }
+                                .card { 
+                                    background: #161616; 
+                                    padding: 40px; 
+                                    border-radius: 20px; 
+                                    border: 2px solid #2ecc71; 
+                                    max-width: 400px;
+                                    margin: auto;
+                                    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                                }
+                                h1 { color: #2ecc71; margin-bottom: 10px; }
+                                p { color: #ccc; line-height: 1.6; }
+                                .brand { font-weight: bold; color: #2ecc71; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="card">
+                                <h1>¡Listo! ✅</h1>
+                                <p>Tu cuenta ha sido activada correctamente.</p>
+                                <p>Ya puedes cerrar esta ventana, abrir <span class="brand">FitHub Connect</span> y empezar a darle caña.</p>
+                            </div>
+                        </body>
+                    </html>
+                """.trimIndent(), ContentType.Text.Html)
+            } else {
+                // Mejor dar un error genérico por seguridad
+                call.respond(HttpStatusCode.BadRequest, "El enlace no es válido o ya ha caducado.")
+            }
+        }
+
         // Endpoint para iniciar sesion
         post("/auth/login") {
             val body = call.receive<LoginRequest>()
@@ -94,6 +165,14 @@ fun Application.authRoutes() {
             if (user == null || user.passwordHash != hashPassword(body.password)) {
                 call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Email o contrasena incorrectos."))
                 return@post
+            }
+
+            // Verificación del correo.
+            if (!user.isVerified) {
+                return@post call.respond(
+                    HttpStatusCode.Forbidden, 
+                    mapOf("error" to "Debes verificar tu email primero para poder entrar.")
+                )
             }
 
             call.respond(
