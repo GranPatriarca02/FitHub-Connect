@@ -49,7 +49,8 @@ export default function LoginScreen({ navigation }) {
   };
 
   const handleEntrar = async () => {
-    if (!email || !password) {
+    // NOTA: Mantenemos la validación
+    if (!email || !password || (modo === 'registro' && !nombre)) {
       mostrarPopUp("Debes rellenar todos los campos", "error");
       return;
     }
@@ -65,8 +66,9 @@ export default function LoginScreen({ navigation }) {
         ? { email, password }
         : { name: nombre, email, password, role: tipoCuenta === 'Usuario' ? 'FREE' : 'TRAINER' };
 
-      // Petición al servidor
-      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080';
+      // VOLVEMOS A LOCALHOST (Para desarrollo en PC)
+      const API_URL = 'http://localhost:8080';
+
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -76,19 +78,28 @@ export default function LoginScreen({ navigation }) {
       const data = await response.json();
 
       if (response.ok) {
-        // Guardamos Token y ROL en el almacenamiento persistente
-        await AsyncStorage.setItem('userToken', data.token);
-        await AsyncStorage.setItem('userRole', data.role);
-        await AsyncStorage.setItem('userId', data.userId.toString());
-        await AsyncStorage.setItem('userName', data.name);
-        await AsyncStorage.setItem('userEmail', data.email);
-        mostrarPopUp(modo === 'login' ? `Has logueado correctamente, Bienvenido, ${data.name}!` : "Cuenta creada con éxito!", "success");
+        // VERIFICACIÓN
+        if (modo === 'registro') {
+          // Al registrar la cuenta no hay un token todavía.
+          mostrarPopUp(data.message || "Cuenta creada, revisa tu email", "success");
+          setTimeout(() => setModo('login'), 2200);
+        } else {
+          // MODO LOGIN
+          if (data.userId) {
+            await AsyncStorage.setItem('userToken', data.token);
+            await AsyncStorage.setItem('userRole', data.role);
+            await AsyncStorage.setItem('userId', data.userId.toString());
+            await AsyncStorage.setItem('userName', data.name);
+            await AsyncStorage.setItem('userEmail', data.email);
+
+            mostrarPopUp(`Has logueado correctamente, Bienvenido, ${data.name}!`, "success");
+          }
+        }
       } else {
         mostrarPopUp(data.error || "Ocurrió un error inesperado.", "error");
       }
     } catch (error) {
       console.error(error);
-      Alert.alert("Error de conexión", "No se pudo conectar con el servidor");
       mostrarPopUp("No se pudo conectar con el servidor", "error");
     } finally {
       setCargando(false);
@@ -108,10 +119,10 @@ export default function LoginScreen({ navigation }) {
               styles.iconCircle,
               { backgroundColor: notificacion.tipo === 'error' ? '#FF5252' : '#4CAF50' }
             ]}>
-              <Ionicons 
-                name={notificacion.tipo === 'error' ? 'close' : 'checkmark'} 
-                size={16} 
-                color="#fff" 
+              <Ionicons
+                name={notificacion.tipo === 'error' ? 'close' : 'checkmark'}
+                size={16}
+                color="#fff"
               />
             </View>
             <Text style={styles.popUpText}>{notificacion.mensaje}</Text>
