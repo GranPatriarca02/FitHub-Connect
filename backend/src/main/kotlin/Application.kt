@@ -4,7 +4,9 @@ import com.example.db.DatabaseFactory
 import com.example.routes.authRoutes
 import com.example.routes.availabilityRoutes
 import com.example.routes.bookingRoutes
+import com.example.routes.exerciseRoutes
 import com.example.routes.monitorRoutes
+import com.example.routes.routineRoutes
 import com.example.routes.videoRoutes
 import io.ktor.server.application.*
 
@@ -21,4 +23,6 @@ fun Application.module() {
     monitorRoutes()
     bookingRoutes()
     videoRoutes()
+    exerciseRoutes()
+    routineRoutes()
 }
