@@ -5,6 +5,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
 import { API_URL } from '../api';
 
 export default function SubscriptionBenefitsScreen({ navigation }) {
@@ -25,7 +26,7 @@ export default function SubscriptionBenefitsScreen({ navigation }) {
         if (Platform.OS === 'web') {
           window.location.href = data.url;
         } else {
-          Linking.openURL(data.url);
+          await WebBrowser.openBrowserAsync(data.url);
         }
       } else {
         Alert.alert("Error", data.error || "No se pudo iniciar el proceso de pago");

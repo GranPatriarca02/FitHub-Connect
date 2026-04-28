@@ -4,6 +4,7 @@ import {
   StyleSheet, Alert, ActivityIndicator, Modal
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as WebBrowser from 'expo-web-browser';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useStripePlatform, StripeWrapper } from './StripeHelper';
 import { getMonitorDetail, API_URL } from '../api';

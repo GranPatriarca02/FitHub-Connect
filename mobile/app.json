@@ -2,6 +2,7 @@
   "expo": {
     "name": "mobile",
     "slug": "mobile",
+    "scheme": "fithub",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -36,7 +37,8 @@
           "merchantIdentifier": "merchant.com.mobile",
           "enableGooglePay": true
         }
-      ]
+      ],
+      "expo-web-browser"
     ]
   }
 }
