@@ -1,7 +1,21 @@
 // Cliente HTTP
 // URL base
 
-export const API_URL = process.env.EXPO_PUBLIC_API_URL || process.env.API_URL || 'http://localhost:8080';
+import Constants from 'expo-constants';
+
+const getApiUrl = () => {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+  const hostUri = Constants.expoConfig?.hostUri || Constants.manifest?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
+  if (hostUri) {
+    const ip = hostUri.split(':')[0];
+    return `http://${ip}:8080`;
+  }
+  return process.env.API_URL || 'http://localhost:8080';
+};
+
+export const API_URL = getApiUrl();
 
 /**
  * Obtiene la lista de todos los monitores
