@@ -75,13 +75,19 @@ export default function LoginScreen({ navigation }) {
       const data = await response.json();
 
       if (response.ok) {
-        // Guardamos Token y ROL en el almacenamiento persistente
-        await AsyncStorage.setItem('userToken', data.token);
-        await AsyncStorage.setItem('userRole', data.role);
-        await AsyncStorage.setItem('userId', data.userId.toString());
-        await AsyncStorage.setItem('userName', data.name);
-        await AsyncStorage.setItem('userEmail', data.email);
-        mostrarPopUp(modo === 'login' ? `Has logueado correctamente, Bienvenido, ${data.name}!` : "Cuenta creada con éxito!", "success");
+        if (modo === 'registro') {
+          // Si es registro, no hay token aún (falta verificar email)
+          mostrarPopUp("¡Cuenta creada! Revisa tu email para activarla antes de entrar.", "success");
+          setModo('login'); // Cambiamos a modo login para que el usuario entre después
+        } else {
+          // Si es login, guardamos todo
+          await AsyncStorage.setItem('userToken', data.token);
+          await AsyncStorage.setItem('userRole', data.role);
+          await AsyncStorage.setItem('userId', data.userId.toString());
+          await AsyncStorage.setItem('userName', data.name);
+          await AsyncStorage.setItem('userEmail', data.email);
+          mostrarPopUp(`Has logueado correctamente, Bienvenido, ${data.name}!`, "success");
+        }
       } else {
         mostrarPopUp(data.error || "Ocurrió un error inesperado.", "error");
       }
