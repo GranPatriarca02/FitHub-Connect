@@ -39,23 +39,36 @@ object EmailService {
                 val activationLink = "$baseUrl/verify?token=$verificationToken"
                 
                 setHtmlMsg("""
-                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #f0f0f0; border-radius: 10px;">
-                        <h2 style="color: #2ecc71; text-align: center;">¡Bienvenido a la comunidad!</h2>
-                        <p style="color: #333; line-height: 1.5;">
-                            Estamos encantados de tenerte con nosotros. Para empezar a usar FitHub, 
-                            necesitamos confirmar que este correo te pertenece.
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; background-color: #FFF; border-radius: 15px; text-align: center;">
+                        
+                        <!-- LOGO FITHUB -->
+                        <div style="margin-bottom: 25px;">
+                            <img src="https://i.imgur.com/bW4YeAN.png" 
+                                alt="FitHub Logo" 
+                                style="width: 180px; height: auto; display: inline-block;">
+                        </div>
+
+                        <h2 style="color: #577263; margin-bottom: 20px;">¡Bienvenido a FitHub Connect!</h2>
+                        
+                        <p style="color: #577263; line-height: 1.6; font-size: 16px;">
+                            Estamos encantados de tenerte con nosotros. Para empezar a entrenar con <strong>FitHub</strong>, 
+                            necesitamos confirmar tu cuenta.
                         </p>
-                        <div style="text-align: center; margin: 40px 0;">
+                        
+                        <div style="margin: 40px 0;">
                             <a href="$activationLink" 
-                               style="background-color: #2ecc71; color: #ffffff; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-                               Confirmar mi registro
+                            style="background-color: #577263; color: #fff; padding: 18px 35px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; font-size: 16px;">
+                            CONFIRMAR MI REGISTRO
                             </a>
                         </div>
-                        <p style="font-size: 13px; color: #999; border-top: 1px solid #eee; padding-top: 20px;">
-                            Si no has creado ninguna cuenta en nuestra plataforma, puedes ignorar este mensaje tranquilamente.
+                        
+                        <p style="font-size: 12px; color: #666; border-top: 1px solid #333; padding-top: 25px; margin-top: 30px;">
+                            Si no has solicitado esta cuenta, puedes ignorar este correo.
+                            <br>© 2026 FitHub Connect - Tu entrenamiento empieza aquí.
                         </p>
                     </div>
-                """.trimIndent())
+                    """
+                .trimIndent())
                 
                 // IMPORTANTE: Añadir el destinatario
                 addTo(targetEmail)
