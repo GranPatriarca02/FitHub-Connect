@@ -10,6 +10,7 @@ import { Alert } from 'react-native';
 
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { API_URL } from '../api';
+
 export default function LoginScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [modo, setModo] = useState('login'); // 'login' o 'registro'
@@ -81,7 +82,6 @@ export default function LoginScreen({ navigation }) {
       const data = await response.json();
 
       if (response.ok) {
-<<<<<<< HEAD
         if (modo === 'login') {
           // __ LÓGICA DE LOGIN __ 
           await AsyncStorage.clear();
@@ -89,29 +89,17 @@ export default function LoginScreen({ navigation }) {
           if (data.role) await AsyncStorage.setItem('userRole', data.role);
           if (data.userId) await AsyncStorage.setItem('userId', data.userId.toString());
           if (data.name) await AsyncStorage.setItem('userName', data.name);
+          if (data.email) await AsyncStorage.setItem('userEmail', data.email); // Conservado de la versión remota
 
-          mostrarPopUp(`¡Bienvenido de nuevo, ${data.name}!`, "success");
+          mostrarPopUp(`Has logueado correctamente, Bienvenido, ${data.name}!`, "success");
         } else {
           // __ LÓGICA DE REGISTRO __ 
           // No guardamos sesión todavía porque debe verificar email
           mostrarPopUp(
-            "Has registrado tu cuenta correctamente, debes revisar tu email, serás redirigido al login",
+            "¡Cuenta creada! Revisa tu email para activarla antes de entrar.",
             "success"
           );
-=======
-        if (modo === 'registro') {
-          // Si es registro, no hay token aún (falta verificar email)
-          mostrarPopUp("¡Cuenta creada! Revisa tu email para activarla antes de entrar.", "success");
           setModo('login'); // Cambiamos a modo login para que el usuario entre después
-        } else {
-          // Si es login, guardamos todo
-          await AsyncStorage.setItem('userToken', data.token);
-          await AsyncStorage.setItem('userRole', data.role);
-          await AsyncStorage.setItem('userId', data.userId.toString());
-          await AsyncStorage.setItem('userName', data.name);
-          await AsyncStorage.setItem('userEmail', data.email);
-          mostrarPopUp(`Has logueado correctamente, Bienvenido, ${data.name}!`, "success");
->>>>>>> ae5a7d705fa1d14e98da0911fbd03581a30fb502
         }
       } else {
         // Manejo de errores (como el 409 Conflict)

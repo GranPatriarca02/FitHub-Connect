@@ -23,16 +23,15 @@ object EmailService {
 
         try {
             val email = HtmlEmail().apply {
-                // Configuración del servidor de salida (Brevo)
-                // CAMBIO: Actualizado según tu captura de pantalla de SMTP
+                // Configuración del servidor de salida (Brevo actualizado)
                 hostName = "smtp-relay.brevo.com" 
                 setSmtpPort(587)
                 
-                // Usamos variables de entorno para el login, así es más fácil de mantener
+                // Autenticación con las credenciales de tu imagen image_3db5f9.png
                 setAuthenticator(DefaultAuthenticator(userAccount, apiKey))
                 isStartTLSEnabled = true
                 
-                // IMPORTANTE: El 'sender' debe ser exactamente el que validaste en Brevo
+                // Remitente verificado según image_3db97e.png
                 setFrom(sender, "FitHub Connect")
                 subject = "Activa tu cuenta de FitHub Connect"
                 
@@ -44,7 +43,7 @@ object EmailService {
                         <h2 style="color: #2ecc71; text-align: center;">¡Bienvenido a la comunidad!</h2>
                         <p style="color: #333; line-height: 1.5;">
                             Estamos encantados de tenerte con nosotros. Para empezar a usar FitHub, 
-                            Necesitamos confirmar que este correo te pertenece.
+                            necesitamos confirmar que este correo te pertenece.
                         </p>
                         <div style="text-align: center; margin: 40px 0;">
                             <a href="$activationLink" 
@@ -58,7 +57,7 @@ object EmailService {
                     </div>
                 """.trimIndent())
                 
-                // CAMBIO: Se asegura de que el destinatario se añada antes de enviar
+                // IMPORTANTE: Añadir el destinatario
                 addTo(targetEmail)
             }
             
@@ -66,9 +65,7 @@ object EmailService {
             println("Email de verificación enviado correctamente a: $targetEmail")
             
         } catch (err: Exception) {
-            // Limpiamos logs
-            println("Fallo al enviar correo a $targetEmail: ${err.message}")
-            // Mostramos el error completo solo en caso de fallo.
+            println("Ha ocurrido un error al intentar enviar el correo $targetEmail: ${err.message}")
             err.printStackTrace()
         }
     }
