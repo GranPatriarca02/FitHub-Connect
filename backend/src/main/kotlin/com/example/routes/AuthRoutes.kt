@@ -143,7 +143,7 @@ fun Application.authRoutes() {
                             <div class="card">
                                 <h1>¡Listo! ✅</h1>
                                 <p>Tu cuenta ha sido activada correctamente.</p>
-                                <p>Ya puedes cerrar esta ventana, abrir <span class="brand">FitHub Connect</span> y empezar a darle caña.</p>
+                                <p>Ya puedes cerrar esta ventana, abrir <span class="brand">FitHub Connect</span></p>
                             </div>
                         </body>
                     </html>

@@ -3,18 +3,18 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, Dimensions, Platform, Alert, Modal
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient'; 
-import AsyncStorage from '@react-native-async-storage/async-storage'; 
-import { useFocusEffect } from '@react-navigation/native'; 
+import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { healthCheck, API_URL } from '../api';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons'; 
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  
+
   // Estados para el nombre y el rol
   const [role, setRole] = useState('FREE');
   const [userName, setUserName] = useState('');
@@ -31,12 +31,12 @@ export default function HomeScreen({ navigation }) {
             const userId = await AsyncStorage.getItem('userId');
             const response = await fetch(`${API_URL}/confirm-premium`, {
               method: 'POST',
-              headers: { 
+              headers: {
                 'Content-Type': 'application/json',
                 'X-User-Id': userId
               },
             });
-            
+
             if (response.ok) {
               await AsyncStorage.setItem('userRole', 'PREMIUM');
               setRole('PREMIUM');
@@ -53,36 +53,51 @@ export default function HomeScreen({ navigation }) {
   }, []);
 
   // HOOK clave: sincronización con el servidor cada vez que la pantalla gana foco
+  const loadUserData = async () => {
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+
+      // Si no hay ID, es que no hay sesión. Al Login de cabeza.
+      if (!userId) {
+        navigation.replace('Login');
+        return;
+      }
+
+      // 1. Carga local rápida (Opcional, pero priorizamos la limpieza si hay duda)
+      const savedRole = await AsyncStorage.getItem('userRole');
+      const savedName = await AsyncStorage.getItem('userName');
+      const savedEmail = await AsyncStorage.getItem('userEmail');
+
+      // Solo seteamos local si el estado actual está vacío para evitar el "salto" de datos
+      if (!userName && savedName) setUserName(savedName);
+      if (savedRole) setRole(savedRole);
+      if (savedEmail) setUserEmail(savedEmail);
+
+      // 2. Sincronización Real con el Backend (Prioridad absoluta)
+      const response = await fetch(`${API_URL}/auth/user/${userId}`);
+      if (response.ok) {
+        const data = await response.json();
+        // Actualizamos estados con la VERDAD del servidor
+        setRole(data.role);
+        setUserName(data.name);
+        setUserEmail(data.email);
+
+        // Guardamos para la próxima vez
+        await AsyncStorage.setItem('userRole', data.role);
+        await AsyncStorage.setItem('userName', data.name);
+        await AsyncStorage.setItem('userEmail', data.email);
+      } else if (response.status === 404 || response.status === 401) {
+        // Si el servidor no reconoce el token o el ID, limpiamos y fuera
+        handleLogout();
+      }
+    } catch (e) {
+      console.error("Error sincronizando datos del usuario:", e);
+    }
+  };
+
+  // Aplicamos el foco para que se dispare loadUserData
   useFocusEffect(
     useCallback(() => {
-      const loadUserData = async () => {
-        try {
-          const userId = await AsyncStorage.getItem('userId');
-          if (!userId) return;
-
-          // 1. Carga local
-          const savedRole = await AsyncStorage.getItem('userRole');
-          const savedName = await AsyncStorage.getItem('userName');
-          const savedEmail = await AsyncStorage.getItem('userEmail');
-          if (savedRole) setRole(savedRole);
-          if (savedName) setUserName(savedName);
-          if (savedEmail) setUserEmail(savedEmail);
-
-          // 2. Sincronización Backend (Esencial para móvil)
-          const response = await fetch(`${API_URL}/auth/user/${userId}`);
-          if (response.ok) {
-            const data = await response.json();
-            setRole(data.role);
-            setUserName(data.name);
-            setUserEmail(data.email);
-            await AsyncStorage.setItem('userRole', data.role);
-            await AsyncStorage.setItem('userName', data.name);
-            await AsyncStorage.setItem('userEmail', data.email);
-          }
-        } catch (e) {
-          console.error("Error sincronizando datos del usuario:", e);
-        }
-      };
       loadUserData();
     }, [])
   );
@@ -105,7 +120,7 @@ export default function HomeScreen({ navigation }) {
 
         {/* __ CABECERA __ */}
         <View style={styles.header}>
-          <View flex={1}>
+          <View style={{ flex: 1 }}>
             <Text style={styles.greeting}>Hola de nuevo,</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={styles.appName}>{userName || 'FitHub Connect'}</Text>
@@ -144,8 +159,8 @@ export default function HomeScreen({ navigation }) {
 
         {/* __ BANNER HAZTE PREMIUM (solo para FREE) __ */}
         {!isPremium && !isTrainer && (
-          <TouchableOpacity 
-            style={styles.premiumBanner} 
+          <TouchableOpacity
+            style={styles.premiumBanner}
             activeOpacity={0.9}
             onPress={() => navigation.navigate('SubscriptionBenefits')}
           >
@@ -221,6 +236,8 @@ export default function HomeScreen({ navigation }) {
   );
 }
 
+// ... Mantengo tus funciones ActionCard, ProfileMenu y styles exactamente igual ...
+
 function ActionCard({ title, desc, icon, onPress }) {
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
@@ -255,8 +272,8 @@ function ProfileMenu({ visible, onClose, userName, userEmail, isPremium, isTrain
           )}
         </View>
 
-        <TouchableOpacity 
-          style={styles.menuItem} 
+        <TouchableOpacity
+          style={styles.menuItem}
           onPress={() => {
             onClose();
             navigation.navigate('Account');
@@ -267,8 +284,8 @@ function ProfileMenu({ visible, onClose, userName, userEmail, isPremium, isTrain
         </TouchableOpacity>
 
         {!isPremium && !isTrainer && (
-          <TouchableOpacity 
-            style={styles.menuItem} 
+          <TouchableOpacity
+            style={styles.menuItem}
             onPress={() => {
               onClose();
               navigation.navigate('SubscriptionBenefits');
@@ -281,8 +298,8 @@ function ProfileMenu({ visible, onClose, userName, userEmail, isPremium, isTrain
 
         <View style={styles.menuDivider} />
 
-        <TouchableOpacity 
-          style={[styles.menuItem, { marginBottom: 0 }]} 
+        <TouchableOpacity
+          style={[styles.menuItem, { marginBottom: 0 }]}
           onPress={onLogout}
         >
           <Ionicons name="log-out-outline" size={20} color="#FF5252" />

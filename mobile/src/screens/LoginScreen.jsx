@@ -26,30 +26,40 @@ export default function LoginScreen({ navigation }) {
   const mostrarPopUp = (mensaje, tipo) => {
     setNotificacion({ visible: true, mensaje, tipo });
 
-    // Animación de entrada
     Animated.spring(translateY, {
-      toValue: 50, // Posición en pantalla
-      useNativeDriver: true,
+      toValue: 50,
+      useNativeDriver: Platform.OS !== 'web', // Corrección para Web
       friction: 7,
       tension: 40
     }).start();
 
-    // Animación de salida después de 2.5 segundos
     setTimeout(() => {
       Animated.timing(translateY, {
         toValue: -120,
         duration: 400,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
         easing: Easing.in(Easing.exp)
       }).start(() => {
-        setNotificacion({ ...notificacion, visible: false });
-        if (tipo === 'success') navigation.replace('Home');
+        setNotificacion(prev => ({ ...prev, visible: false }));
+
+        if (tipo === 'success') {
+          if (modo === 'login') {
+            navigation.replace('Home');
+          } else {
+            // Si es registro, lo mandamos a la vista de login 
+            // (cambiando el estado del formulario)
+            setModo('login');
+            setEmail(''); // Opcional: limpiar campos
+            setPassword('');
+            setNombre('');
+          }
+        }
       });
-    }, 2200);
+    }, 2500);
   };
 
   const handleEntrar = async () => {
-    if (!email || !password) {
+    if (!email || !password || (modo === 'registro' && !nombre)) {
       mostrarPopUp("Debes rellenar todos los campos", "error");
       return;
     }
@@ -57,15 +67,11 @@ export default function LoginScreen({ navigation }) {
     setCargando(true);
 
     try {
-      // Determinar la ruta: login o registro
       const endpoint = modo === 'login' ? '/auth/login' : '/auth/register';
-
-      // Cuerpo de la petición
       const body = modo === 'login'
         ? { email, password }
         : { name: nombre, email, password, role: tipoCuenta === 'Usuario' ? 'FREE' : 'TRAINER' };
 
-      // Petición al servidor
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -75,20 +81,31 @@ export default function LoginScreen({ navigation }) {
       const data = await response.json();
 
       if (response.ok) {
-        // Guardamos Token y ROL en el almacenamiento persistente
-        await AsyncStorage.setItem('userToken', data.token);
-        await AsyncStorage.setItem('userRole', data.role);
-        await AsyncStorage.setItem('userId', data.userId.toString());
-        await AsyncStorage.setItem('userName', data.name);
-        await AsyncStorage.setItem('userEmail', data.email);
-        mostrarPopUp(modo === 'login' ? `Has logueado correctamente, Bienvenido, ${data.name}!` : "Cuenta creada con éxito!", "success");
+        if (modo === 'login') {
+          // __ LÓGICA DE LOGIN __ 
+          await AsyncStorage.clear();
+          if (data.token) await AsyncStorage.setItem('userToken', data.token);
+          if (data.role) await AsyncStorage.setItem('userRole', data.role);
+          if (data.userId) await AsyncStorage.setItem('userId', data.userId.toString());
+          if (data.name) await AsyncStorage.setItem('userName', data.name);
+
+          mostrarPopUp(`¡Bienvenido de nuevo, ${data.name}!`, "success");
+        } else {
+          // __ LÓGICA DE REGISTRO __ 
+          // No guardamos sesión todavía porque debe verificar email
+          mostrarPopUp(
+            "Has registrado tu cuenta correctamente, debes revisar tu email, serás redirigido al login",
+            "success"
+          );
+        }
       } else {
-        mostrarPopUp(data.error || "Ocurrió un error inesperado.", "error");
+        // Manejo de errores (como el 409 Conflict)
+        const msg = data.error || (response.status === 409 ? "El email ya está registrado" : "Error en el servidor");
+        mostrarPopUp(msg, "error");
       }
     } catch (error) {
       console.error(error);
-      Alert.alert("Error de conexión", "No se pudo conectar con el servidor");
-      mostrarPopUp("No se pudo conectar con el servidor", "error");
+      mostrarPopUp("Error de conexión con el servidor", "error");
     } finally {
       setCargando(false);
     }
@@ -107,10 +124,10 @@ export default function LoginScreen({ navigation }) {
               styles.iconCircle,
               { backgroundColor: notificacion.tipo === 'error' ? '#FF5252' : '#4CAF50' }
             ]}>
-              <Ionicons 
-                name={notificacion.tipo === 'error' ? 'close' : 'checkmark'} 
-                size={16} 
-                color="#fff" 
+              <Ionicons
+                name={notificacion.tipo === 'error' ? 'close' : 'checkmark'}
+                size={16}
+                color="#fff"
               />
             </View>
             <Text style={styles.popUpText}>{notificacion.mensaje}</Text>
