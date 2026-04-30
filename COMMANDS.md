@@ -248,3 +248,29 @@ Si haces cambios en el codigo del backend (por ejemplo, anades una tabla nueva) 
    sudo chown admin:admin /var/www/fithub/ktor-backend-all.jar
    sudo systemctl restart fithub
    ```
+
+---
+
+## Configuracion de Stripe y Webhooks
+
+Para que las reservas se confirmen automaticamente, debes configurar el Webhook de Stripe:
+
+1. **Local (Desarrollo):**
+   - Usa el [Stripe CLI](https://stripe.com/docs/stripe-cli).
+   - Comando: `stripe listen --forward-to localhost:8080/bookings/webhook`
+   - Copia la clave `whsec_...` y ponla en tu `backend/.env` como `STRIPE_WEBHOOK_SECRET`.
+
+2. **Produccion (Webdock):**
+   - Ve al Dashboard de Stripe -> Developers -> Webhooks.
+   - Añade un endpoint: `https://fithub.vps.webdock.cloud/bookings/webhook`.
+   - Selecciona los eventos: `checkout.session.completed` y `payment_intent.succeeded`.
+   - Copia la "Signing secret" al `.env` del servidor.
+
+---
+
+## Enlaces Profundos (Deep Linking)
+
+La App esta configurada para responder al esquema `fithub://`. Esto se usa para volver desde el navegador tras un pago:
+
+- **URL de retorno**: `fithub://home`
+- **Configuracion**: Se encuentra en `mobile/app.json` bajo la propiedad `"scheme": "fithub"`.

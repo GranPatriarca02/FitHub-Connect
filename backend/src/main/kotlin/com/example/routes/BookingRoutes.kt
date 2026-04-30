@@ -81,7 +81,7 @@ fun Application.bookingRoutes() {
                             amount = 0.0
                         )
                     } else {
-                        val intent = PaymentService.createPaymentIntent(booking.amount, booking.id.value)
+                        val intent = PaymentService.createPaymentIntent(booking.amount, booking.id.value, userId)
                         booking.paymentId = intent.id
 
                         CheckoutResponse(
@@ -160,11 +160,29 @@ fun Application.bookingRoutes() {
                 }
 
                 // 2. Si no es Premium, flujo normal de Stripe
+                val bookingId = transaction {
+                    val dateStr = request["date"]?.toString()?.replace("\"", "") ?: LocalDate.now().toString()
+                    val hourStr = request["startTime"]?.toString()?.replace("\"", "") ?: "10:00"
+                    val bDateTime = LocalDateTime.parse("${dateStr}T${hourStr}:00")
+
+                    Booking.new {
+                        this.user = user
+                        this.monitor = monitor
+                        this.date = bDateTime
+                        this.startTime = hourStr
+                        this.endTime = request["endTime"]?.toString()?.replace("\"", "") ?: "11:00"
+                        this.status = BookingStatus.PENDING
+                        this.amount = price.toBigDecimal()
+                    }.id.value
+                }
+
                 val params = SessionCreateParams.builder()
                     .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
                     .setMode(SessionCreateParams.Mode.PAYMENT)
-                    .setSuccessUrl("$frontendUrl/?payment=success")
-                    .setCancelUrl("$frontendUrl/?payment=cancel")
+                    .setSuccessUrl("${env["BACKEND_URL"] ?: "http://localhost:8080"}/payment-success")
+                    .setCancelUrl("${env["BACKEND_URL"] ?: "http://localhost:8080"}/payment-cancel")
+                    .putMetadata("userId", userId.toString())
+                    .putMetadata("bookingId", bookingId.toString())
                     .addLineItem(
                         SessionCreateParams.LineItem.builder()
                             .setQuantity(1L)
@@ -185,7 +203,6 @@ fun Application.bookingRoutes() {
 
                 val session = Session.create(params)
                 call.respond(mapOf("url" to session.url))
-                
             } catch (e: Exception) {
                 call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Error desconocido")))
             }
@@ -200,20 +217,34 @@ fun Application.bookingRoutes() {
             try {
                 val event = Webhook.constructEvent(payload, sigHeader, endpointSecret)
 
+                // 1. Manejo de PaymentIntent (Flujo Nativo)
                 if ("payment_intent.succeeded" == event.type) {
                     val dataObject = event.dataObjectDeserializer.`object`.orElse(null)
                     if (dataObject is PaymentIntent) {
                         val bId = dataObject.metadata["bookingId"]?.toIntOrNull()
+                        val uId = dataObject.metadata["userId"]?.toIntOrNull()
+                        
                         transaction {
-                            bId?.let { id ->
-                                Booking.findById(id)?.let { 
-                                    it.status = BookingStatus.CONFIRMED
-                                    it.user.role = UserRole.PREMIUM 
-                                }
-                            }
+                            bId?.let { id -> Booking.findById(id)?.let { it.status = BookingStatus.CONFIRMED } }
+                            uId?.let { id -> User.findById(id)?.let { it.role = UserRole.PREMIUM } }
                         }
                     }
                 }
+                
+                // 2. Manejo de Checkout Session (Flujo Web / Suscripciones)
+                if ("checkout.session.completed" == event.type) {
+                    val session = event.dataObjectDeserializer.`object`.orElse(null) as? Session
+                    val uId = session?.metadata?.get("userId")?.toIntOrNull()
+                    val bId = session?.metadata?.get("bookingId")?.toIntOrNull()
+                    
+                    transaction {
+                        // Activamos Premium si es necesario
+                        uId?.let { id -> User.findById(id)?.let { it.role = UserRole.PREMIUM } }
+                        // Confirmamos la reserva si existe
+                        bId?.let { id -> Booking.findById(id)?.let { it.status = BookingStatus.CONFIRMED } }
+                    }
+                }
+                
                 call.respond(HttpStatusCode.OK)
             } catch (e: Exception) {
                 call.respond(HttpStatusCode.BadRequest, "Error en el Webhook")
@@ -246,14 +277,19 @@ fun Application.bookingRoutes() {
         // --- 3. CREAR SESIÓN PARA SUSCRIPCIÓN ILIMITADA ---
         post("/create-subscription-session") {
             try {
+                val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
+                    ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Falta ID de usuario"))
+
                 // Para la suscripción ilimitada, usamos un precio fijo
                 val price = 29.99
 
                 val params = SessionCreateParams.builder()
                     .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
-                    .setMode(SessionCreateParams.Mode.PAYMENT) // Usamos PAYMENT para simplificar en este TFG, aunque Stripe tiene modo SUBSCRIPTION
-                    .setSuccessUrl("$frontendUrl/?payment=success")
-                    .setCancelUrl("$frontendUrl/?payment=cancel")
+                    .setMode(SessionCreateParams.Mode.PAYMENT)
+                    .setSuccessUrl("${env["BACKEND_URL"] ?: "http://localhost:8080"}/payment-success")
+                    .setCancelUrl("${env["BACKEND_URL"] ?: "http://localhost:8080"}/payment-cancel")
+                    .putMetadata("userId", userId.toString())
+                    .putMetadata("type", "PREMIUM_PASS")
                     .addLineItem(
                         SessionCreateParams.LineItem.builder()
                             .setQuantity(1L)

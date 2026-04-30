@@ -28,6 +28,14 @@ data class MonitorDetailResponse(
 )
 
 @Serializable
+data class MonitorProfileResponse(
+    val monitorId: Int,
+    val specialty: String?,
+    val hourlyRate: Double,
+    val bio: String
+)
+
+@Serializable
 data class UpdateTrainerProfileRequest(
     val specialty: String,
     val bio: String,

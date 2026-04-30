@@ -17,6 +17,7 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import java.security.MessageDigest
 import java.util.UUID
 import com.example.services.EmailService
+import kotlinx.coroutines.*
 
 // Cifra la contrasena por seguridad
 fun hashPassword(password: String): String {
@@ -79,8 +80,11 @@ fun Application.authRoutes() {
                 newUser
             }
 
-            // Creamos el usuario sin estar verificado
-            EmailService.sendVerificationEmail(user.email, verificationToken)
+            // Lanzamos el envio de email en segundo plano para no bloquear la respuesta al usuario
+            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                EmailService.sendVerificationEmail(user.email, verificationToken)
+            }
+            
             call.respond(HttpStatusCode.Created, mapOf("message" to "Has registrado tu cuenta, verifica tu correo electronico para activar tu cuenta"))
         }
 

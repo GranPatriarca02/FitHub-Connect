@@ -6,6 +6,7 @@ import com.example.models.dto.MonitorDetailResponse
 import com.example.models.dto.MonitorListItem
 import com.example.models.dto.UpdateTrainerProfileRequest
 import com.example.models.dto.OccupiedSlotDto
+import com.example.models.dto.MonitorProfileResponse
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
@@ -35,12 +36,14 @@ fun Application.monitorRoutes() {
                     return@get
                 }
 
-                call.respond(HttpStatusCode.OK, mapOf(
-                    "monitorId" to monitor.id.value,
-                    "specialty" to monitor.specialty,
-                    "hourlyRate" to (monitor.hourlyRate?.toDouble() ?: 0.0),
-                    "bio" to (monitor.bio ?: "")
-                ))
+                val response = MonitorProfileResponse(
+                    monitorId = monitor.id.value,
+                    specialty = monitor.specialty,
+                    hourlyRate = monitor.hourlyRate?.toDouble() ?: 0.0,
+                    bio = monitor.bio ?: ""
+                )
+
+                call.respond(HttpStatusCode.OK, response)
             }
 
             // Actualizar el perfil profesional del monitor autenticado (solo TRAINER)

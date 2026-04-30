@@ -16,7 +16,7 @@ fun Application.videoRoutes() {
 
             // GET /videos — devuelve videos según el rol del usuario
             // FREE: solo isPremium = false
-            // PREMIUM / TRAINER: todos
+            // PREMIUM / TRAINER: todos (incluye oficiales y de otros entrenadores)
             get {
                 val userRole = call.request.headers["X-User-Role"]?.uppercase() ?: "FREE"
 
@@ -24,6 +24,7 @@ fun Application.videoRoutes() {
                     val query = if (userRole == "FREE") {
                         Video.find { Videos.isPremium eq false }
                     } else {
+                        // PREMIUM y TRAINER ven TODO
                         Video.all()
                     }
 
@@ -48,11 +49,11 @@ fun Application.videoRoutes() {
             // GET /videos/my — videos del entrenador autenticado
             get("/my") {
                 val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
-                    ?: return@get call.respond(HttpStatusCode.BadRequest, "Header X-User-Id requerido")
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Header X-User-Id requerido"))
 
                 val videos = transaction {
                     val monitor = Monitor.find { Monitors.userId eq userId }.firstOrNull()
-                        ?: return@transaction emptyList()
+                        ?: return@transaction null // Cambiamos a null para detectar fuera
 
                     Video.find { Videos.monitorId eq monitor.id }
                         .orderBy(Videos.createdAt to org.jetbrains.exposed.sql.SortOrder.DESC)
@@ -71,31 +72,35 @@ fun Application.videoRoutes() {
                         }
                 }
 
-                call.respond(HttpStatusCode.OK, videos)
+                if (videos == null) {
+                    call.respond(HttpStatusCode.NotFound, mapOf("error" to "Perfil de monitor no encontrado para este usuario"))
+                } else {
+                    call.respond(HttpStatusCode.OK, videos)
+                }
             }
 
             // POST /videos — solo TRAINER puede publicar un video
             post {
                 val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
-                    ?: return@post call.respond(HttpStatusCode.BadRequest, "Header X-User-Id requerido")
+                    ?: return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Header X-User-Id requerido"))
 
                 val monitor = transaction {
                     Monitor.find { Monitors.userId eq userId }.firstOrNull()
                 } ?: return@post call.respond(
                     HttpStatusCode.Forbidden,
-                    mapOf("error" to "Solo los entrenadores pueden publicar videos")
+                    mapOf("error" to "No se encontró perfil de monitor para este usuario. Asegúrate de que tu cuenta sea de entrenador.")
                 )
 
                 val req = try {
                     call.receive<CreateVideoRequest>()
                 } catch (e: Exception) {
-                    return@post call.respond(HttpStatusCode.BadRequest, "Cuerpo de la peticion no valido")
+                    return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Cuerpo de la petición no válido"))
                 }
 
                 if (req.title.isBlank() || req.videoUrl.isBlank()) {
                     return@post call.respond(
                         HttpStatusCode.BadRequest,
-                        mapOf("error" to "El titulo y la URL del video son obligatorios")
+                        mapOf("error" to "El título y la URL del video son obligatorios")
                     )
                 }
 
