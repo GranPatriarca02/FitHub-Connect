@@ -4,7 +4,6 @@ import {
   StyleSheet, Alert, ActivityIndicator, Modal
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as WebBrowser from 'expo-web-browser';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useStripePlatform, StripeWrapper } from './StripeHelper';
 import { getMonitorDetail, API_URL } from '../api';
@@ -41,16 +40,30 @@ export default function MonitorDetailScreen({ route, navigation }) {
   const [slotSeleccionado, setSlotSeleccionado] = useState(null);
 
   const [cargandoPago, setCargandoPago] = useState(false);
-  const [userRole, setUserRole] = useState('FREE');
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [cargandoSuscripcion, setCargandoSuscripcion] = useState(true);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [precioPagado, setPrecioPagado] = useState(0);
 
+  // Comprobamos si el usuario tiene suscripción activa con este entrenador
   useEffect(() => {
-    const loadRole = async () => {
-      const role = await AsyncStorage.getItem('userRole');
-      if (role) setUserRole(role);
+    const checkSubscription = async () => {
+      try {
+        const userId = await AsyncStorage.getItem('userId');
+        if (!userId) return;
+        const res = await fetch(
+          `${API_URL}/subscriptions/check?userId=${userId}&monitorId=${initialMonitor.id}`
+        );
+        const data = await res.json();
+        setIsSubscribed(data.isSubscribed === true);
+      } catch (e) {
+        // Si falla la comprobación, asumimos no suscrito
+      } finally {
+        setCargandoSuscripcion(false);
+      }
     };
-    loadRole();
-  }, []);
+    checkSubscription();
+  }, [initialMonitor.id]);
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -150,9 +163,9 @@ export default function MonitorDetailScreen({ route, navigation }) {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Error al crear la reserva');
 
-        // SI ES PREMIUM (Backend devolvió ClientSecret nulo o el usuario es Premium)
-        if (!data.clientSecret || userRole === 'PREMIUM') {
-          // BLOQUEO INSTANTÁNEO
+        // SI TIENE SUSCRIPCIÓN a este entrenador, reserva gratuita directa
+        if (!data.clientSecret || isSubscribed) {
+          setPrecioPagado(0);
           setOccupiedSlots(prev => [...prev, {
             date: fechaSeleccionada.dateString,
             startTime: slotSeleccionado.startTime
@@ -186,23 +199,10 @@ export default function MonitorDetailScreen({ route, navigation }) {
             Alert.alert('Error en el pago', paymentError.message);
           }
         } else {
-          // ÉXITO TRAS PAGO -> SINCRONIZAR Y BLOQUEAR
-          try {
-            const userId = await AsyncStorage.getItem('userId');
-            // Avisamos al servidor para que el cambio a PREMIUM sea permanente en DB
-            await fetch(`${API_URL}/confirm-premium`, {
-              method: 'POST',
-              headers: { 
-                'Content-Type': 'application/json',
-                'X-User-Id': userId
-              },
-            });
-            await AsyncStorage.setItem('userRole', 'PREMIUM');
-          } catch (err) {
-            // Log silenciado para evitar crash si el sync falla pero el pago fue ok
-          }
-
-          // Bloqueo instantáneo en la UI
+          // ÉXITO TRAS PAGO -> BLOQUEAR SLOT EN LA UI
+          // NOTA: El webhook de Stripe confirma la reserva en el backend automáticamente.
+          // Pagar una clase NO cambia el rol del usuario a PREMIUM.
+          setPrecioPagado(monitorDetail.hourlyRate);
           setOccupiedSlots(prev => [...prev, {
             date: fechaSeleccionada.dateString,
             startTime: slotSeleccionado.startTime
@@ -251,6 +251,40 @@ export default function MonitorDetailScreen({ route, navigation }) {
             </View>
           </View>
         </View>
+
+        {/* Banner / botón de suscripción */}
+        {cargandoSuscripcion ? (
+          <ActivityIndicator color="#FFD700" style={{ marginBottom: 16 }} />
+        ) : isSubscribed ? (
+          <LinearGradient
+            colors={['#3a2e00', '#1a1500']}
+            style={styles.subscribedBanner}
+          >
+            <MaterialCommunityIcons name="crown" size={20} color="#FFD700" />
+            <Text style={styles.subscribedText}>
+              ¡Estás suscrito a {monitorDetail.name}! — Clases ilimitadas gratis
+            </Text>
+          </LinearGradient>
+        ) : (
+          <TouchableOpacity
+            style={styles.subscribeBtn}
+            onPress={() => navigation.navigate('SubscriptionBenefits', {
+              monitorId: monitorDetail.id,
+              monitorName: monitorDetail.name,
+            })}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={['#FFD700', '#B8860B']}
+              style={styles.subscribeBtnGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <MaterialCommunityIcons name="crown" size={18} color="#000" style={{ marginRight: 8 }} />
+              <Text style={styles.subscribeBtnText}>Suscribirme a {monitorDetail.name} — 29.99€/mes</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
 
         <Text style={styles.sectionTitle}>Disponibilidad semanal</Text>
         <Text style={styles.sectionHint}>Selecciona el día y la franja horaria que prefieras</Text>
@@ -361,13 +395,13 @@ export default function MonitorDetailScreen({ route, navigation }) {
                       <ActivityIndicator color="#fff" />
                     ) : (
                       <Text style={styles.ctaText}>
-                        {selectedOccupied 
-                          ? 'Horario Ocupado' 
-                          : (slotSeleccionado 
-                              ? (userRole === 'PREMIUM' 
-                                  ? 'Confirmar Reserva GRATIS (Premium)' 
-                                  : `Pagar Reserva – ${monitorDetail.hourlyRate}€`)
-                              : 'Selecciona un horario')}
+                        {selectedOccupied
+                          ? 'Horario Ocupado'
+                          : slotSeleccionado
+                            ? isSubscribed
+                              ? 'Confirmar Reserva — Incluida en tu suscripción'
+                              : `Pagar Reserva – ${monitorDetail.hourlyRate}€`
+                            : 'Selecciona un horario'}
                       </Text>
                     )}
                   </LinearGradient>
@@ -377,7 +411,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
           </>
         )}
 
-        {/* Modal de Éxito Premium */}
+        {/* Modal de Éxito Reserva */}
         <SuccessModal 
           visible={showSuccess} 
           onClose={() => {
@@ -387,6 +421,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
           monitorName={monitorDetail.name}
           time={`${slotSeleccionado?.startTime.substring(0,5)} – ${slotSeleccionado?.endTime.substring(0,5)}`}
           date={fechaSeleccionada.dateString}
+          precio={precioPagado}
         />
 
       </ScrollView>
@@ -395,7 +430,8 @@ export default function MonitorDetailScreen({ route, navigation }) {
   );
 }
 
-function SuccessModal({ visible, onClose, monitorName, time, date }) {
+function SuccessModal({ visible, onClose, monitorName, time, date, precio }) {
+  const esPremium = precio === 0;
   return (
     <Modal transparent visible={visible} animationType="fade">
       <View style={styles.modalOverlay}>
@@ -414,7 +450,12 @@ function SuccessModal({ visible, onClose, monitorName, time, date }) {
             <DetailItem icon="account" label="Monitor" value={monitorName} />
             <DetailItem icon="calendar" label="Fecha" value={date} />
             <DetailItem icon="clock-outline" label="Hora" value={time} />
-            <DetailItem icon="cash-check" label="Precio" value="0.00€ (Premium)" isFree />
+            <DetailItem 
+              icon="cash-check" 
+              label="Precio" 
+              value={esPremium ? '0.00€ (incluido en tu suscripción)' : `${precio}€`} 
+              isFree={esPremium} 
+            />
           </View>
 
           <TouchableOpacity style={styles.closeModalBtn} onPress={onClose}>
@@ -474,6 +515,42 @@ const styles = StyleSheet.create({
   divider: { width: 1, height: 32, backgroundColor: '#2a2a2a' },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: '#fff', marginBottom: 4 },
   sectionHint: { fontSize: 12, color: '#666', marginBottom: 16 },
+
+  // Suscripción por entrenador
+  subscribedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#5a4500',
+    gap: 10,
+  },
+  subscribedText: {
+    flex: 1,
+    color: '#FFD700',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  subscribeBtn: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginBottom: 20,
+  },
+  subscribeBtnGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  subscribeBtnText: {
+    color: '#000',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   
   datesRow: { flexDirection: 'row', marginBottom: 20 },
   dateBox: {
