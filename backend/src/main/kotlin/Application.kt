@@ -7,6 +7,7 @@ import com.example.routes.bookingRoutes
 import com.example.routes.exerciseRoutes
 import com.example.routes.monitorRoutes
 import com.example.routes.routineRoutes
+import com.example.routes.subscriptionRoutes
 import com.example.routes.videoRoutes
 import io.ktor.server.application.*
 
@@ -22,6 +23,7 @@ fun Application.module() {
     availabilityRoutes()
     monitorRoutes()
     bookingRoutes()
+    subscriptionRoutes()
     videoRoutes()
     exerciseRoutes()
     routineRoutes()
