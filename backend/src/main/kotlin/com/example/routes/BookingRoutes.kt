@@ -217,16 +217,41 @@ fun Application.bookingRoutes() {
             try {
                 val event = Webhook.constructEvent(payload, sigHeader, endpointSecret)
 
-                // 1. Manejo de PaymentIntent (Flujo Nativo)
+                // 1. Manejo de PaymentIntent (Flujo Nativo — Reservas y Suscripciones)
                 if ("payment_intent.succeeded" == event.type) {
                     val dataObject = event.dataObjectDeserializer.`object`.orElse(null)
                     if (dataObject is PaymentIntent) {
-                        val bId = dataObject.metadata["bookingId"]?.toIntOrNull()
-                        val uId = dataObject.metadata["userId"]?.toIntOrNull()
-                        
+                        val bId  = dataObject.metadata["bookingId"]?.toIntOrNull()
+                        val uId  = dataObject.metadata["userId"]?.toIntOrNull()
+                        val mId  = dataObject.metadata["monitorId"]?.toIntOrNull()
+                        val type = dataObject.metadata["type"]
+
                         transaction {
+                            // Confirmar reserva si existe
                             bId?.let { id -> Booking.findById(id)?.let { it.status = BookingStatus.CONFIRMED } }
-                            uId?.let { id -> User.findById(id)?.let { it.role = UserRole.PREMIUM } }
+
+                            // Si es una suscripción a entrenador, activarla
+                            if (type == "TRAINER_SUBSCRIPTION" && uId != null && mId != null) {
+                                val user    = User.findById(uId)
+                                val monitor = Monitor.findById(mId)
+                                if (user != null && monitor != null) {
+                                    // Cancelar suscripciones previas al mismo entrenador
+                                    Subscription.find {
+                                        (Subscriptions.userId    eq uId) and
+                                        (Subscriptions.monitorId eq mId)
+                                    }.forEach { it.status = SubscriptionStatus.CANCELLED }
+
+                                    // Crear la suscripción activa por 1 mes
+                                    Subscription.new {
+                                        this.user      = user
+                                        this.monitor   = monitor
+                                        this.status    = SubscriptionStatus.ACTIVE
+                                        this.expiresAt = java.time.LocalDateTime.now().plusMonths(1)
+                                        this.paymentId = dataObject.id
+                                    }
+                                }
+                            }
+                            // NOTA: pagar una reserva normal NO cambia el rol del usuario a PREMIUM
                         }
                     }
                 }
