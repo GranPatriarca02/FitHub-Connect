@@ -87,6 +87,15 @@ export default function AccountScreen({ navigation }) {
           </View>
         </View>
 
+        {isTrainer && (
+          <TouchableOpacity 
+            style={[styles.backBtn, { backgroundColor: '#4CAF50', marginBottom: 15 }]} 
+            onPress={() => navigation.navigate('TrainerProfile')}
+          >
+            <Text style={styles.backBtnText}>Configurar Perfil Público</Text>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.backBtnText}>Volver</Text>
         </TouchableOpacity>
