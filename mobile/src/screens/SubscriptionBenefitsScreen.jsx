@@ -1,39 +1,115 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Linking, ActivityIndicator, Alert
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Alert, ActivityIndicator
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import * as WebBrowser from 'expo-web-browser';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../api';
+import { useStripePlatform, StripeWrapper } from './StripeHelper';
 
-export default function SubscriptionBenefitsScreen({ navigation }) {
+// ─── Componente interno (necesita estar dentro del StripeWrapper) ───────────
+function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
   const insets = useSafeAreaInsets();
   const [procesando, setProcesando] = useState(false);
+  const { initPaymentSheet, presentPaymentSheet, isWeb } = useStripePlatform();
+
+  const trainerName = monitorName || 'este entrenador';
 
   const handleSubscribe = async () => {
     setProcesando(true);
     try {
-      const response = await fetch(`${API_URL}/create-subscription-session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const userId = await AsyncStorage.getItem('userId');
 
-      const data = await response.json();
+      if (isWeb) {
+        // --- FLUJO WEB: Stripe Checkout Session (redirección) ---
+        const response = await fetch(`${API_URL}/create-subscription-session`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Id': userId || '',
+          },
+          body: JSON.stringify({ monitorId }),
+        });
+        const data = await response.json();
 
-      if (response.ok) {
-        if (Platform.OS === 'web') {
+        if (response.ok && data.url) {
           window.location.href = data.url;
         } else {
-          await WebBrowser.openBrowserAsync(data.url);
+          Alert.alert('Error', data.error || 'No se pudo iniciar el proceso de pago');
         }
+
       } else {
-        Alert.alert("Error", data.error || "No se pudo iniciar el proceso de pago");
+        // --- FLUJO NATIVO: Stripe PaymentSheet ---
+
+        // 1. Pedir al backend un clientSecret vinculado a este entrenador
+        const response = await fetch(`${API_URL}/subscriptions/intent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Id': userId || '',
+          },
+          body: JSON.stringify({ monitorId }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'No se pudo iniciar el proceso de pago');
+        }
+
+        // 2. Inicializar el PaymentSheet nativo con los colores dorados de suscripción
+        const { error: initError } = await initPaymentSheet({
+          paymentIntentClientSecret: data.clientSecret,
+          merchantDisplayName: 'FitHub Connect',
+          appearance: {
+            colors: {
+              primary: '#FFD700',
+              background: '#121212',
+              componentBackground: '#1e1e1e',
+              text: '#ffffff',
+            },
+            shapes: { borderRadius: 12 }
+          }
+        });
+
+        if (initError) throw new Error(initError.message);
+
+        // 3. Mostrar la pasarela de pago nativa
+        const { error: paymentError } = await presentPaymentSheet();
+
+        if (paymentError) {
+          if (paymentError.code !== 'Canceled') {
+            Alert.alert('Error en el pago', paymentError.message);
+          }
+        } else {
+          // 4. ÉXITO: confirmar la suscripción en el backend (fallback al webhook)
+          try {
+            await fetch(`${API_URL}/subscriptions/confirm`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-User-Id': userId || '',
+              },
+              body: JSON.stringify({ monitorId }),
+            });
+          } catch (_) {
+            // El webhook de Stripe también confirmará la suscripción
+          }
+
+          Alert.alert(
+            `¡Suscripción activa con ${trainerName}! 🎉`,
+            `Ahora tienes clases ilimitadas con ${trainerName} durante 1 mes. ¡A por ello!`,
+            [{
+              text: 'Ver perfil del entrenador',
+              onPress: () => navigation.goBack()
+            }]
+          );
+        }
       }
     } catch (error) {
-      console.error(error);
-      Alert.alert("Error de conexión", "No se pudo conectar con el servidor.");
+      Alert.alert('Error de conexión', error.message || 'No se pudo conectar con el servidor.');
     } finally {
       setProcesando(false);
     }
@@ -41,54 +117,100 @@ export default function SubscriptionBenefitsScreen({ navigation }) {
 
   return (
     <View style={styles.flex}>
-      <LinearGradient colors={['#000', '#0a0a0a']} style={styles.gradient}>
-        <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 20 }]} showsVerticalScrollIndicator={false}>
-          
+      <LinearGradient colors={['#0a0500', '#0a0a0a']} style={styles.gradient}>
+        <ScrollView
+          contentContainerStyle={[styles.container, { paddingTop: insets.top + 20 }]}
+          showsVerticalScrollIndicator={false}
+        >
           <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
             <Ionicons name="close" size={28} color="#fff" />
           </TouchableOpacity>
 
-          <View style={styles.header}>
-            <LinearGradient
-              colors={['#FFD700', '#B8860B']}
-              style={styles.iconCircle}
-            >
-              <MaterialCommunityIcons name="crown" size={40} color="#000" />
-            </LinearGradient>
-            <Text style={styles.title}>Pase Ilimitado</Text>
-            <Text style={styles.subtitle}>Desbloquea todo el potencial de FitHub Connect</Text>
-          </View>
+          {!monitorId ? (
+            // --- PANTALLA GENÉRICA (SIN ENTRENADOR) ---
+            <View style={{ alignItems: 'center' }}>
+              <LinearGradient colors={['#FFD700', '#B8860B']} style={styles.iconCircle}>
+                <MaterialCommunityIcons name="account-group" size={40} color="#000" />
+              </LinearGradient>
+              <Text style={styles.title}>Suscripciones Premium</Text>
+              <Text style={styles.subtitle}>
+                Ahora puedes suscribirte directamente a tus entrenadores favoritos para disfrutar de ventajas exclusivas.
+              </Text>
+              
+              <View style={[styles.benefitsList, { width: '100%', marginTop: 30 }]}>
+                <BenefitItem icon="infinite" title="Clases Ilimitadas" desc="Reserva sin costes adicionales." />
+                <BenefitItem icon="video" title="Vídeos Exclusivos" desc="Acceso total al contenido premium del monitor." />
+                <BenefitItem icon="star-circle" title="Apoyo Directo" desc="Forma parte de su comunidad exclusiva." />
+              </View>
 
+              <TouchableOpacity
+                style={styles.subscribeBtn}
+                onPress={() => navigation.replace('MonitorList')}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={['#FFD700', '#B8860B']}
+                  style={styles.btnGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <MaterialCommunityIcons name="magnify" size={20} color="#000" style={{ marginRight: 8 }} />
+                  <Text style={styles.subscribeText}>Buscar Entrenadores</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              <Text style={styles.cancelText}>Elige un monitor en su perfil para empezar.</Text>
+            </View>
+          ) : (
+            // --- PANTALLA DE PAGO PARA UN ENTRENADOR ESPECÍFICO ---
+            <>
+              {/* Cabecera */}
+              <View style={styles.header}>
+                <LinearGradient colors={['#FFD700', '#B8860B']} style={styles.iconCircle}>
+                  <MaterialCommunityIcons name="crown" size={40} color="#000" />
+                </LinearGradient>
+                <Text style={styles.title}>Suscripción a {trainerName}</Text>
+                <Text style={styles.subtitle}>
+                  Acceso ilimitado a todas las clases y contenido exclusivo de {trainerName}
+                </Text>
+              </View>
+
+              {/* Beneficios */}
           <View style={styles.benefitsList}>
-            <BenefitItem 
-              icon="infinite" 
-              title="Clases Ilimitadas" 
-              desc="Reserva todas las sesiones que quieras sin costes adicionales." 
+            <BenefitItem
+              icon="infinite"
+              title="Clases Ilimitadas"
+              desc={`Reserva todas las sesiones con ${trainerName} sin costes adicionales durante 1 mes.`}
             />
-            <BenefitItem 
-              icon="star" 
-              title="Contenido Exclusivo" 
-              desc="Acceso a rutinas y videos premium de nuestros mejores monitores." 
+            <BenefitItem
+              icon="video"
+              title="Vídeos Exclusivos"
+              desc={`Acceso a todo el contenido premium subido por ${trainerName}.`}
             />
-            <BenefitItem 
-              icon="flash" 
-              title="Soporte Prioritario" 
-              desc="Atención al cliente en menos de 2 horas para cualquier duda." 
+            <BenefitItem
+              icon="dumbbell"
+              title="Rutinas Premium"
+              desc={`Desbloquea las rutinas personalizadas creadas por ${trainerName}.`}
             />
-            <BenefitItem 
-              icon="person-add" 
-              title="Monitor Personal" 
-              desc="Descuentos del 50% en sesiones personalizadas 1 a 1." 
+            <BenefitItem
+              icon="cash-off"
+              title="Sin coste por sesión"
+              desc="Olvídate de pagar por cada clase. Tu suscripción lo cubre todo."
             />
           </View>
 
+          {/* Precio y botón */}
           <View style={styles.footer}>
             <View style={styles.priceContainer}>
               <Text style={styles.priceValue}>29.99€</Text>
               <Text style={styles.pricePeriod}>/mes</Text>
             </View>
-            <TouchableOpacity 
-              style={styles.subscribeBtn} 
+
+            <Text style={styles.priceNote}>
+              Suscripción mensual — se renueva automáticamente
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.subscribeBtn, procesando && { opacity: 0.6 }]}
               onPress={handleSubscribe}
               disabled={procesando}
             >
@@ -101,24 +223,46 @@ export default function SubscriptionBenefitsScreen({ navigation }) {
                 {procesando ? (
                   <ActivityIndicator color="#000" />
                 ) : (
-                  <Text style={styles.subscribeText}>Suscribirse ahora</Text>
+                  <>
+                    <MaterialCommunityIcons name="crown" size={20} color="#000" style={{ marginRight: 8 }} />
+                    <Text style={styles.subscribeText}>Suscribirme ahora</Text>
+                  </>
                 )}
               </LinearGradient>
             </TouchableOpacity>
+
             <Text style={styles.cancelText}>Cancela en cualquier momento desde tu perfil.</Text>
           </View>
-
+          </>
+        )}
         </ScrollView>
       </LinearGradient>
     </View>
   );
 }
 
+// ─── Wrapper público ─────────────────────────────────────────────────────────
+export default function SubscriptionBenefitsScreen({ navigation, route }) {
+  const monitorId   = route?.params?.monitorId   ?? null;
+  const monitorName = route?.params?.monitorName ?? null;
+
+  return (
+    <StripeWrapper>
+      <SubscriptionBenefitsContent
+        navigation={navigation}
+        monitorId={monitorId}
+        monitorName={monitorName}
+      />
+    </StripeWrapper>
+  );
+}
+
+// ─── Sub-componente beneficio ─────────────────────────────────────────────────
 function BenefitItem({ icon, title, desc }) {
   return (
     <View style={styles.benefitItem}>
       <View style={styles.benefitIconBox}>
-        <Ionicons name={icon} size={22} color="#FFD700" />
+        <MaterialCommunityIcons name={icon} size={22} color="#FFD700" />
       </View>
       <View style={styles.benefitText}>
         <Text style={styles.benefitTitle}>{title}</Text>
@@ -128,18 +272,15 @@ function BenefitItem({ icon, title, desc }) {
   );
 }
 
+// ─── Estilos ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   gradient: { flex: 1 },
   container: { padding: 24, paddingBottom: 40 },
-  closeBtn: {
-    alignSelf: 'flex-end',
-    marginBottom: 20,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
+
+  closeBtn: { alignSelf: 'flex-end', marginBottom: 20 },
+
+  header: { alignItems: 'center', marginBottom: 36 },
   iconCircle: {
     width: 80,
     height: 80,
@@ -149,31 +290,34 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     elevation: 8,
     shadowColor: '#FFD700',
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
+    shadowOpacity: 0.5,
+    shadowRadius: 14,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#fff',
     marginBottom: 10,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#888',
     textAlign: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
+    lineHeight: 20,
   },
-  benefitsList: {
-    marginBottom: 40,
-  },
+
+  benefitsList: { marginBottom: 36 },
   benefitItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
-    backgroundColor: 'rgba(255,255,255, 0.03)',
+    marginBottom: 20,
+    backgroundColor: 'rgba(255,215,0,0.04)',
     padding: 16,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,215,0,0.08)',
   },
   benefitIconBox: {
     width: 44,
@@ -186,33 +330,30 @@ const styles = StyleSheet.create({
   },
   benefitText: { flex: 1 },
   benefitTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#fff',
     marginBottom: 4,
   },
   benefitDesc: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#777',
     lineHeight: 18,
   },
-  footer: {
-    alignItems: 'center',
-  },
+
+  footer: { alignItems: 'center' },
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'baseline',
+    marginBottom: 6,
+  },
+  priceValue: { fontSize: 40, fontWeight: 'bold', color: '#FFD700' },
+  pricePeriod: { fontSize: 16, color: '#888', marginLeft: 4 },
+  priceNote: {
+    fontSize: 11,
+    color: '#555',
     marginBottom: 20,
-  },
-  priceValue: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  pricePeriod: {
-    fontSize: 16,
-    color: '#888',
-    marginLeft: 4,
+    textAlign: 'center',
   },
   subscribeBtn: {
     width: '100%',
@@ -221,16 +362,19 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   btnGradient: {
+    flexDirection: 'row',
     paddingVertical: 18,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   subscribeText: {
     color: '#000',
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: 'bold',
   },
   cancelText: {
-    fontSize: 12,
-    color: '#555',
+    fontSize: 11,
+    color: '#444',
+    textAlign: 'center',
   },
 });
