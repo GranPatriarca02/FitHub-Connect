@@ -8,27 +8,37 @@ import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.transactions.transaction
 
 fun Application.videoRoutes() {
     routing {
         route("/videos") {
 
-            // GET /videos — devuelve videos según el rol del usuario
-            // FREE: solo isPremium = false
-            // PREMIUM / TRAINER: todos (incluye oficiales y de otros entrenadores)
             get {
                 val userRole = call.request.headers["X-User-Role"]?.uppercase() ?: "FREE"
+                val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
 
                 val videos = transaction {
                     val query = if (userRole == "FREE") {
-                        Video.find { Videos.isPremium eq false }
+                        Video.find { Videos.isPremium eq false }.toList()
+                    } else if (userRole == "TRAINER") {
+                        Video.all().toList()
                     } else {
-                        // PREMIUM y TRAINER ven TODO
-                        Video.all()
+                        val activeSubMonitorIds = if (userId != null) {
+                            Subscription.find {
+                                (Subscriptions.userId eq userId) and (Subscriptions.status eq SubscriptionStatus.ACTIVE)
+                            }.map { it.monitor.id.value }
+                        } else emptyList()
+
+                        Video.all().filter { v ->
+                            !v.isPremium || 
+                            v.monitor == null || 
+                            activeSubMonitorIds.contains(v.monitor?.id?.value)
+                        }
                     }
 
-                    query.orderBy(Videos.createdAt to org.jetbrains.exposed.sql.SortOrder.DESC).map { v ->
+                    query.map { v ->
                         VideoDto(
                             id           = v.id.value,
                             title        = v.title,

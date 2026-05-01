@@ -25,11 +25,38 @@ fun Application.routineRoutes() {
             get {
                 val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
                     ?: return@get call.respond(HttpStatusCode.BadRequest, "Header X-User-Id requerido")
+                val userRole = call.request.headers["X-User-Role"]?.uppercase() ?: "FREE"
 
                 val list = transaction {
+                    // 1. Obtener IDs de monitores a los que está suscrito (si es Premium)
+                    val activeSubMonitorIds = if (userRole == "PREMIUM") {
+                        Subscription.find {
+                            (Subscriptions.userId eq userId) and (Subscriptions.status eq SubscriptionStatus.ACTIVE)
+                        }.map { it.monitor.id.value }
+                    } else emptyList()
+
+                    // 2. Buscar rutinas:
+                    // - Propias (creatorId == userId)
+                    // - Públicas (isPublic == true) pero con filtro Premium
                     Routine.find {
                         (Routines.creatorId eq userId) or (Routines.isPublic eq true)
-                    }.orderBy(Routines.createdAt to SortOrder.DESC).map { r ->
+                    }.orderBy(Routines.createdAt to SortOrder.DESC).filter { r ->
+                        // Filtro de visibilidad:
+                        // - Si es propia, se ve siempre
+                        if (r.creator.id.value == userId) return@filter true
+                        
+                        // - Si es ajena y Premium: solo se ve si el usuario está suscrito a ese monitor
+                        if (r.isPremium) {
+                            val monitor = Monitor.find { Monitors.userId eq r.creator.id }.firstOrNull()
+                            // Si no hay perfil de monitor (ej. rutina oficial), solo se ve si el usuario es Premium
+                            if (monitor == null) return@filter userRole != "FREE"
+                            // Si hay monitor, check suscriptores
+                            return@filter activeSubMonitorIds.contains(monitor.id.value)
+                        }
+                        
+                        // - Si es ajena y no Premium: se ve siempre que sea pública
+                        true
+                    }.map { r ->
                         RoutineDto(
                             id            = r.id.value,
                             title         = r.title,
@@ -37,6 +64,7 @@ fun Application.routineRoutes() {
                             difficulty    = r.difficulty,
                             goal          = r.goal,
                             isPublic      = r.isPublic,
+                            isPremium     = r.isPremium,
                             creatorId     = r.creator.id.value,
                             creatorName   = r.creator.name,
                             exerciseCount = RoutineExercise.find { RoutineExercises.routineId eq r.id }.count().toInt(),
@@ -63,6 +91,7 @@ fun Application.routineRoutes() {
                                 difficulty    = r.difficulty,
                                 goal          = r.goal,
                                 isPublic      = r.isPublic,
+                                isPremium     = r.isPremium,
                                 creatorId     = r.creator.id.value,
                                 creatorName   = r.creator.name,
                                 exerciseCount = RoutineExercise.find { RoutineExercises.routineId eq r.id }.count().toInt(),
@@ -82,9 +111,26 @@ fun Application.routineRoutes() {
                 val detail = transaction {
                     val r = Routine.findById(routineId) ?: return@transaction null
 
-                    // Si la rutina es privada y no pertenece al usuario, no se puede ver
+                    // 1. Si la rutina es privada y no pertenece al usuario, no se puede ver
                     if (!r.isPublic && (userId == null || r.creator.id.value != userId)) {
                         return@transaction "forbidden"
+                    }
+
+                    // 2. Si la rutina es Premium y no es del usuario, check suscripción
+                    if (r.isPremium && (userId == null || r.creator.id.value != userId)) {
+                        val monitor = Monitor.find { Monitors.userId eq r.creator.id }.firstOrNull()
+                        if (monitor != null) {
+                            val isSubscribed = Subscription.find {
+                                (Subscriptions.userId eq userId!!) and 
+                                (Subscriptions.monitorId eq monitor.id) and 
+                                (Subscriptions.status eq SubscriptionStatus.ACTIVE)
+                            }.any()
+                            if (!isSubscribed) return@transaction "premium_only"
+                        } else {
+                            // Rutina oficial premium? Solo si el usuario tiene rol PREMIUM
+                            val user = User.findById(userId!!)
+                            if (user?.role != UserRole.PREMIUM) return@transaction "premium_only"
+                        }
                     }
 
                     val exList = RoutineExercise.find { RoutineExercises.routineId eq r.id }
@@ -112,6 +158,7 @@ fun Application.routineRoutes() {
                         difficulty  = r.difficulty,
                         goal        = r.goal,
                         isPublic    = r.isPublic,
+                        isPremium   = r.isPremium,
                         creatorId   = r.creator.id.value,
                         creatorName = r.creator.name,
                         createdAt   = r.createdAt.toString(),
@@ -120,9 +167,10 @@ fun Application.routineRoutes() {
                 }
 
                 when (detail) {
-                    null        -> call.respond(HttpStatusCode.NotFound, "Rutina no encontrada")
-                    "forbidden" -> call.respond(HttpStatusCode.Forbidden, mapOf("error" to "Esta rutina es privada"))
-                    else        -> call.respond(HttpStatusCode.OK, detail)
+                    null           -> call.respond(HttpStatusCode.NotFound, "Rutina no encontrada")
+                    "forbidden"    -> call.respond(HttpStatusCode.Forbidden, mapOf("error" to "Esta rutina es privada"))
+                    "premium_only" -> call.respond(HttpStatusCode.PaymentRequired, mapOf("error" to "Contenido exclusivo para suscriptores de este monitor"))
+                    else           -> call.respond(HttpStatusCode.OK, detail)
                 }
             }
 
@@ -154,6 +202,7 @@ fun Application.routineRoutes() {
                         difficulty  = req.difficulty?.trim()
                         goal        = req.goal?.trim()
                         isPublic    = publicFlag
+                        isPremium   = req.isPremium
                         creator     = user
                     }
                     created.id.value
