@@ -4,6 +4,7 @@ import {
   StyleSheet, Alert, ActivityIndicator, Modal
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useStripePlatform, StripeWrapper } from './StripeHelper';
 import { getMonitorDetail, API_URL } from '../api';
@@ -46,24 +47,26 @@ export default function MonitorDetailScreen({ route, navigation }) {
   const [precioPagado, setPrecioPagado] = useState(0);
 
   // Comprobamos si el usuario tiene suscripción activa con este entrenador
-  useEffect(() => {
-    const checkSubscription = async () => {
-      try {
-        const userId = await AsyncStorage.getItem('userId');
-        if (!userId) return;
-        const res = await fetch(
-          `${API_URL}/subscriptions/check?userId=${userId}&monitorId=${initialMonitor.id}`
-        );
-        const data = await res.json();
-        setIsSubscribed(data.isSubscribed === true);
-      } catch (e) {
-        // Si falla la comprobación, asumimos no suscrito
-      } finally {
-        setCargandoSuscripcion(false);
-      }
-    };
-    checkSubscription();
-  }, [initialMonitor.id]);
+  useFocusEffect(
+    React.useCallback(() => {
+      const checkSubscription = async () => {
+        try {
+          const userId = await AsyncStorage.getItem('userId');
+          if (!userId) return;
+          const res = await fetch(
+            `${API_URL}/subscriptions/check?userId=${userId}&monitorId=${initialMonitor.id}`
+          );
+          const data = await res.json();
+          setIsSubscribed(data.isSubscribed === true);
+        } catch (e) {
+          // Si falla la comprobación, asumimos no suscrito
+        } finally {
+          setCargandoSuscripcion(false);
+        }
+      };
+      checkSubscription();
+    }, [initialMonitor.id])
+  );
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -252,39 +255,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Banner / botón de suscripción */}
-        {cargandoSuscripcion ? (
-          <ActivityIndicator color="#FFD700" style={{ marginBottom: 16 }} />
-        ) : isSubscribed ? (
-          <LinearGradient
-            colors={['#3a2e00', '#1a1500']}
-            style={styles.subscribedBanner}
-          >
-            <MaterialCommunityIcons name="crown" size={20} color="#FFD700" />
-            <Text style={styles.subscribedText}>
-              ¡Estás suscrito a {monitorDetail.name}! — Clases ilimitadas gratis
-            </Text>
-          </LinearGradient>
-        ) : (
-          <TouchableOpacity
-            style={styles.subscribeBtn}
-            onPress={() => navigation.navigate('SubscriptionBenefits', {
-              monitorId: monitorDetail.id,
-              monitorName: monitorDetail.name,
-            })}
-            activeOpacity={0.85}
-          >
-            <LinearGradient
-              colors={['#FFD700', '#B8860B']}
-              style={styles.subscribeBtnGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              <MaterialCommunityIcons name="crown" size={18} color="#000" style={{ marginRight: 8 }} />
-              <Text style={styles.subscribeBtnText}>Suscribirme a {monitorDetail.name} — 29.99€/mes</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
+        {/* Banner de suscripción movido a la sección de reservas */}
 
         <Text style={styles.sectionTitle}>Disponibilidad semanal</Text>
         <Text style={styles.sectionHint}>Selecciona el día y la franja horaria que prefieras</Text>
@@ -379,12 +350,34 @@ export default function MonitorDetailScreen({ route, navigation }) {
               const isDisabled = cargandoPago || !slotSeleccionado || selectedOccupied;
 
               return (
-                <TouchableOpacity
-                  style={[styles.ctaWrapper, isDisabled && { opacity: 0.5 }]}
-                  onPress={handleContratar}
-                  activeOpacity={0.85}
-                  disabled={isDisabled}
-                >
+                <View>
+                  {!isSubscribed && !cargandoSuscripcion && (
+                    <TouchableOpacity
+                      style={[styles.subscribeBtn, { marginBottom: 16 }]}
+                      onPress={() => navigation.navigate('SubscriptionBenefits', {
+                        monitorId: monitorDetail.id,
+                        monitorName: monitorDetail.name,
+                      })}
+                      activeOpacity={0.85}
+                    >
+                      <LinearGradient
+                        colors={['#FFD700', '#B8860B']}
+                        style={styles.subscribeBtnGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                      >
+                        <MaterialCommunityIcons name="crown" size={18} color="#000" style={{ marginRight: 8 }} />
+                        <Text style={styles.subscribeBtnText}>Suscribirme a {monitorDetail.name} — 29.99€/mes</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  )}
+
+                  <TouchableOpacity
+                    style={[styles.ctaWrapper, isDisabled && { opacity: 0.5 }]}
+                    onPress={handleContratar}
+                    activeOpacity={0.85}
+                    disabled={isDisabled}
+                  >
                   <LinearGradient
                     colors={isDisabled ? ['#555', '#333'] : ['#4CAF50', '#2E7D32']}
                     style={styles.ctaButton}
@@ -406,6 +399,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
                     )}
                   </LinearGradient>
                 </TouchableOpacity>
+                </View>
               );
             })()}
           </>

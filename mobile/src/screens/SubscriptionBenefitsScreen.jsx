@@ -98,6 +98,9 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
             // El webhook de Stripe también confirmará la suscripción
           }
 
+          // Actualizar el rol localmente para que la app lo reconozca como PREMIUM
+          await AsyncStorage.setItem('userRole', 'PREMIUM');
+
           Alert.alert(
             `¡Suscripción activa con ${trainerName}! 🎉`,
             `Ahora tienes clases ilimitadas con ${trainerName} durante 1 mes. ¡A por ello!`,
@@ -138,7 +141,7 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
               </Text>
               
               <View style={[styles.benefitsList, { width: '100%', marginTop: 30 }]}>
-                <BenefitItem icon="infinite" title="Clases Ilimitadas" desc="Reserva sin costes adicionales." />
+                <BenefitItem icon="infinity" title="Clases Ilimitadas" desc="Reserva sin costes adicionales." />
                 <BenefitItem icon="video" title="Vídeos Exclusivos" desc="Acceso total al contenido premium del monitor." />
                 <BenefitItem icon="star-circle" title="Apoyo Directo" desc="Forma parte de su comunidad exclusiva." />
               </View>
@@ -177,7 +180,7 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
               {/* Beneficios */}
           <View style={styles.benefitsList}>
             <BenefitItem
-              icon="infinite"
+              icon="infinity"
               title="Clases Ilimitadas"
               desc={`Reserva todas las sesiones con ${trainerName} sin costes adicionales durante 1 mes.`}
             />
