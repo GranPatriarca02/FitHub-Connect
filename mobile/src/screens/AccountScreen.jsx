@@ -3,30 +3,57 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { API_URL } from '../api';
 
 export default function AccountScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [userData, setUserData] = useState({ name: '', email: '', role: 'FREE' });
   const [cargando, setCargando] = useState(true);
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const name = await AsyncStorage.getItem('userName');
-        const email = await AsyncStorage.getItem('userEmail');
-        const role = await AsyncStorage.getItem('userRole');
-        setUserData({ name: name || '', email: email || '', role: role || 'FREE' });
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setCargando(false);
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [cargandoSubs, setCargandoSubs] = useState(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const loadData = async () => {
+        try {
+          const id = await AsyncStorage.getItem('userId');
+          const name = await AsyncStorage.getItem('userName');
+          const email = await AsyncStorage.getItem('userEmail');
+          const role = await AsyncStorage.getItem('userRole');
+          setUserData({ name: name || '', email: email || '', role: role || 'FREE' });
+
+          if (role === 'PREMIUM' && id) {
+            fetchSubscriptions(id);
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setCargando(false);
+        }
+      };
+      loadData();
+    }, [])
+  );
+
+  const fetchSubscriptions = async (userId) => {
+    setCargandoSubs(true);
+    try {
+      const res = await fetch(`${API_URL}/subscriptions/user/${userId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSubscriptions(data);
       }
-    };
-    loadData();
-  }, []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setCargandoSubs(false);
+    }
+  };
 
   const isPremium = userData.role === 'PREMIUM';
   const isTrainer = userData.role === 'TRAINER';
@@ -62,6 +89,35 @@ export default function AccountScreen({ navigation }) {
             {isPremium ? 'Miembro Premium' : isTrainer ? 'Entrenador / Monitor' : 'Usuario Free'}
           </Text>
         </View>
+        
+        {isPremium && (
+          <View style={styles.infoSection}>
+            <Text style={styles.sectionTitle}>Suscripciones Activas</Text>
+            {cargandoSubs ? (
+              <ActivityIndicator color="#4CAF50" />
+            ) : subscriptions.length > 0 ? (
+              subscriptions.map((sub, idx) => (
+                <View key={idx} style={styles.subscriptionCard}>
+                  <View style={styles.subIcon}>
+                    <MaterialCommunityIcons name="crown" size={20} color="#FFD700" />
+                  </View>
+                  <View style={styles.subInfo}>
+                    <Text style={styles.subName}>{sub.monitorName}</Text>
+                    <Text style={styles.subExpiry}>Expira el {new Date(sub.expiresAt).toLocaleDateString()}</Text>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.subAction}
+                    onPress={() => navigation.navigate('MonitorDetail', { monitor: { id: parseInt(sub.monitorId), name: sub.monitorName } })}
+                  >
+                    <Ionicons name="chevron-forward" size={20} color="#666" />
+                  </TouchableOpacity>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>No tienes suscripciones activas.</Text>
+            )}
+          </View>
+        )}
 
         <View style={styles.infoSection}>
           <Text style={styles.sectionTitle}>Información Personal</Text>
@@ -188,5 +244,46 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  emptyText: {
+    color: '#666',
+    fontSize: 14,
+    fontStyle: 'italic',
+    marginTop: 5,
+  },
+  subscriptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  subIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  subInfo: {
+    flex: 1,
+  },
+  subName: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  subExpiry: {
+    color: '#888',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  subAction: {
+    padding: 5,
   },
 });
