@@ -11,6 +11,7 @@ data class RoutineDto(
     val difficulty: String?,
     val goal: String?,
     val isPublic: Boolean,
+    val isPremium: Boolean,
     val creatorId: Int,
     val creatorName: String,
     val exerciseCount: Int,
@@ -42,6 +43,7 @@ data class RoutineDetailDto(
     val difficulty: String?,
     val goal: String?,
     val isPublic: Boolean,
+    val isPremium: Boolean,
     val creatorId: Int,
     val creatorName: String,
     val createdAt: String,
@@ -55,7 +57,8 @@ data class CreateRoutineRequest(
     val description: String? = null,
     val difficulty: String? = null,
     val goal: String? = null,
-    val isPublic: Boolean = false
+    val isPublic: Boolean = false,
+    val isPremium: Boolean = false
 )
 
 // Añadir un ejercicio existente a una rutina

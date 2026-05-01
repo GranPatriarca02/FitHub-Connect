@@ -18,6 +18,7 @@ object Routines : IntIdTable("routines") {
     // Si es null la rutina es privada del creador;
     // si es TRAINER y la marca pública, cualquiera puede verla/copiarla.
     val isPublic    = bool("is_public").default(false)
+    val isPremium   = bool("is_premium").default(false)
     val createdAt   = datetime("created_at").defaultExpression(CurrentDateTime)
 }
 
@@ -30,6 +31,7 @@ class Routine(id: EntityID<Int>) : IntEntity(id) {
     var difficulty  by Routines.difficulty
     var goal        by Routines.goal
     var isPublic    by Routines.isPublic
+    var isPremium   by Routines.isPremium
     var createdAt   by Routines.createdAt
 }
 
