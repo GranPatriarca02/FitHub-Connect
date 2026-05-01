@@ -249,6 +249,9 @@ fun Application.bookingRoutes() {
                                         this.expiresAt = java.time.LocalDateTime.now().plusMonths(1)
                                         this.paymentId = dataObject.id
                                     }
+                                    
+                                    // Actualizar el rol del usuario a PREMIUM para que toda la app lo reconozca
+                                    user.role = UserRole.PREMIUM
                                 }
                             }
                             // NOTA: pagar una reserva normal NO cambia el rol del usuario a PREMIUM

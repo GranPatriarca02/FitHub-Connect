@@ -111,14 +111,15 @@ fun Application.subscriptionRoutes() {
 
                 val body = call.receive<CreateSubscriptionIntentRequest>()
 
-                val (user, monitor) = transaction {
-                    User.findById(userId) to Monitor.findById(body.monitorId)
-                }
-
-                if (user == null || monitor == null)
-                    return@post call.respond(HttpStatusCode.NotFound, mapOf("error" to "Usuario o entrenador no encontrado"))
-
                 transaction {
+                    val user = User.findById(userId)
+                    val monitor = Monitor.findById(body.monitorId)
+
+                    if (user == null || monitor == null) {
+                        // Lanzamos excepción para que la capture el catch del try-block exterior
+                        throw IllegalArgumentException("Usuario o entrenador no encontrado")
+                    }
+
                     // Cancelar cualquier suscripción anterior del usuario a este mismo entrenador
                     Subscription.find {
                         (Subscriptions.userId eq userId) and
@@ -132,6 +133,9 @@ fun Application.subscriptionRoutes() {
                         this.status = SubscriptionStatus.ACTIVE
                         this.expiresAt = LocalDateTime.now().plusMonths(1)
                     }
+                    
+                    // Asegurar que el usuario tiene el rol PREMIUM
+                    user.role = UserRole.PREMIUM
                 }
 
                 call.respond(HttpStatusCode.OK, mapOf("message" to "Suscripción activada correctamente"))
