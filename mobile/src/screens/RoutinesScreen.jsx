@@ -28,6 +28,7 @@ export default function RoutinesScreen({ navigation }) {
   const [nuevaDificultad, setNuevaDificultad] = useState('Beginner');
   const [nuevoObjetivo, setNuevoObjetivo] = useState('Hipertrofia');
   const [nuevaPublica, setNuevaPublica] = useState(false);
+  const [nuevaPremium, setNuevaPremium] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -60,6 +61,7 @@ export default function RoutinesScreen({ navigation }) {
     setNuevaDificultad('Beginner');
     setNuevoObjetivo('Hipertrofia');
     setNuevaPublica(false);
+    setNuevaPremium(false);
   };
 
   const handleCrear = async () => {
@@ -75,6 +77,7 @@ export default function RoutinesScreen({ navigation }) {
         difficulty: nuevaDificultad,
         goal: nuevoObjetivo,
         isPublic: isTrainer ? nuevaPublica : false,
+        isPremium: isTrainer ? nuevaPremium : false,
       });
       setModalVisible(false);
       resetModal();
@@ -221,6 +224,8 @@ export default function RoutinesScreen({ navigation }) {
         setObjetivo={setNuevoObjetivo}
         publica={nuevaPublica}
         setPublica={setNuevaPublica}
+        premium={nuevaPremium}
+        setPremium={setNuevaPremium}
         isTrainer={isTrainer}
         onCrear={handleCrear}
         guardando={guardando}
@@ -243,8 +248,14 @@ function RoutineCard({ routine, isOwner = false, onPress, onDelete }) {
           <Text style={styles.cardAuthor}>
             {isOwner ? 'Tuya' : `Por ${routine.creatorName}`}
             {routine.isPublic && !isOwner ? '  •  Pública' : ''}
+            {routine.isPremium && (
+              <Text style={{ color: '#FFD700' }}>  •  Premium</Text>
+            )}
           </Text>
         </View>
+        {routine.isPremium && (
+          <MaterialCommunityIcons name="crown" size={18} color="#FFD700" style={{ marginRight: 8 }} />
+        )}
         {isOwner && onDelete && (
           <TouchableOpacity onPress={onDelete} style={styles.deleteBtn} hitSlop={8}>
             <Ionicons name="trash-outline" size={16} color="#FF5252" />
@@ -283,7 +294,7 @@ function RoutineCard({ routine, isOwner = false, onPress, onDelete }) {
 function CreateRoutineModal({
   visible, onClose, titulo, setTitulo, desc, setDesc,
   dificultad, setDificultad, objetivo, setObjetivo,
-  publica, setPublica, isTrainer, onCrear, guardando,
+  publica, setPublica, premium, setPremium, isTrainer, onCrear, guardando,
 }) {
   return (
     <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -347,18 +358,33 @@ function CreateRoutineModal({
             </View>
 
             {isTrainer && (
-              <View style={styles.toggleRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.toggleLabel}>Hacer pública</Text>
-                  <Text style={styles.toggleHint}>Tus usuarios Premium podrán verla y copiarla</Text>
+              <>
+                <View style={styles.toggleRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.toggleLabel}>Hacer pública</Text>
+                    <Text style={styles.toggleHint}>Toda la comunidad podrá verla</Text>
+                  </View>
+                  <Switch
+                    value={publica}
+                    onValueChange={setPublica}
+                    trackColor={{ false: '#2a2a2a', true: '#2E7D32' }}
+                    thumbColor={publica ? '#4CAF50' : '#666'}
+                  />
                 </View>
-                <Switch
-                  value={publica}
-                  onValueChange={setPublica}
-                  trackColor={{ false: '#2a2a2a', true: '#2E7D32' }}
-                  thumbColor={publica ? '#4CAF50' : '#666'}
-                />
-              </View>
+
+                <View style={styles.toggleRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.toggleLabel}>Contenido Premium</Text>
+                    <Text style={styles.toggleHint}>Solo tus suscriptores activos podrán verla</Text>
+                  </View>
+                  <Switch
+                    value={premium}
+                    onValueChange={setPremium}
+                    trackColor={{ false: '#2a2a2a', true: '#FFD700' }}
+                    thumbColor={premium ? '#FFD700' : '#666'}
+                  />
+                </View>
+              </>
             )}
 
             <View style={styles.modalBtns}>
