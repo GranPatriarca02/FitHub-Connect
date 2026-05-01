@@ -16,10 +16,9 @@ object DatabaseFactory {
         val pool = hikari()
         Database.connect(pool)
         transaction {
-            // Crear tablas y columnas necesarias si no existen en la base de datos.
             SchemaUtils.createMissingTablesAndColumns(
                 Users, Monitors, Routines, Availabilities, Bookings, Videos,
-                Exercises, RoutineExercises
+                Exercises, RoutineExercises, Subscriptions
             )
 
             // Seed de videos gratuitos oficiales si la tabla esta vacia
