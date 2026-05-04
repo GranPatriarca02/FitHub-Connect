@@ -21,39 +21,22 @@ export default function HomeScreen({ navigation }) {
   const [userEmail, setUserEmail] = useState('');
   const [menuVisible, setMenuVisible] = useState(false);
 
-  // Efecto para detectar exito del pago en Web (Stripe redirect)
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('payment') === 'success') {
-        const syncPremium = async () => {
-          try {
-            const userId = await AsyncStorage.getItem('userId');
-            const response = await fetch(`${API_URL}/confirm-premium`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-User-Id': userId
-              },
-            });
+  // --- FUNCIONES (Declaradas antes de los efectos para evitar errores de referencia) ---
 
-            if (response.ok) {
-              await AsyncStorage.setItem('userRole', 'PREMIUM');
-              setRole('PREMIUM');
-              Alert.alert("¡Éxito!", "Tu suscripción se ha activado correctamente. ¡Ya eres PREMIUM!");
-            }
-          } catch (error) {
-            console.error("Error sincronizando premium:", error);
-          }
-        };
-        syncPremium();
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    }
-  }, []);
+  const handleLogout = async () => {
+    setMenuVisible(false);
+    await AsyncStorage.clear();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Login' }],
+    });
+  };
 
   // HOOK clave: sincronización con el servidor cada vez que la pantalla gana foco
   const loadUserData = async () => {
+    // Escudo de seguridad para evitar errores de red si API_URL aún no carga
+    if (!API_URL || API_URL.includes('undefined')) return;
+
     try {
       const userId = await AsyncStorage.getItem('userId');
 
@@ -91,28 +74,53 @@ export default function HomeScreen({ navigation }) {
         handleLogout();
       }
     } catch (e) {
-      console.error("Error sincronizando datos del usuario:", e);
+      // Capturamos el error silenciosamente para evitar el pantallazo rojo inicial
+      console.log("Error de red en HomeScreen:", e.message);
     }
   };
+
+  // --- EFECTOS ---
 
   // Aplicamos el foco para que se dispare loadUserData
   useFocusEffect(
     useCallback(() => {
       loadUserData();
-    }, [])
+    }, [API_URL]) // Se re-ejecuta cuando API_URL esté listo
   );
+
+  // Efecto para detectar exito del pago en Web (Stripe redirect)
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('payment') === 'success') {
+        const syncPremium = async () => {
+          try {
+            const userId = await AsyncStorage.getItem('userId');
+            const response = await fetch(`${API_URL}/confirm-premium`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-User-Id': userId
+              },
+            });
+
+            if (response.ok) {
+              await AsyncStorage.setItem('userRole', 'PREMIUM');
+              setRole('PREMIUM');
+              Alert.alert("¡Éxito!", "Tu suscripción se ha activado correctamente. ¡Ya eres PREMIUM!");
+            }
+          } catch (error) {
+            console.error("Error sincronizando premium:", error);
+          }
+        };
+        syncPremium();
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
 
   const isPremium = role === 'PREMIUM';
   const isTrainer = role === 'TRAINER';
-
-  const handleLogout = async () => {
-    setMenuVisible(false);
-    await AsyncStorage.clear();
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Login' }],
-    });
-  };
 
   return (
     <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
@@ -235,8 +243,6 @@ export default function HomeScreen({ navigation }) {
     </LinearGradient >
   );
 }
-
-// ... Mantengo tus funciones ActionCard, ProfileMenu y styles exactamente igual ...
 
 function ActionCard({ title, desc, icon, onPress }) {
   return (

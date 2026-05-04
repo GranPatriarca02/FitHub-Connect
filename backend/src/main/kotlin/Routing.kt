@@ -5,8 +5,10 @@ import io.ktor.server.application.*
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import com.example.routes.* // Importamos todas tus rutas personalizadas
 
 fun Application.configureRouting() {
+    // Configuración de CORS: Permite que la App de React Native (IP externa) se conecte
     install(CORS) {
         anyHost() // Permite conexiones de Android, Web y Emuladores
         
@@ -24,11 +26,23 @@ fun Application.configureRouting() {
         allowNonSimpleContentTypes = true 
     }
 
+    // Registro de todas las rutas de la API bajo la protección de CORS
+    authRoutes()
+    availabilityRoutes()
+    monitorRoutes()
+    bookingRoutes()
+    subscriptionRoutes()
+    videoRoutes()
+    exerciseRoutes()
+    routineRoutes()
+
+    // Rutas base y de ayuda
     routing {
         get("/") {
             call.respondText("FitHub Connect API v0.1")
         }
 
+        // Ruta para confirmar pago exitoso desde WebView
         get("/payment-success") {
             call.respondText("""
                 <html>
@@ -54,6 +68,7 @@ fun Application.configureRouting() {
             """.trimIndent(), ContentType.Text.Html)
         }
 
+        // Ruta para manejar pagos cancelados
         get("/payment-cancel") {
             call.respondText("""
                 <html>
