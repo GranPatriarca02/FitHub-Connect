@@ -1,9 +1,17 @@
 // Navegación principal.
+import "./global.css";
+import { registerRootComponent } from 'expo';
+import { View, Text, ActivityIndicator, Platform } from 'react-native';
+import { cssInterop } from "nativewind";
+
+// Forzamos a que View y Text acepten clases de Tailwind
+cssInterop(View, { className: "style" });
+cssInterop(Text, { className: "style" });
+
 import React, { useState, useEffect } from 'react'; // Añadidos useState y useEffect
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View } from 'react-native'; // Añadidos para la carga
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Importante
 
 import LoginScreen from './src/screens/LoginScreen';
@@ -92,7 +100,7 @@ export default function App() {
         <Stack.Screen
           name="SubscriptionBenefits"
           component={SubscriptionBenefitsScreen}
-          options={{ 
+          options={{
             title: 'Hazte Premium',
             headerShown: false,
             presentation: 'modal'

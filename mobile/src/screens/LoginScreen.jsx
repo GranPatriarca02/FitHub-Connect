@@ -1,77 +1,63 @@
-import React, { useState, useRef } from 'react';
-import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Animated, Easing
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+// __ IMPORTS __
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Animated, ImageBackground } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert } from 'react-native';
-
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { MotiView } from 'moti';
 import { API_URL } from '../api';
 
+// __ EXPORTS __
 export default function LoginScreen({ navigation }) {
-  const insets = useSafeAreaInsets();
-  const [modo, setModo] = useState('login'); // 'login' o 'registro'
+  const [modo, setModo] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nombre, setNombre] = useState('');
   const [tipoCuenta, setTipoCuenta] = useState('Usuario');
   const [cargando, setCargando] = useState(false);
+  const [recuerdame, setRecuerdame] = useState(false);
 
-  // NOTIFICACIONES
-  const [notificacion, setNotificacion] = useState({ visible: false, mensaje: '', tipo: 'error' });
-  const translateY = useRef(new Animated.Value(-100)).current;
+  // Sistema de Popups
+  const [notificacion, setNotificacion] = useState({ visible: false, mensaje: '', tipo: 'success' });
+  const translateY = useState(new Animated.Value(-100))[0];
 
-  const mostrarPopUp = (mensaje, tipo) => {
-    setNotificacion({ visible: true, mensaje, tipo });
+  // Lógica de Recuérdame
+  useEffect(() => {
+    const cargarEmail = async () => {
+      const savedEmail = await AsyncStorage.getItem('savedEmail');
+      if (savedEmail) {
+        setEmail(savedEmail);
+        setRecuerdame(true);
+      }
+    };
+    cargarEmail();
+  }, []);
 
-    Animated.spring(translateY, {
-      toValue: 50,
-      useNativeDriver: Platform.OS !== 'web', // Corrección para Web
-      friction: 7,
-      tension: 40
-    }).start();
+  const mostrarPopUp = (msg, tipo = 'success') => {
+    setNotificacion({ visible: true, mensaje: msg, tipo });
+    Animated.spring(translateY, { toValue: 60, useNativeDriver: true }).start();
 
     setTimeout(() => {
-      Animated.timing(translateY, {
-        toValue: -120,
-        duration: 400,
-        useNativeDriver: Platform.OS !== 'web',
-        easing: Easing.in(Easing.exp)
-      }).start(() => {
-        setNotificacion(prev => ({ ...prev, visible: false }));
-
-        if (tipo === 'success') {
-          if (modo === 'login') {
-            navigation.replace('Home');
-          } else {
-            // Si es registro, lo mandamos a la vista de login 
-            // (cambiando el estado del formulario)
-            setModo('login');
-            setEmail(''); // Opcional: limpiar campos
-            setPassword('');
-            setNombre('');
-          }
-        }
+      Animated.timing(translateY, { toValue: -100, duration: 500, useNativeDriver: true }).start(() => {
+        setNotificacion({ ...notificacion, visible: false });
       });
-    }, 2500);
+    }, 3000);
   };
 
   const handleEntrar = async () => {
     if (!email || !password || (modo === 'registro' && !nombre)) {
-      mostrarPopUp("Debes rellenar todos los campos", "error");
+      mostrarPopUp("Por favor, rellena todos los campos", "error");
       return;
     }
 
     setCargando(true);
-
     try {
       const endpoint = modo === 'login' ? '/auth/login' : '/auth/register';
+      const roleMapped = tipoCuenta === 'Monitor' ? 'TRAINER' : 'FREE';
+
       const body = modo === 'login'
         ? { email, password }
-        : { name: nombre, email, password, role: tipoCuenta === 'Usuario' ? 'FREE' : 'TRAINER' };
+        : { name: nombre, email, password, role: roleMapped };
 
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
@@ -82,371 +68,203 @@ export default function LoginScreen({ navigation }) {
       const data = await response.json();
 
       if (response.ok) {
-        if (modo === 'login') {
-          // __ LÓGICA DE LOGIN __ 
-          await AsyncStorage.clear();
-          if (data.token) await AsyncStorage.setItem('userToken', data.token);
-          if (data.role) await AsyncStorage.setItem('userRole', data.role);
-          if (data.userId) await AsyncStorage.setItem('userId', data.userId.toString());
-          if (data.name) await AsyncStorage.setItem('userName', data.name);
-          if (data.email) await AsyncStorage.setItem('userEmail', data.email); // Conservado de la versión remota
-
-          mostrarPopUp(`Has logueado correctamente, Bienvenido, ${data.name}!`, "success");
+        if (modo === 'registro') {
+          mostrarPopUp("¡Cuenta creada! Revisa tu email.", "success");
+          setModo('login');
         } else {
-          // __ LÓGICA DE REGISTRO __ 
-          // No guardamos sesión todavía porque debe verificar email
-          mostrarPopUp(
-            "¡Cuenta creada! Revisa tu email para activarla antes de entrar.",
-            "success"
-          );
-          setModo('login'); // Cambiamos a modo login para que el usuario entre después
+          // 1. Limpiamos datos de sesión previos
+          const emailParaRecordar = email;
+
+          // 2. Guardamos datos de sesión
+          await AsyncStorage.setItem('userToken', data.token);
+          await AsyncStorage.setItem('userRole', data.role);
+          await AsyncStorage.setItem('userId', data.userId.toString());
+          await AsyncStorage.setItem('userName', data.name);
+
+          // 3. Check Recuérdame
+          if (recuerdame) {
+            await AsyncStorage.setItem('savedEmail', emailParaRecordar);
+          } else {
+            await AsyncStorage.removeItem('savedEmail');
+          }
+
+          mostrarPopUp(`¡Bienvenido, ${data.name}!`, "success");
+          setTimeout(() => navigation.replace('Home'), 1000);
         }
       } else {
-        // Manejo de errores (como el 409 Conflict)
-        const msg = data.error || (response.status === 409 ? "El email ya está registrado" : "Error en el servidor");
-        mostrarPopUp(msg, "error");
+        mostrarPopUp(data.error || "Error de credenciales", "error");
       }
     } catch (error) {
-      console.error(error);
-      mostrarPopUp("Error de conexión con el servidor", "error");
+      mostrarPopUp("Error de conexión", "error");
     } finally {
       setCargando(false);
     }
   };
 
   return (
-    <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
+    <View className="flex-1 bg-black">
+      {/* NUEVO POPUP (TRADUCCIÓN EXACTA DEL TOAST HTML) */}
       {notificacion.visible && (
-        <Animated.View style={[
-          styles.popUpCard,
-          { transform: [{ translateY }] },
-          notificacion.tipo === 'error' ? styles.popUpError : styles.popUpSuccess
-        ]}>
-          <View style={styles.popUpContent}>
-            <View style={[
-              styles.iconCircle,
-              { backgroundColor: notificacion.tipo === 'error' ? '#FF5252' : '#4CAF50' }
-            ]}>
-              <Ionicons
-                name={notificacion.tipo === 'error' ? 'close' : 'checkmark'}
-                size={16}
-                color="#fff"
-              />
-            </View>
-            <Text style={styles.popUpText}>{notificacion.mensaje}</Text>
+        <Animated.View
+          style={[{ transform: [{ translateY }], zIndex: 9999 }]}
+          className="absolute self-center w-[92%] max-w-sm p-4 bg-zinc-900 rounded-xl shadow-sm border border-zinc-800 flex-row items-center"
+        >
+          {/* Contenedor del Icono (shrink-0 w-7 h-7) */}
+          <View
+            className={`items-center justify-center shrink-0 w-7 h-7 rounded ${notificacion.tipo === 'error' ? 'bg-red-500/20' : 'bg-green-500/20'
+              }`}
+          >
+            <Ionicons
+              name={notificacion.tipo === 'error' ? 'close' : 'checkmark-sharp'}
+              size={18}
+              color={notificacion.tipo === 'error' ? '#ef4444' : '#22c55e'}
+            />
           </View>
-        </Animated.View>
-      )}
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.flex}
-      >
-        <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 20 }]} keyboardShouldPersistTaps="handled">
-
-          {/* Cabecera con logo de texto */}
-          <View style={styles.header}>
-            <LinearGradient
-              colors={['#4CAF50', '#2E7D32']}
-              style={styles.logoCircle}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Text style={styles.logoLetter}>F</Text>
-            </LinearGradient>
-            <Text style={styles.appName}>FitHub Connect</Text>
-            <Text style={styles.subtitle}>
-              {modo === 'login' ? 'Bienvenido de nuevo' : 'Crea tu cuenta'}
+          {/* Texto del Mensaje (ms-3 text-sm font-normal) */}
+          <View className="ms-3 flex-1">
+            <Text className="text-sm font-normal text-zinc-300 leading-5">
+              {notificacion.mensaje}
             </Text>
           </View>
 
-          {/* Selector Login / Registro */}
-          <View style={styles.tabBar}>
-            <TouchableOpacity
-              style={[styles.tab, modo === 'login' && styles.tabActive]}
-              onPress={() => setModo('login')}
-            >
-              <Text style={[styles.tabText, modo === 'login' && styles.tabTextActive]}>
-                Iniciar sesion
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, modo === 'registro' && styles.tabActive]}
-              onPress={() => setModo('registro')}
-            >
-              <Text style={[styles.tabText, modo === 'registro' && styles.tabTextActive]}>
-                Registrarse
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {/* Botón Cerrar (ms-auto h-8 w-8) */}
+          <TouchableOpacity
+            onPress={() => {
+              Animated.timing(translateY, { toValue: -100, duration: 300, useNativeDriver: true }).start(() => {
+                setNotificacion(prev => ({ ...prev, visible: false }));
+              });
+            }}
+            className="ms-auto flex items-center justify-center h-8 w-8 rounded-lg bg-transparent"
+          >
+            <Ionicons name="close-outline" size={20} color="#a1a1aa" />
+          </TouchableOpacity>
+        </Animated.View>
+      )}
 
-          {/* Formulario */}
-          <View style={styles.form}>
-            {modo === 'registro' && (
-              <View style={styles.inputWrapper}>
-                <Text style={styles.label}>Nombre completo</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Tu nombre"
-                  placeholderTextColor="#555"
-                  value={nombre}
-                  onChangeText={setNombre}
-                  autoCapitalize="words"
-                />
-              </View>
-            )}
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?q=80&w=2070' }}
+        className="flex-1"
+      >
+        <View className="flex-1 bg-black/80">
+          <SafeAreaView className="flex-1">
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
+              <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 25 }}>
 
-            <View style={styles.inputWrapper}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="ejemplo@correo.com"
-                placeholderTextColor="#555"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
+                <MotiView
+                  from={{ opacity: 0, translateY: 20 }}
+                  animate={{ opacity: 1, translateY: 0 }}
+                  className="w-full"
+                >
+                  {/* CABECERA */}
+                  <View className="items-center mb-10">
+                    <View className="bg-[#3f6240] w-20 h-20 rounded-[28px] items-center justify-center shadow-2xl shadow-green-900/50 rotate-3">
+                      <Text className="text-white font-black text-5xl -rotate-3">F</Text>
+                    </View>
+                    <Text className="text-white text-4xl font-black mt-4 tracking-tighter">FITHUB</Text>
+                    <Text className="text-zinc-500 font-bold uppercase tracking-[4px] text-[10px]">Premium Experience</Text>
+                  </View>
 
-            <View style={styles.inputWrapper}>
-              <Text style={styles.label}>Contrasena</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="••••••••"
-                placeholderTextColor="#555"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
-            </View>
+                  {/* FORMULARIO */}
+                  <View className="bg-zinc-900/50 border border-white/10 rounded-[40px] p-8">
+                    <View className="gap-y-4">
+                      {modo === 'registro' && (
+                        <TextInput
+                          className="bg-black/40 text-white px-6 py-4 rounded-2xl border border-white/5 focus:border-[#3f6240]"
+                          placeholder="Nombre Completo"
+                          placeholderTextColor="#555"
+                          value={nombre}
+                          onChangeText={setNombre}
+                        />
+                      )}
 
-            {modo === 'registro' && (
-              <View style={styles.inputWrapper}>
-                <Text style={styles.label}>Tipo de cuenta</Text>
-                <View style={styles.roleRow}>
-                  {['Usuario', 'Monitor'].map((rol) => (
+                      <TextInput
+                        className="bg-black/40 text-white px-6 py-4 rounded-2xl border border-white/5 focus:border-[#3f6240]"
+                        placeholder="Email"
+                        placeholderTextColor="#555"
+                        value={email}
+                        onChangeText={setEmail}
+                        autoCapitalize="none"
+                      />
+
+                      <TextInput
+                        className="bg-black/40 text-white px-6 py-4 rounded-2xl border border-white/5 focus:border-[#3f6240]"
+                        placeholder="Contraseña"
+                        placeholderTextColor="#555"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry
+                      />
+                    </View>
+
+                    {/* RECUÉRDAME*/}
+                    {modo === 'login' && (
+                      <MotiView
+                        from={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="flex-row items-center mt-5 ml-1"
+                      >
+                        <TouchableOpacity
+                          onPress={() => setRecuerdame(!recuerdame)}
+                          className="flex-row items-center"
+                        >
+                          <View className={`w-5 h-5 rounded-md border ${recuerdame ? 'bg-[#3f6240] border-[#3f6240]' : 'border-zinc-700'} items-center justify-center`}>
+                            {recuerdame && <Ionicons name="checkmark" size={14} color="white" />}
+                          </View>
+                          <Text className="text-zinc-400 text-xs ml-2">Recordar mi email</Text>
+                        </TouchableOpacity>
+                      </MotiView>
+                    )}
+
+                    {/* BOTÓN PRINCIPAL */}
                     <TouchableOpacity
-                      key={rol}
-                      style={[styles.roleChip, tipoCuenta === rol && styles.roleChipActive]}
-                      onPress={() => setTipoCuenta(rol)}
-                      activeOpacity={0.7}
+                      className="bg-[#3f6240] mt-8 py-5 rounded-2xl items-center shadow-xl shadow-green-900/20"
+                      onPress={handleEntrar}
+                      disabled={cargando}
                     >
-                      <Text style={[styles.roleChipText, tipoCuenta === rol && styles.roleChipTextActive]}>{rol}</Text>
+                      {cargando ? <ActivityIndicator color="white" /> : (
+                        <Text className="text-white font-black text-lg tracking-widest uppercase">
+                          {modo === 'login' ? 'Entrar' : 'Unirme'}
+                        </Text>
+                      )}
                     </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
 
-            <TouchableOpacity
-              style={styles.buttonWrapper}
-              onPress={handleEntrar}
-              activeOpacity={0.85}
-            >
-              <LinearGradient
-                colors={['#4CAF50', '#2E7D32']}
-                style={styles.button}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                {cargando ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>
-                    {modo === 'login' ? 'Entrar' : 'Crear cuenta'}
-                  </Text>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
+                    {/* DIVIDER SOCIAL */}
+                    <View className="flex-row items-center my-8">
+                      <View className="flex-1 h-[1px] bg-white/10" />
+                      <Text className="text-zinc-600 px-4 text-[10px] font-bold uppercase tracking-widest">O conéctate con</Text>
+                      <View className="flex-1 h-[1px] bg-white/10" />
+                    </View>
 
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </LinearGradient>
+                    {/* BOTONES SOCIALES */}
+                    <View className="flex-row gap-x-4">
+                      <TouchableOpacity className="flex-1 flex-row bg-white h-14 rounded-2xl items-center justify-center">
+                        <FontAwesome5 name="google" size={20} color="#EA4335" />
+                      </TouchableOpacity>
+                      <TouchableOpacity className="flex-1 flex-row bg-[#1877F2] h-14 rounded-2xl items-center justify-center">
+                        <FontAwesome5 name="facebook" size={22} color="white" />
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* SWITCH MODO */}
+                    <TouchableOpacity
+                      className="mt-8 items-center"
+                      onPress={() => setModo(modo === 'login' ? 'registro' : 'login')}
+                    >
+                      <Text className="text-zinc-500 text-sm">
+                        {modo === 'login' ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
+                        <Text className="text-white font-black decoration-green-500 underline">
+                          {modo === 'login' ? 'REGÍSTRATE' : 'LOGUÉATE'}
+                        </Text>
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </MotiView>
+              </ScrollView>
+            </KeyboardAvoidingView>
+          </SafeAreaView>
+        </View>
+      </ImageBackground>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  gradient: { flex: 1 },
-  flex: { flex: 1 },
-  container: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 36,
-  },
-  logoCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  logoLetter: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  appName: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#888',
-  },
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: '#1e1e1e',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 28,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 10,
-  },
-  tabActive: {
-    backgroundColor: '#2a2a2a',
-  },
-  tabText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-  },
-  tabTextActive: {
-    color: '#4CAF50',
-    fontWeight: '600',
-  },
-  form: {
-    gap: 4,
-  },
-  inputWrapper: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 13,
-    color: '#888',
-    marginBottom: 6,
-    fontWeight: '500',
-  },
-  input: {
-    backgroundColor: '#1e1e1e',
-    color: '#fff',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-  },
-  roleRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  roleChip: {
-    flex: 1,
-    paddingVertical: 12,
-    backgroundColor: '#1e1e1e',
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-  },
-  roleChipText: {
-    color: '#aaa',
-    fontWeight: '500',
-    fontSize: 14,
-  },
-  roleChipActive: {
-    borderColor: '#4CAF50',
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-  },
-  roleChipTextActive: {
-    color: '#4CAF50',
-    fontWeight: '600',
-  },
-  buttonWrapper: {
-    marginTop: 8,
-    borderRadius: 14,
-    overflow: 'hidden',
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  button: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  popUpCard: {
-    position: 'absolute',
-    top: 0,
-    left: '5%',
-    right: '5%',
-    maxWidth: Platform.OS === 'web' ? 400 : '90%', // En web no ocupa toda la pantalla
-    alignSelf: 'center',
-    zIndex: 9999,
-    borderRadius: 12,
-    padding: 15,
-    borderWidth: 1,
-    // Sombra para móvil
-    elevation: 10,
-    // Sombra para Web
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-  },
-  popUpError: {
-    backgroundColor: '#1a0a0a',
-    borderColor: '#FF5252',
-  },
-  popUpSuccess: {
-    backgroundColor: '#0a1a0a',
-    borderColor: '#4CAF50',
-  },
-  popUpContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  popUpIconText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  popUpText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});
