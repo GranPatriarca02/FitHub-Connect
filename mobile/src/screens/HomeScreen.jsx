@@ -206,10 +206,10 @@ export default function HomeScreen({ navigation }) {
 
         <View style={styles.cardGrid}>
           <ActionCard
-            title={isTrainer ? 'Mi Escaparate' : 'Monitores'}
-            desc={isTrainer ? 'Especialidad y tarifas' : 'Busca y contrata entrenadores'}
-            icon={<MaterialCommunityIcons name="dumbbell" size={28} color="#4CAF50" />}
-            onPress={() => isTrainer ? navigation.navigate('TrainerProfile') : navigation.navigate('MonitorList')}
+            title={isTrainer ? 'Comunidad' : 'Monitores'}
+            desc={isTrainer ? 'Posts y seguidores' : 'Busca y contrata entrenadores'}
+            icon={<MaterialCommunityIcons name={isTrainer ? "account-group" : "dumbbell"} size={28} color="#4CAF50" />}
+            onPress={() => isTrainer ? navigation.navigate('Social') : navigation.navigate('MonitorList')}
           />
           <ActionCard
             title={isTrainer ? 'Mis rutinas' : 'Mis rutinas'}
@@ -218,10 +218,10 @@ export default function HomeScreen({ navigation }) {
             onPress={() => navigation.navigate('Routines')}
           />
           <ActionCard
-            title="Disponibilidad"
-            desc={isTrainer ? 'Publica tus horarios' : 'Gestiona tus horarios'}
-            icon={<MaterialCommunityIcons name="clock-outline" size={28} color="#4CAF50" />}
-            onPress={() => isTrainer ? navigation.navigate('TrainerAvailability') : {}}
+            title={isTrainer ? 'Disponibilidad' : 'Comunidad'}
+            desc={isTrainer ? 'Publica tus horarios' : 'Posts y seguidores'}
+            icon={<MaterialCommunityIcons name={isTrainer ? "clock-outline" : "account-group"} size={28} color="#4CAF50" />}
+            onPress={() => isTrainer ? navigation.navigate('TrainerAvailability') : navigation.navigate('Social')}
           />
           <ActionCard
             title="Videos"

@@ -27,6 +27,7 @@ import VideosScreen from './src/screens/VideosScreen.jsx';
 import RoutinesScreen from './src/screens/RoutinesScreen.jsx';
 import RoutineDetailScreen from './src/screens/RoutineDetailScreen.jsx';
 import ExercisesScreen from './src/screens/ExercisesScreen.jsx';
+import SocialScreen from './src/screens/SocialScreen.jsx';
 
 const Stack = createNativeStackNavigator();
 
@@ -135,6 +136,11 @@ export default function App() {
           name="Exercises"
           component={ExercisesScreen}
           options={{ title: 'Ejercicios' }}
+        />
+        <Stack.Screen
+          name="Social"
+          component={SocialScreen}
+          options={{ headerShown: false }}
         />
       </Stack.Navigator>
     </NavigationContainer>
