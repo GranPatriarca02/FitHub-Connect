@@ -18,7 +18,7 @@ object DatabaseFactory {
         transaction {
             SchemaUtils.createMissingTablesAndColumns(
                 Users, Monitors, Routines, Availabilities, Bookings, Videos,
-                Exercises, RoutineExercises, Subscriptions
+                Exercises, RoutineExercises, Subscriptions, Posts, PostLikes, Comments
             )
 
             // Seed de videos gratuitos oficiales si la tabla esta vacia
