@@ -12,12 +12,20 @@ Write-Host ""
 
 # ---- 1. Comprobar Java (JDK 21) ----
 Write-Host "[1/5] Comprobando Java..." -ForegroundColor Yellow
-$javaVersion = & java -version 2>&1 | Select-Object -First 1
-if ($javaVersion) {
+try {
+    $javaVersion = & java -version 2>&1 | Select-Object -First 1
     Write-Host "  OK: $javaVersion" -ForegroundColor Green
-} else {
-    Write-Host "  ERROR: Java no encontrado. Instala JDK 21 o usa el JBR de Android Studio." -ForegroundColor Red
-    Write-Host "  Descarga: https://adoptium.net/temurin/releases/?version=21" -ForegroundColor Gray
+} catch {
+    $jdkPath = "C:\Program Files\Java\jdk-21"
+    if (Test-Path "$jdkPath\bin\java.exe") {
+        $env:JAVA_HOME = $jdkPath
+        $env:PATH = "$jdkPath\bin;$env:PATH"
+        $javaVersion = & java -version 2>&1 | Select-Object -First 1
+        Write-Host "  OK (Ruta inyectada): $javaVersion" -ForegroundColor Green
+    } else {
+        Write-Host "  ERROR: Java no encontrado. Instala JDK 21 o usa el JBR de Android Studio." -ForegroundColor Red
+        Write-Host "  Descarga: https://adoptium.net/temurin/releases/?version=21" -ForegroundColor Gray
+    }
 }
 
 # ---- 2. Comprobar Node.js (para el frontend movil) ----

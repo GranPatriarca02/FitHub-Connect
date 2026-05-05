@@ -4,10 +4,13 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingVi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants'; // Importado para leer el .env
 
-// RESCATAMOS LA URL DESDE EL .ENV (Vía app.config.js)
-const API_URL = Constants.expoConfig?.extra?.backendUrl;
+// API_URL: usa EXPO_PUBLIC_API_URL del .env, con fallback por plataforma
+const API_URL = (() => {
+  if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;
+  if (Platform.OS === 'android') return 'http://10.0.2.2:8080';
+  return 'http://localhost:8080';
+})();
 
 const { width } = Dimensions.get('window');
 
