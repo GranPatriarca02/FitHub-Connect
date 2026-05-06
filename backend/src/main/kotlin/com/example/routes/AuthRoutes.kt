@@ -88,6 +88,33 @@ fun Application.authRoutes() {
             call.respond(HttpStatusCode.Created, mapOf("message" to "Has registrado tu cuenta, verifica tu correo electronico para activar tu cuenta"))
         }
 
+        // Validación EMAIL
+        post("/auth/check-email") {
+            try {
+                // Recibimos el body que contiene el email
+                val body = call.receive<Map<String, String>>()
+                val emailToCheck = body["email"]
+
+                if (emailToCheck.isNullOrBlank()) {
+                    return@post call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Email no proporcionado"))
+                }
+
+                // Buscamos en la base de datos si el email existe
+                val existe = transaction {
+                    User.find { Users.email eq emailToCheck }.firstOrNull()
+                }
+
+                if (existe != null) {
+                    // Si existe, devolvemos un error de conflicto (409)
+                    call.respond(HttpStatusCode.Conflict, mapOf("message" to "El email ya se encuentra registrado"))
+                } else {
+                    // Si no existe, devolvemos un OK (200)
+                    call.respond(HttpStatusCode.OK, mapOf("message" to "Email disponible"))
+                }
+            } catch (e: Exception) {
+                call.respond(HttpStatusCode.InternalServerError, mapOf("message" to "Error en el servidor"))
+            }
+        }
 
         // Endpoint para registrar la verificación del correo.
         get("/verify") {
