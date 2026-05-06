@@ -31,7 +31,9 @@ const getNext14Days = () => {
 
 export default function MonitorDetailScreen({ route, navigation }) {
   const { monitor: initialMonitor } = route.params;
-  const [monitorDetail, setMonitorDetail] = useState(initialMonitor);
+  // Fallback seguro para cuando venimos del redirect de pago (solo trae id)
+  const safeInitial = { name: '', specialty: '', hourlyRate: 0, ...initialMonitor };
+  const [monitorDetail, setMonitorDetail] = useState(safeInitial);
   const [disponibilidad, setDisponibilidad] = useState([]);
   const [occupiedSlots, setOccupiedSlots] = useState([]);
   const [cargandoDatos, setCargandoDatos] = useState(true);
@@ -126,6 +128,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
             date: fechaSeleccionada.dateString,
             startTime: slotSeleccionado.startTime.substring(0,5),
             endTime: slotSeleccionado.endTime.substring(0,5),
+            webReturnUrl: window.location.origin,
           }),
         });
 
@@ -228,7 +231,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
         {/* Perfil del monitor */}
         <View style={styles.profileCard}>
           <LinearGradient colors={['#4CAF50', '#2E7D32']} style={styles.avatarLarge}>
-            <Text style={styles.avatarText}>{monitorDetail.name.charAt(0)}</Text>
+            <Text style={styles.avatarText}>{(monitorDetail.name || '').charAt(0)}</Text>
           </LinearGradient>
           <Text style={styles.name}>{monitorDetail.name}</Text>
           <Text style={styles.specialty}>{monitorDetail.specialty}</Text>

@@ -92,7 +92,10 @@ export default function HomeScreen({ navigation }) {
   useEffect(() => {
     if (Platform.OS === 'web') {
       const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('payment') === 'success') {
+      const paymentStatus = urlParams.get('payment');
+      const monitorId = urlParams.get('monitorId');
+
+      if (paymentStatus === 'success') {
         const syncPremium = async () => {
           try {
             const userId = await AsyncStorage.getItem('userId');
@@ -114,6 +117,14 @@ export default function HomeScreen({ navigation }) {
           }
         };
         syncPremium();
+      }
+
+      // Redirigir a la pantalla del monitor si viene con monitorId
+      if (monitorId && (paymentStatus === 'success' || paymentStatus === 'cancelled')) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+        // Navegar a MonitorDetail pasando el ID del monitor
+        navigation.navigate('MonitorDetail', { monitor: { id: parseInt(monitorId) } });
+      } else if (paymentStatus) {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }

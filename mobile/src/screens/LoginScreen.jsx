@@ -37,9 +37,12 @@ export default function LoginScreen({ navigation }) {
       }
 
       try {
-        await loadUserData();
+        const savedEmail = await AsyncStorage.getItem('savedEmail');
+        if (savedEmail) {
+          setEmail(savedEmail);
+          setRecuerdame(true);
+        }
       } catch (error) {
-
         console.log("Error de red:", error.message);
       }
     };

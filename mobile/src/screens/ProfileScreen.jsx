@@ -59,9 +59,16 @@ export default function ProfileScreen({ navigation }) {
     if (procesandoPago) return;
     setProcesandoPago(true);
     try {
+      const userId = await AsyncStorage.getItem('userId');
       const response = await fetch(`${API_URL}/create-subscription-session`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId,
+        },
+        body: JSON.stringify({
+          webReturnUrl: Platform.OS === 'web' ? window.location.origin : '',
+        }),
       });
 
       const data = await response.json();

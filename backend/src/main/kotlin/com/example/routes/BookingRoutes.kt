@@ -176,11 +176,26 @@ fun Application.bookingRoutes() {
                     }.id.value
                 }
 
+                val webReturnUrl = request["webReturnUrl"]?.toString()?.replace("\"", "") ?: ""
+
+                val backendUrl = env["BACKEND_URL"] ?: "http://localhost:8080"
+                // Si viene de la web, Stripe redirige directo a la app web (sin página intermedia)
+                val successUrl = if (webReturnUrl.isNotEmpty()) {
+                    "${webReturnUrl}/?payment=success&monitorId=${monitorId}"
+                } else {
+                    "${backendUrl}/payment-success?monitorId=${monitorId}"
+                }
+                val cancelUrl = if (webReturnUrl.isNotEmpty()) {
+                    "${webReturnUrl}/?payment=cancelled&monitorId=${monitorId}"
+                } else {
+                    "${backendUrl}/payment-cancel?monitorId=${monitorId}"
+                }
+
                 val params = SessionCreateParams.builder()
                     .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
                     .setMode(SessionCreateParams.Mode.PAYMENT)
-                    .setSuccessUrl("${env["BACKEND_URL"] ?: "http://localhost:8080"}/payment-success")
-                    .setCancelUrl("${env["BACKEND_URL"] ?: "http://localhost:8080"}/payment-cancel")
+                    .setSuccessUrl(successUrl)
+                    .setCancelUrl(cancelUrl)
                     .putMetadata("userId", userId.toString())
                     .putMetadata("bookingId", bookingId.toString())
                     .addLineItem(
@@ -311,11 +326,31 @@ fun Application.bookingRoutes() {
                 // Para la suscripción ilimitada, usamos un precio fijo
                 val price = 29.99
 
+                // Leer el body para obtener webReturnUrl
+                val rawBody = call.receiveText()
+                val webReturnUrl = try {
+                    val request = io.ktor.serialization.kotlinx.json.DefaultJson.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(rawBody)
+                    request["webReturnUrl"]?.toString()?.replace("\"", "") ?: ""
+                } catch (_: Exception) { "" }
+
+                val backendUrl = env["BACKEND_URL"] ?: "http://localhost:8080"
+                // Si viene de la web, Stripe redirige directo a la app web
+                val successUrl = if (webReturnUrl.isNotEmpty()) {
+                    "${webReturnUrl}/?payment=success"
+                } else {
+                    "${backendUrl}/payment-success"
+                }
+                val cancelUrl = if (webReturnUrl.isNotEmpty()) {
+                    "${webReturnUrl}/?payment=cancelled"
+                } else {
+                    "${backendUrl}/payment-cancel"
+                }
+
                 val params = SessionCreateParams.builder()
                     .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
                     .setMode(SessionCreateParams.Mode.PAYMENT)
-                    .setSuccessUrl("${env["BACKEND_URL"] ?: "http://localhost:8080"}/payment-success")
-                    .setCancelUrl("${env["BACKEND_URL"] ?: "http://localhost:8080"}/payment-cancel")
+                    .setSuccessUrl(successUrl)
+                    .setCancelUrl(cancelUrl)
                     .putMetadata("userId", userId.toString())
                     .putMetadata("type", "PREMIUM_PASS")
                     .addLineItem(
