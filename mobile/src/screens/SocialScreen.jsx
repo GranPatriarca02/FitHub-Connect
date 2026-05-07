@@ -30,6 +30,11 @@ export default function SocialScreen({ navigation }) {
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [newComment, setNewComment] = useState('');
 
+  // Custom Actions Modals (Web friendly)
+  const [optionsModalVisible, setOptionsModalVisible] = useState(false);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
+
   const fetchPosts = useCallback(async () => {
     try {
       const userId = await AsyncStorage.getItem('userId');
@@ -68,105 +73,120 @@ export default function SocialScreen({ navigation }) {
   };
 
   const handleSavePost = async () => {
-    if (!postContent.trim()) return;
+    if (!postContent.trim() || isSubmitting) return;
     setIsSubmitting(true);
     
     try {
       const userId = await AsyncStorage.getItem('userId');
+      const userName = await AsyncStorage.getItem('userName') || "Tú";
+      const userRole = await AsyncStorage.getItem('userRole') || "";
       
+      console.log("Iniciando publicación...", { userId, editingPostId });
+
       if (editingPostId) {
-        // EDIT MODE
+        // MODO EDICIÓN
         const response = await fetch(`${API_URL}/social/posts/${editingPostId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'X-User-Id': userId || '' },
+          headers: { 
+            'Content-Type': 'application/json', 
+            'X-User-Id': userId || '' 
+          },
           body: JSON.stringify({ content: postContent.trim() })
         });
 
         if (response.ok) {
-          // Optimistic update
           setPosts(current => current.map(p => p.id === editingPostId ? { ...p, content: postContent.trim() } : p));
           setModalVisible(false);
+          setEditingPostId(null);
+          setPostContent('');
         } else {
-          Alert.alert('Error', 'No se pudo editar');
+          const errData = await response.json().catch(() => ({}));
+          Alert.alert('Error', errData.error || 'No se pudo editar la publicación');
         }
       } else {
-        // CREATE MODE
+        // MODO CREACIÓN
         const response = await fetch(`${API_URL}/social/posts`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-User-Id': userId || '' },
+          headers: { 
+            'Content-Type': 'application/json', 
+            'X-User-Id': userId || '' 
+          },
           body: JSON.stringify({ content: postContent.trim() })
         });
 
+        console.log("Respuesta creación:", response.status);
+
         if (response.ok) {
-          const result = await response.json();
-          // Optimistic update
+          const result = await response.json().catch(() => ({}));
+          
+          // Actualización optimista inmediata
           const newPostObj = {
-            id: result.id,
-            userId: currentUserId,
-            userName: "Tú", // Fallback rápido, luego onRefresh lo arregla
-            userRole: "",
+            id: result.id || Date.now(), // Usar Date.now() como fallback de ID
+            userId: userId ? parseInt(userId) : 0,
+            userName: userName,
+            userRole: userRole,
             content: postContent.trim(),
             likesCount: 0,
             commentsCount: 0,
             timeAgo: "Ahora mismo",
             isLikedByMe: false
           };
+
+          // Actualizar estado, limpiar input y CERRAR MODAL de inmediato
           setPosts(current => [newPostObj, ...current]);
+          setPostContent('');
           setModalVisible(false);
-          // Refrescar en segundo plano para obtener datos correctos
-          fetchPosts(); 
+          
+          console.log("Post añadido optimísticamente, modal cerrado.");
+
+          // Refrescar en segundo plano para sincronizar IDs reales y otros datos
+          setTimeout(() => fetchPosts(), 500);
         } else {
-          Alert.alert('Error', 'No se pudo publicar');
+          const errData = await response.json().catch(() => ({}));
+          Alert.alert('Error', errData.error || 'No se pudo publicar');
         }
       }
     } catch (e) {
-      Alert.alert('Error', 'Problema de conexión');
+      console.error("Error en handleSavePost:", e);
+      Alert.alert('Error', 'Error de red o del servidor al publicar');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDeletePost = async (id) => {
-    Alert.alert(
-      "Eliminar Publicación",
-      "¿Estás seguro de que deseas eliminar este post?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        { 
-          text: "Eliminar", 
-          style: "destructive",
-          onPress: async () => {
-            // Optimistic update
-            setPosts(current => current.filter(p => p.id !== id));
-            try {
-              const userId = await AsyncStorage.getItem('userId');
-              await fetch(`${API_URL}/social/posts/${id}`, {
-                method: 'DELETE',
-                headers: { 'X-User-Id': userId || '' }
-              });
-            } catch (e) {
-              fetchPosts(); // Revert on fail
-            }
-          }
-        }
-      ]
-    );
+  const executeDelete = async (id) => {
+    // Optimistic update
+    const oldPosts = [...posts];
+    setPosts(current => current.filter(p => p.id !== id));
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      const response = await fetch(`${API_URL}/social/posts/${id}`, {
+        method: 'DELETE',
+        headers: { 'X-User-Id': userId || '' }
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        if (Platform.OS === 'web') alert(data.error || 'No se pudo eliminar la publicacion');
+        else Alert.alert('Error', data.error || 'No se pudo eliminar la publicacion');
+        setPosts(oldPosts); // Revertir
+      }
+    } catch (e) {
+      if (Platform.OS === 'web') alert('Problema de conexion al eliminar');
+      else Alert.alert('Error', 'Problema de conexion al eliminar');
+      setPosts(oldPosts); // Revertir
+    }
+  };
+
+  const handleDeletePost = (id) => {
+    setSelectedPost(posts.find(p => p.id === id));
+    setDeleteConfirmVisible(true);
+    setOptionsModalVisible(false); // Por si venía de opciones
   };
 
   const showPostOptions = (post) => {
-    Alert.alert(
-      "Opciones",
-      "¿Qué deseas hacer con esta publicación?",
-      [
-        { text: "Editar", onPress: () => {
-            setEditingPostId(post.id);
-            setPostContent(post.content);
-            setModalVisible(true);
-        }},
-        { text: "Eliminar", style: "destructive", onPress: () => handleDeletePost(post.id) },
-        { text: "Cancelar", style: "cancel" }
-      ]
-    );
+    setSelectedPost(post);
+    setOptionsModalVisible(true);
   };
 
   const handleToggleLike = async (postId, currentlyLiked) => {
@@ -393,8 +413,14 @@ export default function SocialScreen({ navigation }) {
                     colors={['#4CAF50', '#2E7D32']}
                     style={[styles.submitBtnCentered, (!postContent.trim() || isSubmitting || postContent.length > 280) && { opacity: 0.5 }]}
                   >
-                    <Text style={styles.submitBtnText}>{editingPostId ? 'Guardar' : 'Publicar'}</Text>
-                    <MaterialCommunityIcons name="send" size={16} color="#fff" style={{ marginLeft: 6 }} />
+                    {isSubmitting ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Text style={styles.submitBtnText}>{editingPostId ? 'Guardar' : 'Publicar'}</Text>
+                        <MaterialCommunityIcons name="send" size={16} color="#fff" style={{ marginLeft: 6 }} />
+                      </>
+                    )}
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
@@ -463,6 +489,94 @@ export default function SocialScreen({ navigation }) {
 
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Modal Personalizado de Opciones (Web & Mobile) */}
+      <Modal
+        visible={optionsModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setOptionsModalVisible(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setOptionsModalVisible(false)}
+        >
+          <View style={styles.actionSheet}>
+            <View style={styles.actionSheetHeader}>
+              <View style={styles.actionSheetIndicator} />
+              <Text style={styles.actionSheetTitle}>Gestionar Publicacion</Text>
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.actionItem} 
+              onPress={() => {
+                setOptionsModalVisible(false);
+                setEditingPostId(selectedPost.id);
+                setPostContent(selectedPost.content);
+                setModalVisible(true);
+              }}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: 'rgba(76, 175, 80, 0.1)' }]}>
+                <MaterialCommunityIcons name="pencil" size={22} color="#4CAF50" />
+              </View>
+              <Text style={styles.actionTextItem}>Editar contenido</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.actionItem} 
+              onPress={() => handleDeletePost(selectedPost.id)}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: 'rgba(255, 82, 82, 0.1)' }]}>
+                <MaterialCommunityIcons name="trash-can" size={22} color="#FF5252" />
+              </View>
+              <Text style={[styles.actionTextItem, { color: '#FF5252' }]}>Eliminar publicacion</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.actionItem, styles.actionCancel]} 
+              onPress={() => setOptionsModalVisible(false)}
+            >
+              <Text style={styles.actionCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Modal de Confirmacion de Borrado */}
+      <Modal
+        visible={deleteConfirmVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDeleteConfirmVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.confirmBox}>
+            <MaterialCommunityIcons name="alert-circle" size={48} color="#FF5252" style={{ marginBottom: 16 }} />
+            <Text style={styles.confirmTitle}>¿Eliminar publicacion?</Text>
+            <Text style={styles.confirmDesc}>Esta accion no se puede deshacer. El contenido se borrara de la comunidad.</Text>
+            
+            <View style={styles.confirmFooter}>
+              <TouchableOpacity 
+                style={styles.confirmBtnCancel} 
+                onPress={() => setDeleteConfirmVisible(false)}
+              >
+                <Text style={styles.confirmBtnCancelText}>No, mantener</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.confirmBtnDelete} 
+                onPress={() => {
+                  setDeleteConfirmVisible(false);
+                  executeDelete(selectedPost.id);
+                }}
+              >
+                <Text style={styles.confirmBtnDeleteText}>Si, eliminar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
     </LinearGradient>
@@ -560,6 +674,121 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 22
+  },
+
+  // Action Sheet Styles
+  actionSheet: {
+    backgroundColor: '#1a1a1a',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    width: '100%',
+    position: 'absolute',
+    bottom: 0,
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+  },
+  actionSheetHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  actionSheetIndicator: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#333',
+    borderRadius: 2,
+    marginBottom: 12,
+  },
+  actionSheetTitle: {
+    color: '#888',
+    fontSize: 13,
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  actionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  actionIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  actionTextItem: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  actionCancel: {
+    marginTop: 10,
+    justifyContent: 'center',
+    borderBottomWidth: 0,
+  },
+  actionCancelText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+
+  // Confirm Box Styles
+  confirmBox: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: 24,
+    padding: 24,
+    width: '85%',
+    maxWidth: 340,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  confirmTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  confirmDesc: {
+    color: '#888',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  confirmFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  confirmBtnCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#2a2a2a',
+  },
+  confirmBtnCancelText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  confirmBtnDelete: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#FF5252',
+  },
+  confirmBtnDeleteText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 
   // Modals generic
