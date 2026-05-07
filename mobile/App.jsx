@@ -15,6 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Importante
 
 import LoginScreen from './src/screens/LoginScreen';
+import RegisterScreen from './src/screens/RegisterScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import MonitorListScreen from './src/screens/MonitorListScreen';
 import MonitorDetailScreen from './src/screens/MonitorDetailScreen';
@@ -28,6 +29,7 @@ import RoutinesScreen from './src/screens/RoutinesScreen.jsx';
 import RoutineDetailScreen from './src/screens/RoutineDetailScreen.jsx';
 import ExercisesScreen from './src/screens/ExercisesScreen.jsx';
 import SocialScreen from './src/screens/SocialScreen.jsx';
+
 
 const Stack = createNativeStackNavigator();
 
@@ -77,6 +79,11 @@ export default function App() {
           name="Login"
           component={LoginScreen}
           options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Register"
+          component={RegisterScreen}
+          options={{ title: 'Crear Cuenta', headerShown: false }}
         />
         <Stack.Screen
           name="Home"
