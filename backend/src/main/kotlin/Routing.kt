@@ -36,6 +36,10 @@ fun Application.configureRouting() {
     exerciseRoutes()
     routineRoutes()
 
+    // Leemos FRONTEND_URL para redirecciones web tras el pago
+    val env = io.github.cdimascio.dotenv.dotenv { ignoreIfMissing = true }
+    val frontendUrl = env["FRONTEND_URL"] ?: System.getenv("FRONTEND_URL") ?: "http://localhost:8081"
+
     // Rutas base y de ayuda
     routing {
         get("/") {
@@ -44,16 +48,19 @@ fun Application.configureRouting() {
 
         // Ruta para confirmar pago exitoso desde WebView
         get("/payment-success") {
+            val monitorId = call.request.queryParameters["monitorId"] ?: ""
+            val returnUrl = call.request.queryParameters["returnUrl"] ?: frontendUrl
             call.respondText("""
                 <html>
                     <head>
                         <meta charset="UTF-8">
                         <meta name="viewport" content="width=device-width, initial-scale=1">
                         <style>
-                            body { font-family: sans-serif; background-color: #0a0a0a; color: white; text-align: center; padding: 50px; }
+                            body { font-family: sans-serif; background-color: #0a0a0a; color: white; text-align: center; padding: 50px; margin: 0; }
                             .card { background: #121212; padding: 30px; border-radius: 20px; border: 1px solid #4CAF50; display: inline-block; }
                             h1 { color: #4CAF50; }
-                            .btn { background: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 10px; display: inline-block; margin-top: 20px; font-weight: bold; }
+                            .btn { background: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 10px; display: inline-block; margin-top: 20px; font-weight: bold; cursor: pointer; border: none; font-size: 16px; }
+                            .btn:hover { opacity: 0.9; }
                         </style>
                     </head>
                     <body>
@@ -61,8 +68,22 @@ fun Application.configureRouting() {
                             <div style="font-size: 50px;">✅</div>
                             <h1>¡Pago Confirmado!</h1>
                             <p>Tu cuenta ha sido actualizada correctamente.</p>
-                            <a href="fithub://home" class="btn">Volver a la App</a>
+                            <button class="btn" onclick="volverApp()">Volver a la App</button>
                         </div>
+                        <script>
+                            function volverApp() {
+                                var monitorId = '${monitorId}';
+                                var deepLink = monitorId ? 'fithub://monitor/' + monitorId : 'fithub://home';
+                                var webFallback = '${returnUrl}/?payment=success' + (monitorId ? '&monitorId=' + monitorId : '');
+                                var clicked = Date.now();
+                                window.location.href = deepLink;
+                                setTimeout(function() {
+                                    if (Date.now() - clicked < 2000) {
+                                        window.location.href = webFallback;
+                                    }
+                                }, 1500);
+                            }
+                        </script>
                     </body>
                 </html>
             """.trimIndent(), ContentType.Text.Html)
@@ -70,12 +91,42 @@ fun Application.configureRouting() {
 
         // Ruta para manejar pagos cancelados
         get("/payment-cancel") {
+            val monitorId = call.request.queryParameters["monitorId"] ?: ""
+            val returnUrl = call.request.queryParameters["returnUrl"] ?: frontendUrl
             call.respondText("""
                 <html>
-                    <body style="background-color: #0a0a0a; color: white; text-align: center; padding: 50px;">
-                        <h1>Pago Cancelado ❌</h1>
-                        <p>No se ha realizado ningún cargo.</p>
-                        <a href="fithub://home" style="color: #4CAF50;">Volver a la App</a>
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1">
+                        <style>
+                            body { font-family: sans-serif; background-color: #0a0a0a; color: white; text-align: center; padding: 50px; margin: 0; }
+                            .card { background: #121212; padding: 30px; border-radius: 20px; border: 1px solid #e74c3c; display: inline-block; }
+                            h1 { color: #e74c3c; }
+                            .btn { background: #e74c3c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 10px; display: inline-block; margin-top: 20px; font-weight: bold; cursor: pointer; border: none; font-size: 16px; }
+                            .btn:hover { opacity: 0.9; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="card">
+                            <div style="font-size: 50px;">❌</div>
+                            <h1>Pago Cancelado</h1>
+                            <p>No se ha realizado ningún cargo.</p>
+                            <button class="btn" onclick="volverApp()">Volver a la App</button>
+                        </div>
+                        <script>
+                            function volverApp() {
+                                var monitorId = '${monitorId}';
+                                var deepLink = monitorId ? 'fithub://monitor/' + monitorId : 'fithub://home';
+                                var webFallback = '${returnUrl}/?payment=cancelled' + (monitorId ? '&monitorId=' + monitorId : '');
+                                var clicked = Date.now();
+                                window.location.href = deepLink;
+                                setTimeout(function() {
+                                    if (Date.now() - clicked < 2000) {
+                                        window.location.href = webFallback;
+                                    }
+                                }, 1500);
+                            }
+                        </script>
                     </body>
                 </html>
             """.trimIndent(), ContentType.Text.Html)
