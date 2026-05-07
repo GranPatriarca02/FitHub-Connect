@@ -119,7 +119,10 @@ fun Application.socialRoutes() {
             if (newPost == null) {
                 call.respond(HttpStatusCode.NotFound, mapOf("error" to "Usuario no encontrado"))
             } else {
-                call.respond(HttpStatusCode.Created, mapOf("message" to "Post creado exitosamente", "id" to newPost.id.value))
+                call.respond(HttpStatusCode.Created, mapOf(
+                    "message" to "Post creado exitosamente", 
+                    "id" to newPost.id.value.toString()
+                ))
             }
         }
 
@@ -158,7 +161,7 @@ fun Application.socialRoutes() {
             if (isLikedNow == null) {
                 call.respond(HttpStatusCode.NotFound, mapOf("error" to "Post o usuario no encontrado"))
             } else {
-                call.respond(HttpStatusCode.OK, mapOf("isLiked" to isLikedNow))
+                call.respond(HttpStatusCode.OK, mapOf("isLiked" to isLikedNow.toString()))
             }
         }
         // --- 4. EDITAR UN POST ---
@@ -200,10 +203,18 @@ fun Application.socialRoutes() {
 
             val success = transaction {
                 val post = Post.findById(postId) ?: return@transaction false
-                if (post.user.id.value != userId) return@transaction false // Solo el autor puede borrar
+                if (post.user.id.value != userId) {
+                    println("DELETE FAILED: User $userId is not author of post $postId")
+                    return@transaction false
+                }
 
-                post.delete()
-                true
+                try {
+                    post.delete()
+                    true
+                } catch (e: Exception) {
+                    println("DELETE FAILED: DB error deleting post $postId: ${e.message}")
+                    false
+                }
             }
 
             if (success) {

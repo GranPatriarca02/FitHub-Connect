@@ -14,6 +14,8 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.*
+import java.time.LocalDateTime
 import java.security.MessageDigest
 import java.util.UUID
 import com.example.services.EmailService
@@ -222,8 +224,31 @@ fun Application.authRoutes() {
             val id = call.parameters["id"]?.toIntOrNull()
                 ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID no valido."))
 
-            val user = transaction { User.findById(id) }
-                ?: return@get call.respond(HttpStatusCode.NotFound, mapOf("error" to "Usuario no encontrado."))
+            val user = transaction {
+                val u = User.findById(id)
+                
+                // --- LÓGICA DE EXPIRACIÓN DE PREMIUM ---
+                if (u?.role == UserRole.PREMIUM) {
+                    val activeSubsCount = Subscription.find {
+                        (Subscriptions.userId eq id) and
+                        (Subscriptions.status eq SubscriptionStatus.ACTIVE) and
+                        (Subscriptions.expiresAt greater java.time.LocalDateTime.now())
+                    }.count()
+
+                    if (activeSubsCount == 0L) {
+                        // Si no quedan suscripciones activas y vigentes, vuelve a ser FREE
+                        u.role = UserRole.FREE
+                        
+                        // También marcamos como CANCELLED las que hayan caducado por fecha
+                        Subscription.find {
+                            (Subscriptions.userId eq id) and
+                            (Subscriptions.status eq SubscriptionStatus.ACTIVE) and
+                            (Subscriptions.expiresAt lessEq java.time.LocalDateTime.now())
+                        }.forEach { it.status = SubscriptionStatus.CANCELLED }
+                    }
+                }
+                u
+            } ?: return@get call.respond(HttpStatusCode.NotFound, mapOf("error" to "Usuario no encontrado."))
 
             call.respond(mapOf(
                 "id" to user.id.value.toString(),

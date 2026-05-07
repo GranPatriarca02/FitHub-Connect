@@ -22,14 +22,5 @@ fun Application.module() {
     configureSerialization()
     configureRouting()
 
-    // 2. Registrar Rutas de la API
-    authRoutes()
-    availabilityRoutes()
-    monitorRoutes()
-    bookingRoutes()
-    subscriptionRoutes()
-    socialRoutes()
-    videoRoutes()
-    exerciseRoutes()
-    routineRoutes()
+    // 2. Registrar Rutas de la API (Ya incluidas en configureRouting)
 }

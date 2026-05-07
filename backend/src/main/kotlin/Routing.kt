@@ -35,6 +35,7 @@ fun Application.configureRouting() {
     videoRoutes()
     exerciseRoutes()
     routineRoutes()
+    socialRoutes()
 
     // Leemos FRONTEND_URL para redirecciones web tras el pago
     val env = io.github.cdimascio.dotenv.dotenv { ignoreIfMissing = true }
@@ -65,8 +66,7 @@ fun Application.configureRouting() {
                     </head>
                     <body>
                         <div class="card">
-                            <div style="font-size: 50px;">✅</div>
-                            <h1>¡Pago Confirmado!</h1>
+                            <h1>Pago Confirmado</h1>
                             <p>Tu cuenta ha sido actualizada correctamente.</p>
                             <button class="btn" onclick="volverApp()">Volver a la App</button>
                         </div>
@@ -108,7 +108,6 @@ fun Application.configureRouting() {
                     </head>
                     <body>
                         <div class="card">
-                            <div style="font-size: 50px;">❌</div>
                             <h1>Pago Cancelado</h1>
                             <p>No se ha realizado ningún cargo.</p>
                             <button class="btn" onclick="volverApp()">Volver a la App</button>

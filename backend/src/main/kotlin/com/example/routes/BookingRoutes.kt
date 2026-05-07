@@ -156,7 +156,7 @@ fun Application.bookingRoutes() {
                             this.amount = 0.0.toBigDecimal()
                         }
                     }
-                    return@post call.respond(mapOf("url" to null, "message" to "Reserva gratuita confirmada (Premium)"))
+                    return@post call.respond(mapOf("url" to "", "message" to "Reserva gratuita confirmada (Premium)"))
                 }
 
                 // 2. Si no es Premium, flujo normal de Stripe
@@ -279,12 +279,36 @@ fun Application.bookingRoutes() {
                     val session = event.dataObjectDeserializer.`object`.orElse(null) as? Session
                     val uId = session?.metadata?.get("userId")?.toIntOrNull()
                     val bId = session?.metadata?.get("bookingId")?.toIntOrNull()
+                    val mId = session?.metadata?.get("monitorId")?.toIntOrNull()
+                    val type = session?.metadata?.get("type")
                     
                     transaction {
                         // Activamos Premium si es necesario
                         uId?.let { id -> User.findById(id)?.let { it.role = UserRole.PREMIUM } }
                         // Confirmamos la reserva si existe
                         bId?.let { id -> Booking.findById(id)?.let { it.status = BookingStatus.CONFIRMED } }
+
+                        // Si es una suscripción a entrenador desde la WEB, activarla
+                        if (type == "TRAINER_SUBSCRIPTION" && uId != null && mId != null) {
+                            val user    = User.findById(uId)
+                            val monitor = Monitor.findById(mId)
+                            if (user != null && monitor != null) {
+                                // Cancelar suscripciones previas al mismo entrenador
+                                Subscription.find {
+                                    (Subscriptions.userId    eq uId) and
+                                    (Subscriptions.monitorId eq mId)
+                                }.forEach { it.status = SubscriptionStatus.CANCELLED }
+
+                                // Crear la suscripción activa por 1 mes
+                                Subscription.new {
+                                    this.user      = user
+                                    this.monitor   = monitor
+                                    this.status    = SubscriptionStatus.ACTIVE
+                                    this.expiresAt = java.time.LocalDateTime.now().plusMonths(1)
+                                    this.paymentId = session.id
+                                }
+                            }
+                        }
                     }
                 }
                 
@@ -323,20 +347,37 @@ fun Application.bookingRoutes() {
                 val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
                     ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Falta ID de usuario"))
 
-                // Para la suscripción ilimitada, usamos un precio fijo
                 val price = 29.99
 
-                // Leer el body para obtener webReturnUrl
                 val rawBody = call.receiveText()
-                val webReturnUrl = try {
+                val (monitorId, monitorName, webReturnUrl) = try {
                     val request = io.ktor.serialization.kotlinx.json.DefaultJson.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(rawBody)
-                    request["webReturnUrl"]?.toString()?.replace("\"", "") ?: ""
-                } catch (_: Exception) { "" }
+                    Triple(
+                        request["monitorId"]?.toString()?.replace("\"", "")?.toIntOrNull() ?: 0,
+                        request["monitorName"]?.toString()?.replace("\"", "") ?: "Monitor",
+                        request["webReturnUrl"]?.toString()?.replace("\"", "") ?: ""
+                    )
+                } catch (_: Exception) { Triple(0, "Monitor", "") }
+
+                if (monitorId == 0) return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "monitorId requerido"))
+
+                // Verificar si ya hay una suscripción activa
+                val existingSub = transaction {
+                    Subscription.find {
+                        (Subscriptions.userId eq userId) and
+                        (Subscriptions.monitorId eq monitorId) and
+                        (Subscriptions.status eq SubscriptionStatus.ACTIVE)
+                    }.firstOrNull()
+                }
+
+                if (existingSub != null) {
+                    return@post call.respond(HttpStatusCode.Conflict, mapOf("error" to "Ya tienes una suscripción activa con este entrenador."))
+                }
 
                 val backendUrl = env["BACKEND_URL"] ?: "http://localhost:8080"
                 // Si viene de la web, Stripe redirige directo a la app web
                 val successUrl = if (webReturnUrl.isNotEmpty()) {
-                    "${webReturnUrl}/?payment=success"
+                    "${webReturnUrl}/?payment=success&monitorId=${monitorId}"
                 } else {
                     "${backendUrl}/payment-success"
                 }
@@ -352,7 +393,8 @@ fun Application.bookingRoutes() {
                     .setSuccessUrl(successUrl)
                     .setCancelUrl(cancelUrl)
                     .putMetadata("userId", userId.toString())
-                    .putMetadata("type", "PREMIUM_PASS")
+                    .putMetadata("monitorId", monitorId.toString())
+                    .putMetadata("type", "TRAINER_SUBSCRIPTION")
                     .addLineItem(
                         SessionCreateParams.LineItem.builder()
                             .setQuantity(1L)
@@ -362,8 +404,8 @@ fun Application.bookingRoutes() {
                                     .setUnitAmount((price * 100).toLong())
                                     .setProductData(
                                         SessionCreateParams.LineItem.PriceData.ProductData.builder()
-                                            .setName("Pase Ilimitado FitHub Connect")
-                                            .setDescription("Acceso total a todas las clases y contenido premium")
+                                            .setName("Suscripción a $monitorName")
+                                            .setDescription("Acceso total a las clases y contenido premium de $monitorName")
                                             .build()
                                     )
                                     .build()
