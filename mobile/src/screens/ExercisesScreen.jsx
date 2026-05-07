@@ -63,6 +63,12 @@ export default function ExercisesScreen({ navigation }) {
   };
 
   const crear = async () => {
+    if (!userId) {
+      setAlertTitle('Error');
+      setAlertMsg('No se pudo identificar tu usuario. Reintenta loguearte.');
+      setAlertVisible(true);
+      return;
+    }
     // Validaciones para entrenador (Campos obligatorios)
     if (!nName.trim()) {
       setAlertTitle('Campo obligatorio');
@@ -547,10 +553,12 @@ const styles = StyleSheet.create({
   },
   confirmBtnCancel: {
     paddingVertical: 14,
+    paddingHorizontal: 20,
     borderRadius: 12,
     alignItems: 'center',
     backgroundColor: '#2a2a2a',
     justifyContent: 'center',
+    minHeight: 48,
   },
   confirmBtnCancelText: {
     color: '#fff',

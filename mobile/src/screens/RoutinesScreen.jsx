@@ -703,10 +703,12 @@ const styles = StyleSheet.create({
   },
   confirmBtnCancel: {
     paddingVertical: 14,
+    paddingHorizontal: 20,
     borderRadius: 12,
     alignItems: 'center',
     backgroundColor: '#2a2a2a',
     justifyContent: 'center',
+    minHeight: 48,
   },
   confirmBtnCancelText: {
     color: '#fff',
@@ -715,10 +717,12 @@ const styles = StyleSheet.create({
   },
   confirmBtnDelete: {
     paddingVertical: 14,
+    paddingHorizontal: 20,
     borderRadius: 12,
     alignItems: 'center',
     backgroundColor: '#FF5252',
     justifyContent: 'center',
+    minHeight: 48,
   },
   confirmBtnDeleteText: {
     color: '#fff',
