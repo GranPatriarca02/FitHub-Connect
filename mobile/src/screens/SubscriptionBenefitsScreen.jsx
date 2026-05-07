@@ -13,7 +13,67 @@ import { useStripePlatform, StripeWrapper } from './StripeHelper';
 function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
   const insets = useSafeAreaInsets();
   const [procesando, setProcesando] = useState(false);
+  const [yaSuscrito, setYaSuscrito] = useState(false);
   const { initPaymentSheet, presentPaymentSheet, isWeb } = useStripePlatform();
+
+  const confirmSubscription = async () => {
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      await fetch(`${API_URL}/subscriptions/confirm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId || '',
+        },
+        body: JSON.stringify({ monitorId }),
+      });
+      
+      // Actualizar el rol localmente para que la app lo reconozca como PREMIUM
+      await AsyncStorage.setItem('userRole', 'PREMIUM');
+      setYaSuscrito(true);
+    } catch (error) {
+      console.error("Error al confirmar suscripción:", error);
+    }
+  };
+
+  React.useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const userId = await AsyncStorage.getItem('userId');
+        if (!userId || !monitorId) return;
+
+        // VERIFICAR RETORNO DE STRIPE (WEB)
+        if (isWeb && typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          const payStatus = params.get('payment');
+          const mIdParam = params.get('monitorId');
+          
+          if (payStatus === 'success' && mIdParam === monitorId.toString()) {
+            console.log("Detectado pago exitoso en Web. Confirmando...");
+            await confirmSubscription();
+            
+            Alert.alert(
+              `Suscripcion activa con ${trainerName}`,
+              `Ahora tienes clases ilimitadas con ${trainerName} durante 1 mes.`,
+              [{ text: 'Genial', onPress: () => navigation.goBack() }]
+            );
+
+            // Limpiar la URL para evitar confirmaciones infinitas
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }
+
+        const res = await fetch(`${API_URL}/subscriptions/check?userId=${userId}&monitorId=${monitorId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setYaSuscrito(data.isSubscribed);
+        }
+      } catch (e) {
+        console.error("Error al comprobar suscripción:", e);
+      }
+    };
+    checkStatus();
+  }, [monitorId, isWeb]);
 
   const trainerName = monitorName || 'este entrenador';
 
@@ -30,12 +90,19 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
             'Content-Type': 'application/json',
             'X-User-Id': userId || '',
           },
-          body: JSON.stringify({ monitorId }),
+          body: JSON.stringify({ 
+            monitorId, 
+            monitorName,
+            webReturnUrl: window.location.origin
+          }),
         });
         const data = await response.json();
 
         if (response.ok && data.url) {
           window.location.href = data.url;
+        } else if (response.status === 409) {
+          setYaSuscrito(true);
+          Alert.alert('Aviso', 'Ya tienes una suscripción activa con este entrenador.');
         } else {
           Alert.alert('Error', data.error || 'No se pudo iniciar el proceso de pago');
         }
@@ -59,7 +126,7 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
           throw new Error(data.error || 'No se pudo iniciar el proceso de pago');
         }
 
-        // 2. Inicializar el PaymentSheet nativo con los colores dorados de suscripción
+        // 2. Inicializar el PaymentSheet nativo
         const { error: initError } = await initPaymentSheet({
           paymentIntentClientSecret: data.clientSecret,
           merchantDisplayName: 'FitHub Connect',
@@ -84,26 +151,12 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
             Alert.alert('Error en el pago', paymentError.message);
           }
         } else {
-          // 4. ÉXITO: confirmar la suscripción en el backend (fallback al webhook)
-          try {
-            await fetch(`${API_URL}/subscriptions/confirm`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-User-Id': userId || '',
-              },
-              body: JSON.stringify({ monitorId }),
-            });
-          } catch (_) {
-            // El webhook de Stripe también confirmará la suscripción
-          }
-
-          // Actualizar el rol localmente para que la app lo reconozca como PREMIUM
-          await AsyncStorage.setItem('userRole', 'PREMIUM');
+          // 4. ÉXITO: confirmar la suscripción
+          await confirmSubscription();
 
           Alert.alert(
-            `¡Suscripción activa con ${trainerName}! 🎉`,
-            `Ahora tienes clases ilimitadas con ${trainerName} durante 1 mes. ¡A por ello!`,
+            `Suscripcion activa con ${trainerName}`,
+            `Ahora tienes clases ilimitadas con ${trainerName} durante 1 mes.`,
             [{
               text: 'Ver perfil del entrenador',
               onPress: () => navigation.goBack()
@@ -213,12 +266,12 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
             </Text>
 
             <TouchableOpacity
-              style={[styles.subscribeBtn, procesando && { opacity: 0.6 }]}
+              style={[styles.subscribeBtn, (procesando || yaSuscrito) && { opacity: 0.6 }]}
               onPress={handleSubscribe}
-              disabled={procesando}
+              disabled={procesando || yaSuscrito}
             >
               <LinearGradient
-                colors={['#FFD700', '#B8860B']}
+                colors={yaSuscrito ? ['#4CAF50', '#2E7D32'] : ['#FFD700', '#B8860B']}
                 style={styles.btnGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
@@ -227,8 +280,10 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
                   <ActivityIndicator color="#000" />
                 ) : (
                   <>
-                    <MaterialCommunityIcons name="crown" size={20} color="#000" style={{ marginRight: 8 }} />
-                    <Text style={styles.subscribeText}>Suscribirme ahora</Text>
+                    <MaterialCommunityIcons name={yaSuscrito ? "check-circle" : "crown"} size={20} color={yaSuscrito ? "#fff" : "#000"} style={{ marginRight: 8 }} />
+                    <Text style={[styles.subscribeText, yaSuscrito && { color: '#fff' }]}>
+                      {yaSuscrito ? 'Suscripción Activa' : 'Suscribirme ahora'}
+                    </Text>
                   </>
                 )}
               </LinearGradient>

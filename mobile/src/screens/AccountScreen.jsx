@@ -21,14 +21,22 @@ export default function AccountScreen({ navigation }) {
     React.useCallback(() => {
       const loadData = async () => {
         try {
-          const id = await AsyncStorage.getItem('userId');
-          const name = await AsyncStorage.getItem('userName');
-          const email = await AsyncStorage.getItem('userEmail');
-          const role = await AsyncStorage.getItem('userRole');
-          setUserData({ name: name || '', email: email || '', role: role || 'FREE' });
+          const userId = await AsyncStorage.getItem('userId');
+          if (!userId) return;
 
-          if (role === 'PREMIUM' && id) {
-            fetchSubscriptions(id);
+          const profileRes = await fetch(`${API_URL}/auth/user/${userId}`);
+          if (profileRes.ok) {
+            const profileData = await profileRes.json();
+            await AsyncStorage.setItem('userRole', profileData.role);
+            await AsyncStorage.setItem('userName', profileData.name);
+            setUserData({ name: profileData.name, email: profileData.email, role: profileData.role });
+            if (profileData.role === 'PREMIUM') fetchSubscriptions(userId);
+          } else {
+            const name = await AsyncStorage.getItem('userName');
+            const email = await AsyncStorage.getItem('userEmail');
+            const role = await AsyncStorage.getItem('userRole');
+            setUserData({ name: name || '', email: email || '', role: role || 'FREE' });
+            if (role === 'PREMIUM') fetchSubscriptions(userId);
           }
         } catch (e) {
           console.error(e);

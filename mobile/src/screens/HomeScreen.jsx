@@ -99,18 +99,29 @@ export default function HomeScreen({ navigation }) {
         const syncPremium = async () => {
           try {
             const userId = await AsyncStorage.getItem('userId');
-            const response = await fetch(`${API_URL}/confirm-premium`, {
+            
+            // Si hay un monitorId, confirmamos la suscripción específica
+            const endpoint = monitorId ? '/subscriptions/confirm' : '/confirm-premium';
+            const body = monitorId ? JSON.stringify({ monitorId: parseInt(monitorId) }) : JSON.stringify({});
+
+            const response = await fetch(`${API_URL}${endpoint}`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'X-User-Id': userId
               },
+              body: body
             });
 
             if (response.ok) {
               await AsyncStorage.setItem('userRole', 'PREMIUM');
               setRole('PREMIUM');
-              Alert.alert("¡Éxito!", "Tu suscripción se ha activado correctamente. ¡Ya eres PREMIUM!");
+              Alert.alert("Exito", "Tu suscripcion se ha activado correctamente. Ya eres PREMIUM");
+              
+              // Si hay monitorId, podemos ir al detalle del monitor tras cerrar el alert
+              if (monitorId) {
+                 navigation.navigate('MonitorDetail', { monitor: { id: parseInt(monitorId) } });
+              }
             }
           } catch (error) {
             console.error("Error sincronizando premium:", error);
@@ -119,12 +130,8 @@ export default function HomeScreen({ navigation }) {
         syncPremium();
       }
 
-      // Redirigir a la pantalla del monitor si viene con monitorId
-      if (monitorId && (paymentStatus === 'success' || paymentStatus === 'cancelled')) {
-        window.history.replaceState({}, document.title, window.location.pathname);
-        // Navegar a MonitorDetail pasando el ID del monitor
-        navigation.navigate('MonitorDetail', { monitor: { id: parseInt(monitorId) } });
-      } else if (paymentStatus) {
+      // Limpiar la URL para evitar confirmaciones infinitas
+      if (paymentStatus) {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
