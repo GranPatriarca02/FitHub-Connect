@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, TextInput, Modal, Linking,
+  ActivityIndicator, Alert, TextInput, Modal, Linking, Platform
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -41,6 +41,10 @@ export default function RoutineDetailScreen({ route, navigation }) {
   const [rest, setRest] = useState('60');
   const [notas, setNotas] = useState('');
   const [guardando, setGuardando] = useState(false);
+
+  // Custom Confirmation Modals
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [selectedExercise, setSelectedExercise] = useState(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -111,25 +115,20 @@ export default function RoutineDetailScreen({ route, navigation }) {
   };
 
   const quitarEjercicio = (re) => {
-    Alert.alert(
-      'Quitar ejercicio',
-      `¿Quitar "${re.name}" de la rutina?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Quitar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await removeExerciseFromRoutine(routineId, re.id, userId);
-              cargar();
-            } catch (e) {
-              Alert.alert('Error', 'No se pudo quitar el ejercicio');
-            }
-          },
-        },
-      ]
-    );
+    setSelectedExercise(re);
+    setDeleteConfirmVisible(true);
+  };
+
+  const executeRemove = async () => {
+    if (!selectedExercise) return;
+    try {
+      await removeExerciseFromRoutine(routineId, selectedExercise.id, userId);
+      setDeleteConfirmVisible(false);
+      cargar();
+    } catch (e) {
+      if (Platform.OS === 'web') alert('No se pudo quitar el ejercicio');
+      else Alert.alert('Error', 'No se pudo quitar el ejercicio');
+    }
   };
 
   const filtrados = catalogo.filter((ex) => {
@@ -377,6 +376,39 @@ export default function RoutineDetailScreen({ route, navigation }) {
           </LinearGradient>
         </View>
       </Modal>
+
+      {/* Modal de Confirmacion de Borrado */}
+      <Modal
+        visible={deleteConfirmVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDeleteConfirmVisible(false)}
+      >
+        <View style={styles.modalOverlayGeneric}>
+          <View style={styles.confirmBox}>
+            <MaterialCommunityIcons name="alert-circle" size={48} color="#FF5252" style={{ marginBottom: 16 }} />
+            <Text style={styles.confirmTitle}>¿Quitar ejercicio?</Text>
+            <Text style={styles.confirmDesc}>Se eliminara "{selectedExercise?.name}" de esta rutina.</Text>
+            
+            <View style={styles.confirmFooter}>
+              <TouchableOpacity 
+                style={[styles.confirmBtnCancel, { flex: 1 }]} 
+                onPress={() => setDeleteConfirmVisible(false)}
+              >
+                <Text style={styles.confirmBtnCancelText}>No, mantener</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.confirmBtnDelete, { flex: 1 }]} 
+                onPress={executeRemove}
+              >
+                <Text style={styles.confirmBtnDeleteText}>Si, quitar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </LinearGradient>
   );
 }
@@ -592,4 +624,64 @@ const styles = StyleSheet.create({
   confirmBtn: { flex: 2, borderRadius: 14, overflow: 'hidden' },
   confirmGradient: { paddingVertical: 15, alignItems: 'center' },
   confirmBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+
+  // Generic Modal Styles
+  modalOverlayGeneric: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.85)', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  confirmBox: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: 24,
+    padding: 24,
+    width: '85%',
+    maxWidth: 340,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  confirmTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  confirmDesc: {
+    color: '#888',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  confirmFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  confirmBtnCancel: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#2a2a2a',
+    justifyContent: 'center',
+  },
+  confirmBtnCancelText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  confirmBtnDelete: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#FF5252',
+    justifyContent: 'center',
+  },
+  confirmBtnDeleteText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
 });

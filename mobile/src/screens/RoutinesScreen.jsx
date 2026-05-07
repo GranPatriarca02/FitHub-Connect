@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, TextInput, Modal, Switch,
+  ActivityIndicator, Alert, TextInput, Modal, Switch, Platform
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,6 +21,15 @@ export default function RoutinesScreen({ navigation }) {
   const [cargando, setCargando] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [guardando, setGuardando] = useState(false);
+
+  // Custom Actions Modals
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [selectedRoutine, setSelectedRoutine] = useState(null);
+  
+  // Alert Modal
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMsg, setAlertMsg] = useState('');
 
   // Campos del modal
   const [nuevoTitulo, setNuevoTitulo] = useState('');
@@ -44,7 +53,9 @@ export default function RoutinesScreen({ navigation }) {
           setRoutines(data);
         } catch (e) {
           console.error(e);
-          Alert.alert('Error', 'No se pudieron cargar las rutinas');
+          setAlertTitle('Error');
+          setAlertMsg('No se pudieron cargar las rutinas');
+          setAlertVisible(true);
         } finally {
           setCargando(false);
         }
@@ -66,7 +77,9 @@ export default function RoutinesScreen({ navigation }) {
 
   const handleCrear = async () => {
     if (!nuevoTitulo.trim()) {
-      Alert.alert('Campo obligatorio', 'El título es necesario');
+      setAlertTitle('Campo obligatorio');
+      setAlertMsg('Indica un nombre para la rutina');
+      setAlertVisible(true);
       return;
     }
     setGuardando(true);
@@ -83,34 +96,33 @@ export default function RoutinesScreen({ navigation }) {
       resetModal();
       const data = await getRoutines(userId);
       setRoutines(data);
-      Alert.alert('¡Listo!', 'Rutina creada. Ahora añade tus ejercicios.');
+      setAlertTitle('Listo');
+      setAlertMsg('Rutina creada. Ahora añade tus ejercicios.');
+      setAlertVisible(true);
     } catch (e) {
-      Alert.alert('Error', e.message);
+      setAlertTitle('Error');
+      setAlertMsg(e.message);
+      setAlertVisible(true);
     } finally {
       setGuardando(false);
     }
   };
 
   const handleEliminar = (r) => {
-    Alert.alert(
-      'Eliminar rutina',
-      `¿Seguro que quieres eliminar "${r.title}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteRoutine(r.id, userId);
-              setRoutines((prev) => prev.filter((x) => x.id !== r.id));
-            } catch (e) {
-              Alert.alert('Error', 'No se pudo eliminar');
-            }
-          },
-        },
-      ]
-    );
+    setSelectedRoutine(r);
+    setDeleteConfirmVisible(true);
+  };
+
+  const executeDelete = async () => {
+    if (!selectedRoutine) return;
+    try {
+      await deleteRoutine(selectedRoutine.id, userId);
+      setRoutines((prev) => prev.filter((x) => x.id !== selectedRoutine.id));
+      setDeleteConfirmVisible(false);
+    } catch (e) {
+      if (Platform.OS === 'web') alert('No se pudo eliminar');
+      else Alert.alert('Error', 'No se pudo eliminar');
+    }
   };
 
   const misRutinas = routines.filter((r) => String(r.creatorId) === String(userId));
@@ -230,11 +242,76 @@ export default function RoutinesScreen({ navigation }) {
         onCrear={handleCrear}
         guardando={guardando}
       />
+
+      {/* Modal de Confirmacion de Borrado */}
+      <Modal
+        visible={deleteConfirmVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDeleteConfirmVisible(false)}
+      >
+        <View style={styles.modalOverlayGeneric}>
+          <View style={styles.confirmBox}>
+            <MaterialCommunityIcons name="alert-circle" size={48} color="#FF5252" style={{ marginBottom: 16 }} />
+            <Text style={styles.confirmTitle}>¿Eliminar rutina?</Text>
+            <Text style={styles.confirmDesc}>Esta accion no se puede deshacer. Se borraran todos los ejercicios que contiene.</Text>
+            
+            <View style={styles.confirmFooter}>
+              <TouchableOpacity 
+                style={[styles.confirmBtnCancel, { flex: 1 }]} 
+                onPress={() => setDeleteConfirmVisible(false)}
+              >
+                <Text style={styles.confirmBtnCancelText}>No, mantener</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.confirmBtnDelete} 
+                onPress={executeDelete}
+              >
+                <Text style={styles.confirmBtnDeleteText}>Si, eliminar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Alerta Personalizado (Error/Exito) */}
+      <Modal
+        visible={alertVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setAlertVisible(false)}
+      >
+        <View style={styles.modalOverlayGeneric}>
+          <View style={styles.confirmBox}>
+            <MaterialCommunityIcons 
+              name={alertTitle === 'Error' ? "alert-circle" : (alertTitle === 'Campo obligatorio' || alertTitle === 'Aviso' ? "alert" : "check-circle")} 
+              size={48} 
+              color={alertTitle === 'Error' ? "#FF5252" : (alertTitle === 'Campo obligatorio' || alertTitle === 'Aviso' ? "#FFD700" : "#4CAF50")} 
+              style={{ marginBottom: 16 }} 
+            />
+            <Text style={styles.confirmTitle}>{alertTitle}</Text>
+            <Text style={styles.confirmDesc}>{alertMsg}</Text>
+            
+            <TouchableOpacity 
+              style={[styles.confirmBtnCancel, { 
+                width: '100%', 
+                backgroundColor: alertTitle === 'Error' ? 'rgba(255,82,82,0.1)' : (alertTitle === 'Campo obligatorio' || alertTitle === 'Aviso' ? 'rgba(255,215,0,0.1)' : 'rgba(76,175,80,0.1)') 
+              }]} 
+              onPress={() => setAlertVisible(false)}
+            >
+              <Text style={[styles.confirmBtnCancelText, { 
+                color: alertTitle === 'Error' ? '#FF5252' : (alertTitle === 'Campo obligatorio' || alertTitle === 'Aviso' ? '#FFD700' : '#4CAF50') 
+              }]}>Entendido</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </LinearGradient>
   );
 }
 
-// ----------------- COMPONENTES -----------------
 
 function RoutineCard({ routine, isOwner = false, onPress, onDelete }) {
   return (
@@ -588,4 +665,64 @@ const styles = StyleSheet.create({
   confirmBtn: { flex: 2, borderRadius: 14, overflow: 'hidden' },
   confirmGradient: { paddingVertical: 15, alignItems: 'center' },
   confirmBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+
+  // Generic Modal Styles
+  modalOverlayGeneric: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.85)', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  confirmBox: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: 24,
+    padding: 24,
+    width: '85%',
+    maxWidth: 340,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  confirmTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  confirmDesc: {
+    color: '#888',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  confirmFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  confirmBtnCancel: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#2a2a2a',
+    justifyContent: 'center',
+  },
+  confirmBtnCancelText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  confirmBtnDelete: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#FF5252',
+    justifyContent: 'center',
+  },
+  confirmBtnDeleteText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
 });

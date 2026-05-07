@@ -29,8 +29,13 @@ export default function ExercisesScreen({ navigation }) {
   const [nDesc, setNDesc] = useState('');
   const [nGroup, setNGroup] = useState('PECHO');
   const [nDiff, setNDiff] = useState('Beginner');
-  const [nEquip, setNEquip] = useState('');
+  const [nNEquip, setNEquip] = useState('');
   const [nUrl, setNUrl] = useState('');
+
+  // Alert Modal
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMsg, setAlertMsg] = useState('');
 
   const cargar = useCallback(async () => {
     try {
@@ -58,7 +63,34 @@ export default function ExercisesScreen({ navigation }) {
   };
 
   const crear = async () => {
-    if (!nName.trim()) return Alert.alert('Campo obligatorio', 'Indica el nombre del ejercicio');
+    // Validaciones para entrenador (Campos obligatorios)
+    if (!nName.trim()) {
+      setAlertTitle('Campo obligatorio');
+      setAlertMsg('Indica el nombre del ejercicio');
+      setAlertVisible(true);
+      return;
+    }
+    if (!nDesc.trim()) {
+      setAlertTitle('Campo obligatorio');
+      setAlertMsg('Indica una breve descripcion de la tecnica');
+      setAlertVisible(true);
+      return;
+    }
+    if (!nNEquip.trim()) {
+      setAlertTitle('Campo obligatorio');
+      setAlertMsg('Indica el material necesario');
+      setAlertVisible(true);
+      return;
+    }
+    
+    // El Video URL ahora es OPCIONAL, pero si se pone, se valida
+    if (nUrl.trim() && !nUrl.toLowerCase().startsWith('http')) {
+      setAlertTitle('URL no valida');
+      setAlertMsg('El enlace del video debe empezar por http:// o https://');
+      setAlertVisible(true);
+      return;
+    }
+
     setGuardando(true);
     try {
       await createExercise(userId, {
@@ -66,15 +98,19 @@ export default function ExercisesScreen({ navigation }) {
         description: nDesc.trim() || null,
         muscleGroup: nGroup,
         difficulty: nDiff,
-        equipment: nEquip.trim() || null,
+        equipment: nNEquip.trim() || null,
         videoUrl: nUrl.trim() || null,
       });
       setModalVisible(false);
       resetModal();
       cargar();
-      Alert.alert('¡Listo!', 'Ejercicio añadido al catálogo');
+      setAlertTitle('Listo');
+      setAlertMsg('Ejercicio añadido al catálogo');
+      setAlertVisible(true);
     } catch (e) {
-      Alert.alert('Error', e.message);
+      setAlertTitle('Error');
+      setAlertMsg(e.message);
+      setAlertVisible(true);
     } finally {
       setGuardando(false);
     }
@@ -242,7 +278,7 @@ export default function ExercisesScreen({ navigation }) {
                 maxLength={120}
               />
 
-              <Text style={styles.fieldLabel}>Descripción</Text>
+              <Text style={styles.fieldLabel}>Descripción *</Text>
               <TextInput
                 style={[styles.fieldInput, styles.fieldInputMulti]}
                 value={nDesc}
@@ -279,10 +315,10 @@ export default function ExercisesScreen({ navigation }) {
                 ))}
               </View>
 
-              <Text style={styles.fieldLabel}>Material</Text>
+              <Text style={styles.fieldLabel}>Material *</Text>
               <TextInput
                 style={styles.fieldInput}
-                value={nEquip}
+                value={nNEquip}
                 onChangeText={setNEquip}
                 placeholder="Ej: Barra, Mancuernas, Peso corporal..."
                 placeholderTextColor="#444"
@@ -319,6 +355,40 @@ export default function ExercisesScreen({ navigation }) {
           </LinearGradient>
         </View>
       </Modal>
+
+      {/* Modal de Alerta Personalizado */}
+      <Modal
+        visible={alertVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setAlertVisible(false)}
+      >
+        <View style={styles.modalOverlayGeneric}>
+          <View style={styles.confirmBox}>
+            <MaterialCommunityIcons 
+              name={alertTitle === 'Error' ? "alert-circle" : (alertTitle === 'Campo obligatorio' || alertTitle === 'Aviso' ? "alert" : "check-circle")} 
+              size={48} 
+              color={alertTitle === 'Error' ? "#FF5252" : (alertTitle === 'Campo obligatorio' || alertTitle === 'Aviso' ? "#FFD700" : "#4CAF50")} 
+              style={{ marginBottom: 16 }} 
+            />
+            <Text style={styles.confirmTitle}>{alertTitle}</Text>
+            <Text style={styles.confirmDesc}>{alertMsg}</Text>
+            
+            <TouchableOpacity 
+              style={[styles.confirmBtnCancel, { 
+                width: '100%', 
+                backgroundColor: alertTitle === 'Error' ? 'rgba(255,82,82,0.1)' : (alertTitle === 'Campo obligatorio' || alertTitle === 'Aviso' ? 'rgba(255,215,0,0.1)' : 'rgba(76,175,80,0.1)') 
+              }]} 
+              onPress={() => setAlertVisible(false)}
+            >
+              <Text style={[styles.confirmBtnCancelText, { 
+                color: alertTitle === 'Error' ? '#FF5252' : (alertTitle === 'Campo obligatorio' || alertTitle === 'Aviso' ? '#FFD700' : '#4CAF50') 
+              }]}>Entendido</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </LinearGradient>
   );
 }
@@ -439,4 +509,64 @@ const styles = StyleSheet.create({
   confirmBtn: { flex: 2, borderRadius: 14, overflow: 'hidden' },
   confirmGradient: { paddingVertical: 15, alignItems: 'center' },
   confirmBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+
+  // Generic Modal Styles
+  modalOverlayGeneric: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.85)', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  confirmBox: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: 24,
+    padding: 24,
+    width: '85%',
+    maxWidth: 340,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  confirmTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  confirmDesc: {
+    color: '#888',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  confirmFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  confirmBtnCancel: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#2a2a2a',
+    justifyContent: 'center',
+  },
+  confirmBtnCancelText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  confirmBtnDelete: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#FF5252',
+    justifyContent: 'center',
+  },
+  confirmBtnDeleteText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
 });
