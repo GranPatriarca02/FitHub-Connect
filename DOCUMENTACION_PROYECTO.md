@@ -44,30 +44,35 @@
 
 ## 3. Resumen
 
-FitHub Connect es una aplicación móvil diseñada para ayudar a organizar mejor el entrenamiento personal. La idea principal es que tanto los entrenadores como los alumnos tengan un sitio único donde verse, gestionar rutinas y hacer pagos de forma segura. Aunque se puede entrar por web, la app está pensada sobre todo para el móvil, que es lo que llevamos encima en el gimnasio. Para hacerla, hemos usado React Native con Expo para la parte visual y Kotlin para el servidor.
+FitHub Connect es una aplicación móvil diseñada para optimizar la organización del entrenamiento personal. La propuesta central consiste en una plataforma centralizada donde entrenadores y alumnos pueden gestionar rutinas, realizar el seguimiento del progreso y procesar pagos de forma segura. Aunque cuenta con acceso web, la arquitectura está orientada principalmente a dispositivos móviles, optimizando la experiencia en dispositivos portátiles durante el entrenamiento. Para su implementación, se ha utilizado React Native con Expo en el frontend y Kotlin para el desarrollo del servidor.
 
 ## 4. Abstract
 
-FitHub Connect is a mobile app to help organize personal training. The main goal is for trainers and students to have one place to manage routines and payments safely. While there is a web version, the app is made for mobile devices since people use them at the gym. We built it using React Native with Expo for the front-end and Kotlin for the server.
+FitHub Connect is a mobile application designed to optimize personal training management. The core proposal consists of a centralized platform where trainers and students can manage routines, track progress, and process payments securely. While it features web access, the architecture is primarily mobile-oriented, optimizing the user experience for portable devices during training. For its implementation, React Native with Expo was used for the frontend and Kotlin for the server development.
 
 ---
 
 ## 5. Planteamiento del problema y justificación
 
 ### 5.1 Contexto del Mercado
-Hoy en día casi todo el mundo usa aplicaciones para el gimnasio, pero muchos entrenadores personales que trabajan por su cuenta siguen usando herramientas que no están conectadas entre sí. Esto hace que pierdan mucho tiempo organizando las cosas.
+
+Actualmente, el uso de aplicaciones de fitness es generalizado; sin embargo, muchos entrenadores independientes utilizan herramientas desvinculadas entre sí, lo que conlleva una inversión excesiva de tiempo en tareas administrativas y organizativas.
 
 ### 5.2 El problema que hemos visto
-Después de hablar con algunos entrenadores, nos dimos cuenta de que tienen varios problemas:
-1. **Demasiadas aplicaciones**: Usan WhatsApp para hablar, Excel para las rutinas y Bizum o PayPal para los pagos. Al final es un lío tener todo separado.
-2. **Pagos manuales**: Tener que ir pidiendo el dinero o comprobar si alguien ha pagado es una pérdida de tiempo.
-3. **Pérdida de información**: A veces los clientes no saben cómo hacer bien un ejercicio y el entrenador no siempre puede estar delante para recordárselo.
+
+A través del análisis del sector, se han identificado varios problemas críticos en la gestión de entrenamientos personales:
+
+1. **Fragmentación de herramientas**: Se utilizan canales independientes (WhatsApp, Excel, pasarelas de pago) para distintas tareas, lo que dificulta el seguimiento centralizado de los alumnos.
+2. **Gestión de cobros**: La solicitud manual de pagos y la verificación de transferencias suponen una carga administrativa constante para el profesional.
+3. **Soporte técnico limitado**: Los clientes pueden presentar dudas sobre la ejecución correcta de los ejercicios cuando no cuentan con supervisión presencial constante.
 
 ### 5.3 Nuestra solución
-**FitHub Connect** quiere juntar todo esto en una sola aplicación para que sea más fácil para todos:
-- **Todo en uno**: Desde registrarse hasta pagar, todo se hace desde la misma app.
-- **Suscripciones**: Los monitores pueden crear contenido "Premium" para sus alumnos.
-- **Vídeos y Rutinas**: El cliente siempre tiene sus ejercicios a mano con vídeos para ver cómo se hacen correctamente.
+
+**FitHub Connect** integra estas funcionalidades en una solución única para facilitar la gestión diaria:
+
+- **Gestión centralizada**: Registro, seguimiento y pagos integrados en una misma plataforma.
+- **Suscripciones Premium**: Los monitores pueden ofrecer contenido exclusivo y planes personalizados a sus alumnos.
+- **Biblioteca Multimedia**: El cliente dispone de vídeos explicativos para asegurar la ejecución técnica correcta de cada rutina.
 
 ---
 
@@ -86,14 +91,14 @@ La elección de las tecnologías se ha basado en criterios de escalabilidad, ren
 
 #### 6.1.2 Infraestructura y Servicios
 
-Para el funcionamiento de la aplicación, hemos seleccionado herramientas que son muy populares actualmente y que facilitan el despliegue sin ser expertos en sistemas:
+Para el funcionamiento de la aplicación, hemos seleccionado herramientas que son muy populares actualmente y que facilitan el despliegue y la gestión de infraestructura:
 
 - **Supabase (Base de Datos)**:
   - **Por qué lo elegimos**: Queríamos algo más estructurado que las bases de datos de Firebase. Supabase nos ofrece PostgreSQL, que es lo que hemos aprendido en el ciclo, y nos permite relacionar bien las tablas de usuarios, reservas y monitores.
-  - **Cómo lo usamos**: Aquí guardamos toda la información. Es muy cómodo porque nos da una consola web para ver los datos y hace copias de seguridad automáticas por si acaso.
+  - **Cómo lo usamos**: Aquí guardamos toda la información. Es muy cómodo porque nos da una consola web para ver los datos y hace copias de seguridad automáticas para garantizar la integridad de la información.
 
 - **Expo (App Móvil)**:
-  - **Por qué lo elegimos**: Configurar Android Studio o Xcode puede ser muy complicado al principio. Expo nos permite probar la app directamente en nuestro móvil con un código QR, lo que nos ha ahorrado mucho tiempo de configuración.
+  - **Por qué lo elegimos**: La configuración de entornos nativos suele presentar una alta complejidad técnica. Expo nos permite probar la app directamente en nuestro móvil con un código QR, lo que nos ha ahorrado mucho tiempo de configuración.
   - **Cómo lo usamos**: Usamos sus librerías para cosas como la cámara o el almacenamiento. Con el servicio EAS, podemos generar el archivo instalable (APK) sin complicaciones.
 
 - **Webdock (Servidor para el Backend)**:
@@ -106,21 +111,24 @@ Para el funcionamiento de la aplicación, hemos seleccionado herramientas que so
   - **Por qué lo elegimos**: Necesitábamos una forma de mandar correos de validación al registrarse y avisos de reservas. Brevo es fácil de configurar con SMTP y nos permite mandar cientos de correos al día gratis, lo cual es perfecto para este proyecto.
 
 #### 6.1.3 Cómo está organizada la App (Arquitectura)
-Para que el código no sea un caos y sea fácil de mantener, hemos separado las cosas:
+
+Para garantizar un código mantenible y escalable, hemos aplicado una separación de responsabilidades:
 
 - **En el Servidor (Ktor)**:
   1. **Rutas**: Aquí es donde llegan las peticiones de la app y miramos que todo esté bien.
   2. **Base de Datos**: Definimos las tablas que necesitamos.
-  3. **Lógica**: Aquí es donde pasa "la magia", como cuando nos conectamos con Stripe para los pagos.
+  3. **Lógica**: Aquí se implementa la lógica de negocio central, como la integración con la pasarela de pagos Stripe.
 - **En el Móvil (React Native)**:
   1. **Vistas**: Todo lo que el usuario ve en la pantalla.
   2. **Lógica de pantalla**: Hooks y funciones que controlan lo que pasa cuando pulsas un botón.
   3. **Conexión**: Las funciones que llaman al servidor para pedir o mandar datos.
 
 #### 6.1.4 Seguridad y Protección
+
 Hemos intentado que la aplicación sea lo más segura posible dentro de nuestras posibilidades:
+
 - **Contraseñas**: Nunca guardamos la contraseña tal cual en la base de datos. Usamos una librería llamada **BCrypt** que la encripta para que, si alguien entrara a la base de datos, no pudiera verla.
-- **Pagos con Stripe**: Esta es la parte más segura porque nosotros **no tocamos los datos de las tarjetas**. Stripe nos da un "token" y ellos se encargan de todo el proceso bancario, lo que nos quita un peso de encima.
+- **Pagos con Stripe**: Esta es la parte más segura porque nosotros **no tocamos los datos de las tarjetas**. Stripe nos da un "token" y ellos se encargan de todo el proceso bancario, lo que garantiza el cumplimiento de normativas de seguridad bancaria.
 - **Limpieza de Datos**: Antes de guardar nada en la base de datos, nos aseguramos de que los datos que manda el usuario no tengan código malicioso que pueda romper el servidor.
 - **Manual de instalación**:
   1. Clonar el repositorio.
@@ -130,15 +138,19 @@ Hemos intentado que la aplicación sea lo más segura posible dentro de nuestras
   5. Iniciar móvil: `cd mobile && npx expo start`.
 
 #### 6.1.5 Herramientas de Trabajo
+
 Para organizarnos y que el proyecto saliera adelante, hemos usado estas herramientas:
-- **Figma**: Aquí es donde dibujamos cómo queríamos que fueran las pantallas antes de ponernos a programar. Nos sirvió para decidir los colores y dónde poner los botones.
-- **GitHub**: Lo hemos usado para guardar el código y trabajar los tres a la vez sin pisarnos los cambios.
+
+- **Figma**: Utilizado para el diseño de prototipos de alta fidelidad. Permitió definir la identidad visual (paleta de colores, tipografía) y la disposición de elementos de la interfaz (UI) antes de la fase de desarrollo.
+- **GitHub**: Plataforma de control de versiones que facilitó la colaboración simultánea y la integración continua del código entre los miembros del equipo.
 - **Postman**: Una herramienta fundamental para probar que el servidor funcionaba bien antes de conectarlo con la aplicación móvil.
 
 ### 6.2 Funcionalidad
 
 #### 6.2.1 Qué hace cada parte del sistema
+
 La aplicación está dividida en varias funciones principales:
+
 1. **Usuarios y Cuentas**: Todo lo que tiene que ver con registrarse, entrar a la app y confirmar el correo electrónico.
 2. **Buscador de Entrenadores**: Para que los alumnos puedan buscar monitores, ver sus perfiles y qué tal trabajan.
 3. **Agenda y Citas**: Donde los monitores ponen cuándo están libres y los alumnos reservan sus clases.
@@ -233,10 +245,10 @@ const loadUserData = async () => {
 
 #### 6.3.1 Ideas de Diseño
 
-Para la apariencia de FitHub Connect, hemos buscado un estilo que se vea moderno pero que sea fácil de usar. Hemos elegido un "Modo Oscuro" porque cansa menos la vista cuando estás en el gimnasio.
+Para la apariencia de FitHub Connect, hemos buscado un estilo moderno y funcional. Se ha implementado un "Modo Oscuro" para mejorar la legibilidad en entornos con diversas condiciones lumínicas.
 
 - **Colores**: Usamos el verde (#4CAF50) para destacar los botones importantes y que el usuario sepa dónde tiene que pulsar.
-- **Facilidad**: Los botones son grandes para que se puedan pulsar bien incluso si estás haciendo ejercicio. Hemos puesto animaciones sencillas para que la app no parezca "estática".
+- **Facilidad**: Los botones presentan dimensiones optimizadas para facilitar la interacción durante la actividad física. Hemos implementado transiciones fluidas para mejorar la experiencia de usuario.
 
 #### 6.3.2 Descripción Detallada de Pantallas
 
@@ -292,24 +304,29 @@ Para la apariencia de FitHub Connect, hemos buscado un estilo que se vea moderno
 - **Post-condiciones**: La rutina solo es visible para los alumnos suscritos a dicho monitor.
 
 ### 6.4 Para qué dispositivos sirve (Portabilidad)
-Aunque nos hemos centrado sobre todo en el móvil, la aplicación puede funcionar en varios sitios:
+
+Aunque el enfoque principal es la movilidad, la solución es compatible con diversos entornos:
 
 1. **Móvil (Android e iOS)**: Es donde mejor funciona. Al usar React Native, la app se siente rápida y "natural" tanto en móviles Android como en iPhones.
-2. **Web**: Gracias a Expo, también se puede abrir desde un navegador en el ordenador. Esto está bien por si alguien quiere mirar sus rutinas en una pantalla más grande.
+2. **Web**: Gracias a Expo, también se puede abrir desde un navegador en el ordenador. Esto permite la consulta de rutinas y gestión de perfiles desde estaciones de trabajo fijas.
 3. **El Servidor**: El programa que controla todo (el backend) puede funcionar en cualquier servidor Linux, como el que tenemos alquilado en Webdock.
 
 ### 6.5 Cómo va de rápida la App (Rendimiento)
+
 Hemos intentado que la aplicación no sea pesada y que funcione bien en cualquier móvil:
+
 - **Carga rápida**: Las listas de ejercicios y el muro social cargan poco a poco para que la memoria del móvil no se llene.
 - **Base de datos**: Usamos un sistema que hace que las consultas a la base de datos sean rápidas, para que no haya que esperar mucho al cargar el perfil.
 - **Fotos y vídeos**: Intentamos que los archivos multimedia no pesen demasiado para no gastar todos los datos del usuario.
 
 ### 6.6 Cómo nos hemos organizado (Planificación)
+
 Hemos dividido el trabajo en 4 etapas principales durante estos meses:
+
 1. **Pensar y diseñar (4 semanas)**: Decidir qué iba a hacer la app, cómo iba a ser la base de datos y dibujar las pantallas.
-2. **Hacer el servidor (6 semanas)**: Programar toda la parte de atrás (backend) y conectarlo con la base de datos y los emails.
+2. **Desarrollo del Backend (6 semanas)**: Implementación del núcleo del sistema y su integración con la base de datos y servicios de mensajería.
 3. **Hacer la app (6 semanas)**: Montar todas las pantallas del móvil, conectarlas con el servidor y poner los pagos con Stripe.
-4. **Probar y subir (4 semanas)**: Ver que no hay fallos graves, subir el servidor a la nube (Webdock) y probar que todo funciona fuera de nuestro ordenador.
+4. **Validación y Despliegue (4 semanas)**: Pruebas de calidad, despliegue del servidor en un entorno de producción real (Webdock) y verificación final.
 
 ### 6.7 Mantenimiento y Despliegue
 
@@ -320,6 +337,7 @@ Para que la app esté siempre funcionando, hemos pensado en un plan de mantenimi
 3. **Actualizaciones**: Si queremos cambiar algo en la app móvil, usamos Expo para generar una nueva versión y que los usuarios se la puedan descargar.
 
 ### 6.8 Pruebas
+
 Para estar seguros de que todo funciona antes de la entrega, hemos hecho estas pruebas:
 
 | Prueba              | Qué queríamos mirar                                      | Resultado |
@@ -336,14 +354,17 @@ Para estar seguros de que todo funciona antes de la entrega, hemos hecho estas p
 ## 7. Conclusión del Proyecto
 
 ### 7.1 Aprendizaje
-Hacer este proyecto nos ha servido para juntar todo lo que hemos visto en el grado de DAM. No solo ha sido programar, sino también pelearnos con los servidores, entender cómo funcionan los pagos reales y organizar bien las tablas para que todo encaje. Ha sido un reto, pero nos ha dado una visión mucho más clara de cómo se hace una aplicación completa desde cero.
+
+El desarrollo de este proyecto ha permitido consolidar los conocimientos adquiridos en el ciclo de DAM. El proceso ha abarcado desde la programación hasta la gestión de infraestructuras de servidor, integración de pasarelas de pago y diseño de esquemas de datos complejos. Esta experiencia ha proporcionado una visión integral del ciclo de vida de desarrollo de software profesional.
 
 ### 7.2 Logros
+
 - La integración con Stripe funciona y permite hacer pagos reales (en modo prueba).
 - Los tres tipos de usuarios (Gratis, Premium y Entrenador) están bien diferenciados y cada uno tiene sus funciones.
 - La app funciona tanto en Android como en iPhone sin tener que haber hecho dos códigos distintos, lo que nos ha ahorrado muchísimo trabajo.
 
 ### 7.3 Futuro
+
 Como el proyecto siempre se puede mejorar y ampliar, hemos pensado en algunas ideas que podrían ser el siguiente paso:
 
 1. **Notificaciones**: Para que el móvil te avise de que tienes una cita o que han subido una rutina nueva.
@@ -351,15 +372,16 @@ Como el proyecto siempre se puede mejorar y ampliar, hemos pensado en algunas id
 3. **Módulo de Nutrición**: Para que los monitores también puedan subir planes de comidas.
 
 ### 7.4 Retos superados
-Durante el desarrollo nos hemos encontrado con varios "muros" que nos han obligado a investigar mucho y a aprender por las malas:
 
-- **El lío de la IP y `localhost`**: Al principio la app no se conectaba al servidor. Nos volvimos locos pensando que el código estaba mal, hasta que descubrimos que el móvil no sabe qué es `localhost`. Tuvimos que configurar la IP de nuestro ordenador en los archivos `.env` para que el móvil y el servidor se hablaran por la red WiFi.
-- **Webhooks de Stripe**: No sabíamos que Stripe no te avisa directamente a la app de que un pago ha ido bien, sino que llama a tu servidor por detrás. Tuvimos que crear una ruta especial y usar una herramienta para que los avisos de Stripe llegaran a nuestro ordenador local. Fue difícil de entender, pero ahora los pagos se confirman al segundo.
+Durante el desarrollo han surgido diversos desafíos técnicos que han requerido una investigación profunda y resolución de problemas complejos:
+
+- **Configuración de red e IP**: Inicialmente se identificaron fallos de comunicación entre la aplicación móvil y el servidor local. El análisis reveló que el acceso mediante `localhost` no era viable desde dispositivos físicos, lo que requirió la configuración dinámica de la IP del host en las variables de entorno para habilitar la comunicación en red local.
+- **Webhooks de Stripe**: La sincronización de estados de pago requirió la implementación de webhooks. Stripe notifica eventos de pago de forma asíncrona al servidor, lo que obligó a configurar un túnel de comunicación y un endpoint específico para procesar estas confirmaciones en tiempo real.
 - **Las variables de entorno**: Manejar las claves secretas de Stripe y las URLs de Supabase sin que se subieran a GitHub fue un reto. Tuvimos que aprender a usar archivos `.env` tanto en el servidor como en el móvil para que todo fuera seguro y funcionara igual en cualquier ordenador.
-- **Conflictos de versiones**: Más de una vez la app dejó de funcionar al instalar una librería nueva. Pelearse con las versiones de Node, Gradle y las dependencias de Expo nos enseñó a leer bien los errores de la consola y a no instalar cosas "a lo loco".
-- **El laberinto del Routing**: Configurar la navegación entre pantallas fue un reto. Tuvimos problemas para que la app supiera cuándo redirigir al usuario al login o a la home según si estaba identificado o no, y a veces nos quedábamos "atrapados" en una pantalla sin poder volver atrás.
-- **Compatibilidad Android/iOS**: Al probar en distintos móviles, vimos que lo que se veía perfecto en Android a veces salía descuadrado en iPhone (como los márgenes superiores por el "notch"). Tuvimos que ajustar el código para que la app se adapte automáticamente al sistema que esté usando el usuario.
-- **Envío de Correos con Brevo**: Configurar el servidor para que mandara los emails de registro no fue tan fácil como parecía. Tuvimos que pelearnos con los puertos SMTP y las claves de la API para que los correos no acabaran en la carpeta de Spam de los usuarios.
+- **Conflictos de versiones**: La gestión de dependencias presentó desafíos significativos. Las incompatibilidades entre versiones de Node, Gradle y librerías de Expo requirieron un análisis exhaustivo de los registros de error y un control estricto de las actualizaciones de paquetes.
+- **Navegación y Flujos (Routing)**: La configuración de flujos de navegación complejos, como la redirección condicional basada en el estado de autenticación, supuso un reto para garantizar una experiencia de usuario sin bloqueos y con una gestión de historial coherente.
+- **Consistencia Visual Multiplataforma**: Se identificaron disparidades visuales entre Android e iOS, especialmente en la gestión de áreas seguras (Safe Areas) y elementos específicos del hardware como el "notch". Se implementaron ajustes de estilo condicionales para asegurar la homogeneidad visual en ambos sistemas.
+- **Integración con Brevo**: La implementación del servicio de mensajería presentó retos técnicos relacionados con la configuración de puertos SMTP y autenticación de API para asegurar la correcta entrega de correos electrónicos.
 - **Diseño Responsive**: Que los botones y textos se vieran bien tanto en un móvil pequeño como en una tablet nos dio mucho trabajo con NativeWind, pero al final conseguimos que la app sea cómoda de usar en cualquier pantalla.
 
 ---
@@ -380,6 +402,7 @@ Durante el desarrollo nos hemos encontrado con varios "muros" que nos han obliga
 3. **Rutinas**: Crea planes de entrenamiento. Si marcas una rutina como "Pública", cualquier usuario podrá verla. Si es "Premium", solo tus suscriptores de pago tendrán acceso.
 
 ### 8.3 Uso del Muro Social
+
 1. **Publicar**: Desde la pantalla de Comunidad, pulsa el botón de "+" para subir una foto de tu entreno y poner un texto.
 2. **Interactuar**: Puedes ver lo que suben otros usuarios, darles "Me gusta" y poner comentarios para animarles.
 
