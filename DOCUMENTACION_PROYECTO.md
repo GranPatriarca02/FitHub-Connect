@@ -323,10 +323,10 @@ Hemos intentado que la aplicación no sea pesada y que funcione bien en cualquie
 
 Hemos dividido el trabajo en 4 etapas principales durante estos meses:
 
-1. **Pensar y diseñar (4 semanas)**: Decidir qué iba a hacer la app, cómo iba a ser la base de datos y dibujar las pantallas.
-2. **Desarrollo del Backend (6 semanas)**: Implementación del núcleo del sistema y su integración con la base de datos y servicios de mensajería.
-3. **Hacer la app (6 semanas)**: Montar todas las pantallas del móvil, conectarlas con el servidor y poner los pagos con Stripe.
-4. **Validación y Despliegue (4 semanas)**: Pruebas de calidad, despliegue del servidor en un entorno de producción real (Webdock) y verificación final.
+1. **Pensar y diseñar**: Decidir qué iba a hacer la app, cómo iba a ser la base de datos y dibujar las pantallas.
+2. **Desarrollo del Backend**: Implementación del núcleo del sistema y su integración con la base de datos y servicios de mensajería.
+3. **Hacer la app**: Montar todas las pantallas del móvil, conectarlas con el servidor y poner los pagos con Stripe.
+4. **Validación y Despliegue**: Pruebas de calidad, despliegue del servidor en un entorno de producción real (Webdock) y verificación final.
 
 ### 6.7 Mantenimiento y Despliegue
 
