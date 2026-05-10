@@ -60,6 +60,12 @@ export default function AppLayout({ children, title, navigation, extraNotificati
         }
     };
 
+    // Función para cerrar todos los menús flotantes
+    const closeAllMenus = () => {
+        setNotificationsVisible(false);
+        setProfileMenuVisible(false);
+    };
+
     const allNotifications = [
         ...extraNotifications,
         {
@@ -105,7 +111,13 @@ export default function AppLayout({ children, title, navigation, extraNotificati
 
                     {/* --- BOTÓN NOTIFICACIONES --- */}
                     <View style={{ position: 'relative' }}>
-                        <TouchableOpacity onPress={() => setNotificationsVisible(!notificationsVisible)} style={{ padding: 5, marginRight: 15 }}>
+                        <TouchableOpacity
+                            onPress={() => {
+                                setProfileMenuVisible(false); // Cerramos el otro por si acaso
+                                setNotificationsVisible(!notificationsVisible);
+                            }}
+                            style={{ padding: 5, marginRight: 15 }}
+                        >
                             <Ionicons name="notifications" size={24} color={theme.textBody} />
                             {allNotifications.length > 0 && (
                                 <View style={{ position: 'absolute', top: 5, right: 17, width: 10, height: 10, backgroundColor: theme.danger, borderRadius: 5, borderWidth: 2, borderColor: theme.bgPrimarySoft }} />
@@ -117,7 +129,7 @@ export default function AppLayout({ children, title, navigation, extraNotificati
                             <View style={{
                                 position: 'absolute', top: 45, right: 0, width: 280,
                                 backgroundColor: theme.bgSecondarySoft, borderRadius: 12,
-                                borderWidth: 1, borderColor: theme.borderDefault, elevation: 20, zIndex: 2000,
+                                borderWidth: 1, borderColor: theme.borderDefault, elevation: 20, zIndex: 3000,
                                 maxHeight: 400, overflow: 'hidden'
                             }}>
                                 <View style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: theme.borderDefault }}>
@@ -132,6 +144,7 @@ export default function AppLayout({ children, title, navigation, extraNotificati
                                             <View style={{ flex: 1, marginLeft: 10 }}>
                                                 <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>{item.user}</Text>
                                                 <Text style={{ color: theme.textBody, fontSize: 11, marginTop: 2 }}>{item.message}</Text>
+                                                <Text style={{ color: theme.textBrand, fontSize: 10, marginTop: 6, fontWeight: '500' }}>{item.time}</Text>
                                             </View>
                                         </View>
                                     ))}
@@ -141,20 +154,26 @@ export default function AppLayout({ children, title, navigation, extraNotificati
                     </View>
 
                     {/* --- BOTÓN PERFIL --- */}
-                    <TouchableOpacity onPress={() => setProfileMenuVisible(true)}>
+                    <TouchableOpacity onPress={() => {
+                        setNotificationsVisible(false); // Cerramos el otro por si acaso
+                        setProfileMenuVisible(true);
+                    }}>
                         <Image source={{ uri: 'https://flowbite.com/docs/images/people/profile-picture-5.jpg' }} style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: theme.borderDefault }} />
                     </TouchableOpacity>
                 </View>
             </View>
 
-            <View style={{ flex: 1, flexDirection: 'row' }}>
-                {isWeb && (
-                    <View style={{ width: 260, backgroundColor: theme.bgPrimarySoft, borderRightWidth: 1, borderColor: theme.borderDefault, padding: 15 }}>
-                        <SidebarLinks />
-                    </View>
-                )}
-                <View style={{ flex: 1 }}>{children}</View>
-            </View>
+            {/* --- CONTENIDO CON CIERRE AUTOMÁTICO AL TOCAR FUERA --- */}
+            <TouchableWithoutFeedback onPress={closeAllMenus}>
+                <View style={{ flex: 1, flexDirection: 'row' }}>
+                    {isWeb && (
+                        <View style={{ width: 260, backgroundColor: theme.bgPrimarySoft, borderRightWidth: 1, borderColor: theme.borderDefault, padding: 15 }}>
+                            <SidebarLinks />
+                        </View>
+                    )}
+                    <View style={{ flex: 1 }}>{children}</View>
+                </View>
+            </TouchableWithoutFeedback>
 
             {/* --- MODAL DROPDOWN PERFIL --- */}
             <Modal visible={profileMenuVisible} transparent animationType="fade">
