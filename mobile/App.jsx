@@ -16,7 +16,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage'; // Importa
 
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
-import HomeScreen from './src/screens/HomeScreen';
+import HomeScreen_new from './src/screens/HomeScreen_new';
+// import HomeScreen from './src/screens/HomeScreen';
 import MonitorListScreen from './src/screens/MonitorListScreen';
 import MonitorDetailScreen from './src/screens/MonitorDetailScreen';
 
@@ -116,8 +117,8 @@ export default function App() {
         />
         <Stack.Screen
           name="Home"
-          component={HomeScreen}
-          options={{ title: 'FitHub Connect', headerBackVisible: false }}
+          component={HomeScreen_new}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="MonitorList"
