@@ -37,19 +37,48 @@ export default function App() {
   const [cargando, setCargando] = useState(true);
   const [userToken, setUserToken] = useState(null);
 
+  // CONTROL DE SESIÓN Y SEGURIDAD: Definimos si mandamos al usuario al Login o a Home.
   useEffect(() => {
     // Esta función mira si hay una sesión guardada.
     const verificarSesion = async () => {
       try {
+        // Recuperamos de la memoria local el token y el momento del login.
         const token = await AsyncStorage.getItem('userToken');
-        setUserToken(token);
+        const loginTimestamp = await AsyncStorage.getItem('loginTimestamp');
+        const rememberMe = await AsyncStorage.getItem('rememberMe');
+
+        if (token && loginTimestamp) {
+          const ahora = Date.now();
+          const cuatroHorasMs = 4 * 60 * 60 * 1000; // Limite de sesión, 4 horas.
+
+          // Si han pasado más de 4 horas, limpiamos.
+          if (ahora - parseInt(loginTimestamp) > cuatroHorasMs) {
+            console.log("Sesión expirada");
+            await limpiarSesion();
+            return;
+          }
+
+          // Si no se marca recuerdame, al reiniciar el navegador o la aplicación la sesión se cierra.
+          if (rememberMe !== 'true') {
+            console.log("No se marcó recuérdame, cerrando sesión");
+            await limpiarSesion();
+            return;
+          }
+          // Si se cumplen las condiciones el Token es valido y lo cargamos.
+          setUserToken(token);
+        }
       } catch (e) {
-        console.error("Error leyendo el token", e);
+        console.error("Error en la sesión", e);
       } finally {
         setCargando(false);
       }
     };
 
+    const limpiarSesion = async () => {
+      await AsyncStorage.removeItem('userToken'); // Borramos el acceso.
+      await AsyncStorage.removeItem('loginTimestamp'); // Borramos el tiempo.
+      setUserToken(null); // Forzamos la redirección al Login.
+    };
     verificarSesion();
   }, []);
 

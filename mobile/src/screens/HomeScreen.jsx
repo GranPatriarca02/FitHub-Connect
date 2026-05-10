@@ -21,15 +21,29 @@ export default function HomeScreen({ navigation }) {
   const [userEmail, setUserEmail] = useState('');
   const [menuVisible, setMenuVisible] = useState(false);
 
-  // --- FUNCIONES (Declaradas antes de los efectos para evitar errores de referencia) ---
-
+  // __ FUNCIONES __
   const handleLogout = async () => {
-    setMenuVisible(false);
-    await AsyncStorage.clear();
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Login' }],
-    });
+    try {
+      setMenuVisible(false);
+
+      // Borramos lo que identifica a la sesión activa.
+      const keysToRemove = [
+        'userToken',
+        'loginTimestamp',
+        'userRole',
+        'userId',
+        'userName',
+        'userEmail'
+      ];
+      await AsyncStorage.multiRemove(keysToRemove);
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+    }
   };
 
   // HOOK clave: sincronización con el servidor cada vez que la pantalla gana foco
@@ -99,7 +113,7 @@ export default function HomeScreen({ navigation }) {
         const syncPremium = async () => {
           try {
             const userId = await AsyncStorage.getItem('userId');
-            
+
             // Si hay un monitorId, confirmamos la suscripción específica
             const endpoint = monitorId ? '/subscriptions/confirm' : '/confirm-premium';
             const body = monitorId ? JSON.stringify({ monitorId: parseInt(monitorId) }) : JSON.stringify({});
@@ -117,10 +131,10 @@ export default function HomeScreen({ navigation }) {
               await AsyncStorage.setItem('userRole', 'PREMIUM');
               setRole('PREMIUM');
               Alert.alert("Exito", "Tu suscripcion se ha activado correctamente. Ya eres PREMIUM");
-              
+
               // Si hay monitorId, podemos ir al detalle del monitor tras cerrar el alert
               if (monitorId) {
-                 navigation.navigate('MonitorDetail', { monitor: { id: parseInt(monitorId) } });
+                navigation.navigate('MonitorDetail', { monitor: { id: parseInt(monitorId) } });
               }
             }
           } catch (error) {

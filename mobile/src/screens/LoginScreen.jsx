@@ -11,35 +11,41 @@ const { width, height } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function LoginScreen({ navigation }) {
-  // --- ESTADOS ---
+  // ___  ESTADOS ___ 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [cargando, setCargando] = useState(false);
   const [recuerdame, setRecuerdame] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // --- SISTEMA DE POPUPS (NOTIFICACIONES) ---
+  // ___  SISTEMA DE POPUPS (NOTIFICACIONES) ___ 
   const [notificacion, setNotificacion] = useState({ visible: false, mensaje: '', tipo: 'success' });
   // ARREGLO: Se usa useRef para evitar problemas de re-renderizado en la animación
   const translateY = useRef(new Animated.Value(-100)).current;
 
-  // --- EFECTO INICIAL: CARGAR DATOS GUARDADOS ---
+  // ___  CARGA DE DATOS ___ 
   useEffect(() => {
-    const inicializarDatos = async () => {
+    const cargarDatosGuardados = async () => {
       try {
+        // Recuperamos email, contraseña y el estado del checkbox desde el almacenamiento local.
         const savedEmail = await AsyncStorage.getItem('savedEmail');
-        if (savedEmail) {
-          setEmail(savedEmail);
-          setRecuerdame(true);
+        const savedPass = await AsyncStorage.getItem('savedPass');
+        const rememberMe = await AsyncStorage.getItem('rememberMe');
+
+        // Si el usuario marcó recuerdame rellenamos los campos con los datos almacenados localmente.
+        if (rememberMe === 'true') {
+          if (savedEmail) setEmail(savedEmail);
+          if (savedPass) setPassword(savedPass); // Rellenamos el campo de password.
+          setRecuerdame(true);                   // Marcamos visualmente el checkbox.
         }
       } catch (error) {
-        console.log("Error al cargar datos iniciales:", error.message);
+        console.log("Error cargando persistencia en Login:", error);
       }
     };
-    inicializarDatos();
+    cargarDatosGuardados();
   }, []);
 
-  // --- LÓGICA DE POPUP ---
+  // ___ LÓGICA DE POPUP ___ 
   const mostrarPopUp = (msg, tipo = 'success') => {
     setNotificacion({ visible: true, mensaje: msg, tipo });
     Animated.spring(translateY, { toValue: 60, useNativeDriver: true }).start();
@@ -50,8 +56,9 @@ export default function LoginScreen({ navigation }) {
     }, 3000);
   };
 
-  // --- LÓGICA DE AUTENTICACIÓN (LOGIN) ---
+  // ___ LÓGICA DE AUTENTICACIÓN (LOGIN) ___ 
   const handleEntrar = async () => {
+    // Validación de campos vacíos
     if (!email || !password) {
       mostrarPopUp("Por favor, rellena todos los campos", "error");
       return;
@@ -59,26 +66,35 @@ export default function LoginScreen({ navigation }) {
 
     setCargando(true);
     try {
+      // Petición POST a la API para validar credenciales.
       const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-
       const data = await response.json();
 
+      // GESTION DE LA SESIÓN 
       if (response.ok) {
-        await AsyncStorage.setItem('userToken', data.token);
-        await AsyncStorage.setItem('userRole', data.role);
-        await AsyncStorage.setItem('userId', data.userId.toString());
-        await AsyncStorage.setItem('userName', data.name);
+        await AsyncStorage.setItem('userToken', data.token); // Acceso para las peticiones a la API.
+        await AsyncStorage.setItem('loginTimestamp', Date.now().toString()); // Expiración de la sesión: App.jsx.
+        await AsyncStorage.setItem('rememberMe', recuerdame ? 'true' : 'false'); // Mantener sesión.
 
+        // Identifad del miembro.
+        await AsyncStorage.setItem('userRole', data.role); // Permisos del usuario.
+        await AsyncStorage.setItem('userId', data.userId.toString()); // Identificador único del usuario.
+        await AsyncStorage.setItem('userName', data.name); // Nombnre del usuario.
+
+
+        // LÓGICA DE RECUÉRDAME
         if (recuerdame) {
           await AsyncStorage.setItem('savedEmail', email);
+          await AsyncStorage.setItem('savedPass', password);
         } else {
           await AsyncStorage.removeItem('savedEmail');
+          await AsyncStorage.removeItem('savedPass');
         }
-
+        // Mostramos PopUp de bienvenida
         mostrarPopUp(`¡Bienvenido, ${data.name}!`, "success");
         setTimeout(() => navigation.replace('Home'), 1000);
       } else {
@@ -133,7 +149,8 @@ export default function LoginScreen({ navigation }) {
                 <View style={{ gap: 16 }}>
                   <View style={{ gap: 6 }}>
                     <Text style={{ fontSize: 13, fontWeight: '500', color: '#d1d5db' }}>Email<Text style={{ color: '#ef4444' }}>*</Text></Text>
-                    <TextInput style={{ backgroundColor: 'rgba(3, 7, 18, 0.6)', borderWidth: 1, borderColor: '#374151', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: 'white' }} placeholder="ejemplo@gmail.com" placeholderTextColor="#4b5563" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+                    <TextInput style={{ backgroundColor: 'rgba(3, 7, 18, 0.6)', borderWidth: 1, borderColor: '#374151', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: 'white' }}
+                      placeholder="ejemplo@gmail.com" placeholderTextColor="#4b5563" value={email} onChangeText={(text) => setEmail(text)} autoCapitalize="none" keyboardType="email-address" />
                   </View>
 
                   <View style={{ gap: 6 }}>
