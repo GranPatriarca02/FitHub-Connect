@@ -245,10 +245,9 @@ const loadUserData = async () => {
 
 #### 6.3.1 Ideas de Diseño
 
-Para la apariencia de FitHub Connect, hemos buscado un estilo moderno y funcional. Se ha implementado un "Modo Oscuro" para mejorar la legibilidad en entornos con diversas condiciones lumínicas.
-
-- **Colores**: Usamos el verde (#4CAF50) para destacar los botones importantes y que el usuario sepa dónde tiene que pulsar.
-- **Facilidad**: Los botones presentan dimensiones optimizadas para facilitar la interacción durante la actividad física. Hemos implementado transiciones fluidas para mejorar la experiencia de usuario.
+- **Identidad Visual (Adaptación de Plantilla Premium)**: Para garantizar un acabado visual de alta calidad, se ha utilizado una **plantilla de diseño profesional** como base, la cual ha sido **completamente adaptada y personalizada** para encajar con la identidad de FitHub Connect. Se ha realizado una transición integral desde los colores originales hacia una estética de "Gama Alta" basada en el contraste de **Negro Puro (#000000)** y **Verde Neón (#22c55e)**.
+- **Personalización de Colores**: Hemos sustituido todos los elementos visuales genéricos por una paleta propia donde el verde destaca las acciones clave y los fondos negros neutros eliminan distracciones, mejorando el enfoque en el entrenamiento.
+- **Facilidad**: Los botones presentan dimensiones optimizadas para facilitar la interacción durante la actividad física. Hemos implementado transiciones fluidas y micro-animaciones en los componentes para mejorar la experiencia de usuario.
 
 #### 6.3.2 Descripción Detallada de Pantallas
 
@@ -367,9 +366,11 @@ El desarrollo de este proyecto ha permitido consolidar los conocimientos adquiri
 
 Como el proyecto siempre se puede mejorar y ampliar, hemos pensado en algunas ideas que podrían ser el siguiente paso:
 
-1. **Notificaciones**: Para que el móvil te avise de que tienes una cita o que han subido una rutina nueva.
-2. **Recomendaciones inteligentes**: Un sistema que te sugiera monitores según tus objetivos.
-3. **Módulo de Nutrición**: Para que los monitores también puedan subir planes de comidas.
+1. **Notificaciones Push**: Para que el móvil te avise en tiempo real de citas, mensajes o nuevas rutinas publicadas.
+2. **Recomendaciones Inteligentes (IA)**: Implementación de un asistente virtual que, basándose en las características, objetivos y preferencias introducidas por el usuario, recomiende los entrenadores más adecuados para su perfil.
+3. **Módulo de Nutrición**: Para que los monitores también puedan subir planes de comidas y seguimiento de macros.
+4. **Foro de Tiendas Fitness**: Un espacio comunitario donde los usuarios puedan debatir sobre productos, equipamiento y recomendar tiendas especializadas.
+5. **Autenticación Extendida**: Integración de **Google Login** y Apple ID para facilitar el acceso rápido y seguro sin necesidad de formularios manuales.
 
 ### 7.4 Retos superados
 
