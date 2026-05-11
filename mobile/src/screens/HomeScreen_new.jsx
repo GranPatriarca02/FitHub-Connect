@@ -1,13 +1,13 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, Dimensions, Platform, Alert
+  View, Text, TouchableOpacity, ScrollView, Dimensions, Platform, Alert, ImageBackground
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { healthCheck, API_URL } from '../api';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 
 // Importamos el layout y el tema para aplicar el estilo
 import AppLayout, { theme } from './AppLayout';
@@ -136,7 +136,6 @@ export default function HomeScreen({ navigation }) {
       let currentList = stored ? JSON.parse(stored) : [];
 
       // 2. Filtro de duplicados: Solo añadimos si no hay una notificación igual en el último minuto
-      // (Para evitar que el focus effect la duplique mil veces por segundo)
       const yaExisteReciente = currentList.some(n =>
         n.message.includes(name) &&
         (ahora.getTime() - parseInt(n.id.split('-')[1]) < 60000)
@@ -218,104 +217,41 @@ export default function HomeScreen({ navigation }) {
       extraNotifications={notificationsList}
     >
       <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+        contentContainerStyle={{ flexGrow: 1 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={{ padding: 16, borderWidth: 1, borderColor: theme.borderDefault, borderStyle: 'dashed', borderRadius: 8, minHeight: 600 }}>
+        {/* --- SECCIÓN HERO --- */}
+        <ImageBackground
+          source={{ uri: 'https://flowbite.s3.amazonaws.com/docs/jumbotron/hero-pattern.svg' }}
+          style={{ width: '100%', minHeight: 450, justifyContent: 'center' }}
+          imageStyle={{ opacity: 0.25 }}
+        >
+          <View style={{ paddingHorizontal: 20, alignItems: 'center', paddingVertical: 60 }}>
+            <Text style={{ color: 'white', fontSize: 38, fontWeight: '800', textAlign: 'center', letterSpacing: -1, marginBottom: 15 }}>
+              Bienvenido de nuevo, {userName || 'Atleta'}
+            </Text>
+            <Text style={{ color: '#d1d5db', fontSize: 16, textAlign: 'center', marginBottom: 30, paddingHorizontal: 15, lineHeight: 24 }}>
+              Transforma tu cuerpo y alcanza tu mejor versión. Entrenamientos personalizados, nutrición y comunidad en un solo lugar. ¡Empieza hoy mismo!
+            </Text>
 
-          {/* __ SECCIÓN BIENVENIDA __ */}
-          <View style={{ marginBottom: 25 }}>
-            <Text style={{ fontSize: 16, color: theme.textBody }}>Hola de nuevo,</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ fontSize: 28, fontWeight: '800', color: '#fff' }}>{userName || 'Atleta'}</Text>
-              {isPremium && (
-                <MaterialCommunityIcons
-                  name="check-decagram"
-                  size={24}
-                  color={theme.textBrand}
-                  style={{ marginLeft: 8 }}
-                />
-              )}
+            <View style={{ flexDirection: 'column', width: '100%', maxWidth: 300, gap: 12 }}>
+              <TouchableOpacity style={{ backgroundColor: theme.brand, paddingVertical: 14, borderRadius: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: 'white', fontWeight: '600', fontSize: 16 }}>Empieza ahora</Text>
+                <Ionicons name="arrow-forward" size={18} color="white" style={{ marginLeft: 8 }} />
+              </TouchableOpacity>
+
+              <TouchableOpacity style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', paddingVertical: 14, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ color: 'white', fontWeight: '600', fontSize: 16 }}>Leer más</Text>
+              </TouchableOpacity>
             </View>
           </View>
-
-          {/* __ BANNER DINÁMICO __ */}
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => navigation.navigate(isPremium ? 'MonitorList' : 'SubscriptionBenefits')}
-            style={{
-              borderRadius: 16,
-              overflow: 'hidden',
-              marginBottom: 30,
-              borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.1)'
-            }}
-          >
-            <LinearGradient
-              colors={isPremium ? ['#1e1e1e', '#2a2a2a'] : ['#4CAF50', '#2E7D32']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={{ flexDirection: 'row', alignItems: 'center', padding: 22 }}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 10, fontWeight: 'bold', color: 'rgba(255,255,255,0.7)', letterSpacing: 1.2 }}>
-                  {isPremium ? 'MIEMBRO VIP' : 'OFERTA LIMITADA'}
-                </Text>
-                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#fff', marginTop: 4 }}>
-                  {isPremium ? 'Explora contenido exclusivo' : 'Hazte PREMIUM ahora'}
-                </Text>
-              </View>
-              <View style={{
-                width: 54, height: 54, borderRadius: 27,
-                backgroundColor: 'rgba(255,255,255,0.15)',
-                justifyContent: 'center', alignItems: 'center'
-              }}>
-                <MaterialCommunityIcons name={isPremium ? "star" : "lightning-bolt"} size={30} color="#fff" />
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          {/* __ GRID DE ACCIONES RÁPIDAS __ */}
-          <Text style={{ fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 16 }}>¿Qué quieres hacer?</Text>
-
-          <View style={{
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-            justifyContent: 'space-between',
-            width: '100%'
-          }}>
-            <ActionCard
-              title={isTrainer ? 'Comunidad' : 'Monitores'}
-              desc={isTrainer ? 'Posts y seguidores' : 'Busca entrenadores'}
-              icon={isTrainer ? "account-group" : "dumbbell"}
-              onPress={() => isTrainer ? navigation.navigate('Social') : navigation.navigate('MonitorList')}
-            />
-            <ActionCard
-              title="Rutinas"
-              desc="Tus entrenamientos"
-              icon="clipboard-text"
-              onPress={() => navigation.navigate('Routines')}
-            />
-            <ActionCard
-              title={isTrainer ? 'Disponibilidad' : 'Comunidad'}
-              desc={isTrainer ? 'Tus horarios' : 'Posts y social'}
-              icon={isTrainer ? "clock-outline" : "earth"}
-              onPress={() => isTrainer ? navigation.navigate('TrainerAvailability') : navigation.navigate('Social')}
-            />
-            <ActionCard
-              title="Videos"
-              desc="Aprende y entrena"
-              icon="play-box-multiple"
-              onPress={() => navigation.navigate('Videos')}
-            />
-          </View>
-        </View>
+        </ImageBackground>
       </ScrollView>
-    </AppLayout>
+    </AppLayout >
   );
 }
 
 function ActionCard({ title, desc, icon, onPress }) {
-  // Forzamos 48% en móvil para que entren dos por fila sí o sí
   const cardWidth = Platform.OS === 'web' ? '23.5%' : '48%';
 
   return (

@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import {
     View, Text, TouchableOpacity, Platform, Modal, SafeAreaView,
-    Image, StatusBar, ScrollView, TouchableWithoutFeedback
+    Image, StatusBar, ScrollView, TouchableWithoutFeedback, ImageBackground
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+
+// IMPORTACIÓN DEL LOGO LOCAL
+import LogoApp from '../../assets/FITHUB.png';
 
 const isWeb = Platform.OS === 'web';
 
 // COLORES APP
 export const theme = {
-    bgPrimary: '#0b1120',
+    bgPrimary: '#030712',
     bgPrimarySoft: '#111827',
     bgSecondarySoft: '#1f2937',
     borderDefault: '#374151',
@@ -21,6 +25,9 @@ export const theme = {
     textBrand: '#60a5fa',
     danger: '#ef4444',
 };
+
+// RANGOS PARA EL LINEAR GRADIENT DEL FONDO
+const backgroundColors = ['#040c20', '#030713', '#030712'];
 
 export default function AppLayout({ children, title, navigation, extraNotifications = [] }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -44,14 +51,13 @@ export default function AppLayout({ children, title, navigation, extraNotificati
                 console.error("Error cargando datos en Layout", e);
             }
         };
-        if (profileMenuVisible) loadData();
+        loadData();
     }, [profileMenuVisible]);
 
     // __ FUNCIÓN CERRAR SESIÓN __
     const handleLogout = async () => {
         try {
             setProfileMenuVisible(false);
-            // Borramos lo que identifica a la sesión activa.
             const keysToRemove = ['userToken', 'loginTimestamp', 'userRole', 'userId', 'userName', 'userEmail'];
             await AsyncStorage.multiRemove(keysToRemove);
             navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
@@ -60,7 +66,6 @@ export default function AppLayout({ children, title, navigation, extraNotificati
         }
     };
 
-    // Función para cerrar todos los menús flotantes
     const closeAllMenus = () => {
         setNotificationsVisible(false);
         setProfileMenuVisible(false);
@@ -79,11 +84,35 @@ export default function AppLayout({ children, title, navigation, extraNotificati
     ];
 
     const SidebarLinks = () => (
-        <View style={{ marginTop: 20 }}>
-            <NavItem icon="grid-outline" label="Dashboard" active={title === 'Dashboard'} onPress={() => { setIsMenuOpen(false); navigation.navigate('Home'); }} />
-            <NavItem icon="people-outline" label="Monitores" active={title === 'Monitores'} onPress={() => { setIsMenuOpen(false); navigation.navigate('MonitorList'); }} />
-            <NavItem icon="barbell-outline" label="Rutinas" active={title === 'Rutinas'} onPress={() => { setIsMenuOpen(false); navigation.navigate('Routines'); }} />
-            <NavItem icon="chatbubble-outline" label="Social" active={title === 'Social'} onPress={() => { setIsMenuOpen(false); navigation.navigate('Social'); }} />
+        <View style={{ marginTop: 2 }}>
+            <NavItem
+                icon="people-outline"
+                label="Monitores"
+                subLabel="Busca entrenadores"
+                active={title === 'Monitores'}
+                onPress={() => { setIsMenuOpen(false); navigation.navigate('MonitorList'); }}
+            />
+            <NavItem
+                icon="barbell-outline"
+                label="Rutinas"
+                subLabel="Tus planes de entrenamiento"
+                active={title === 'Rutinas'}
+                onPress={() => { setIsMenuOpen(false); navigation.navigate('Routines'); }}
+            />
+            <NavItem
+                icon="chatbubbles-outline"
+                label="Comunidad"
+                subLabel="Explora el contenido social"
+                active={title === 'Comunidad'}
+                onPress={() => { setIsMenuOpen(false); navigation.navigate('Social'); }}
+            />
+            <NavItem
+                icon="play-circle-outline"
+                label="Vídeos"
+                subLabel="Aprende técnicas nuevas"
+                active={title === 'Vídeos'}
+                onPress={() => { setIsMenuOpen(false); navigation.navigate('Videos'); }}
+            />
         </View>
     );
 
@@ -103,35 +132,23 @@ export default function AppLayout({ children, title, navigation, extraNotificati
                             <Ionicons name="menu" size={28} color="white" />
                         </TouchableOpacity>
                     )}
-                    <Image source={{ uri: 'https://flowbite.com/docs/images/logo.svg' }} style={{ width: 28, height: 28, marginRight: 10 }} />
-                    <Text style={{ color: 'white', fontSize: 19, fontWeight: 'bold' }}>FitHub</Text>
+                    <Image
+                        source={LogoApp}
+                        style={{ width: 128, height: 128, marginRight: 10, borderRadius: 6 }}
+                        resizeMode="contain"
+                    />
                 </View>
 
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-
-                    {/* --- BOTÓN NOTIFICACIONES --- */}
                     <View style={{ position: 'relative' }}>
-                        <TouchableOpacity
-                            onPress={() => {
-                                setProfileMenuVisible(false); // Cerramos el otro por si acaso
-                                setNotificationsVisible(!notificationsVisible);
-                            }}
-                            style={{ padding: 5, marginRight: 15 }}
-                        >
+                        <TouchableOpacity onPress={() => { setProfileMenuVisible(false); setNotificationsVisible(!notificationsVisible); }} style={{ padding: 5, marginRight: 15 }}>
                             <Ionicons name="notifications" size={24} color={theme.textBody} />
                             {allNotifications.length > 0 && (
                                 <View style={{ position: 'absolute', top: 5, right: 17, width: 10, height: 10, backgroundColor: theme.danger, borderRadius: 5, borderWidth: 2, borderColor: theme.bgPrimarySoft }} />
                             )}
                         </TouchableOpacity>
-
-                        {/* --- DROPDOWN NOTIFICACIONES --- */}
                         {notificationsVisible && (
-                            <View style={{
-                                position: 'absolute', top: 45, right: 0, width: 280,
-                                backgroundColor: theme.bgSecondarySoft, borderRadius: 12,
-                                borderWidth: 1, borderColor: theme.borderDefault, elevation: 20, zIndex: 3000,
-                                maxHeight: 400, overflow: 'hidden'
-                            }}>
+                            <View style={{ position: 'absolute', top: 45, right: 0, width: 280, backgroundColor: theme.bgSecondarySoft, borderRadius: 12, borderWidth: 1, borderColor: theme.borderDefault, elevation: 20, zIndex: 3000, maxHeight: 400, overflow: 'hidden' }}>
                                 <View style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: theme.borderDefault }}>
                                     <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13, textAlign: 'center' }}>Notificaciones ({allNotifications.length})</Text>
                                 </View>
@@ -152,37 +169,58 @@ export default function AppLayout({ children, title, navigation, extraNotificati
                             </View>
                         )}
                     </View>
-
-                    {/* --- BOTÓN PERFIL --- */}
-                    <TouchableOpacity onPress={() => {
-                        setNotificationsVisible(false); // Cerramos el otro por si acaso
-                        setProfileMenuVisible(true);
-                    }}>
+                    <TouchableOpacity onPress={() => { setNotificationsVisible(false); setProfileMenuVisible(true); }}>
                         <Image source={{ uri: 'https://flowbite.com/docs/images/people/profile-picture-5.jpg' }} style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: theme.borderDefault }} />
                     </TouchableOpacity>
                 </View>
             </View>
 
-            {/* --- CONTENIDO CON CIERRE AUTOMÁTICO AL TOCAR FUERA --- */}
-            <TouchableWithoutFeedback onPress={closeAllMenus}>
-                <View style={{ flex: 1, flexDirection: 'row' }}>
-                    {isWeb && (
-                        <View style={{ width: 260, backgroundColor: theme.bgPrimarySoft, borderRightWidth: 1, borderColor: theme.borderDefault, padding: 15 }}>
-                            <SidebarLinks />
-                        </View>
-                    )}
-                    <View style={{ flex: 1 }}>{children}</View>
-                </View>
-            </TouchableWithoutFeedback>
+            {/* --- CONTENIDO PRINCIPAL --- */}
+            <View style={{ flex: 1, flexDirection: 'row', overflow: 'hidden' }}>
+                {isWeb && (
+                    <View style={{ width: 260, backgroundColor: theme.bgPrimarySoft, borderRightWidth: 1, borderColor: theme.borderDefault, padding: 15 }}>
+                        <SidebarLinks />
+                    </View>
+                )}
 
-            {/* --- MODAL DROPDOWN PERFIL --- */}
+                <TouchableWithoutFeedback onPress={closeAllMenus}>
+                    <LinearGradient colors={backgroundColors} style={{ flex: 1 }} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}>
+                        {/* Se eliminó el ScrollView y Hero de aquí para que HomeScreen lo gestione */}
+                        {children}
+                    </LinearGradient>
+                </TouchableWithoutFeedback>
+            </View>
+
+            {/* --- MODAL NAVEGACIÓN MÓVIL --- */}
+            <Modal visible={isMenuOpen} animationType="fade" transparent={false}>
+                <SafeAreaView style={{ flex: 1, backgroundColor: theme.bgPrimarySoft }}>
+                    <View style={{ padding: 20, flex: 1 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <Image
+                                    source={LogoApp}
+                                    style={{ width: 32, height: 32, marginRight: 10, borderRadius: 6 }}
+                                    resizeMode="contain"
+                                />
+                                <Text style={{ color: 'white', fontSize: 22, fontWeight: 'bold' }}>FitHub</Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setIsMenuOpen(false)} style={{ padding: 5 }}>
+                                <Ionicons name="close" size={32} color="white" />
+                            </TouchableOpacity>
+                        </View>
+                        <SidebarLinks />
+                    </View>
+                </SafeAreaView>
+            </Modal>
+
+            {/* --- MODAL PERFIL --- */}
             <Modal visible={profileMenuVisible} transparent animationType="fade">
                 <TouchableWithoutFeedback onPress={() => setProfileMenuVisible(false)}>
                     <View style={{ flex: 1, justifyContent: 'flex-start', alignItems: 'flex-end', paddingTop: 60, paddingRight: 15 }}>
                         <TouchableWithoutFeedback>
-                            <View style={{ width: 280, backgroundColor: '#1f2937', borderRadius: 8, borderWidth: 1, borderColor: theme.borderDefault, overflow: 'hidden', elevation: 25 }}>
+                            <View style={{ width: 280, backgroundColor: theme.bgSecondarySoft, borderRadius: 8, borderWidth: 1, borderColor: theme.borderDefault, overflow: 'hidden', elevation: 25 }}>
                                 <View style={{ padding: 8 }}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#374151', padding: 10, borderRadius: 6 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.borderDefault, padding: 10, borderRadius: 6 }}>
                                         <Image source={{ uri: 'https://flowbite.com/docs/images/people/profile-picture-5.jpg' }} style={{ width: 32, height: 32, borderRadius: 16 }} />
                                         <View style={{ flex: 1, marginLeft: 10 }}>
                                             <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }} numberOfLines={1}>{userData.name}</Text>
@@ -191,23 +229,8 @@ export default function AppLayout({ children, title, navigation, extraNotificati
                                     </View>
                                 </View>
                                 <View style={{ paddingHorizontal: 4, paddingBottom: 8 }}>
-                                    <DropdownLink
-                                        icon="account-outline"
-                                        label="Account"
-                                        onPress={() => {
-                                            setProfileMenuVisible(false);
-                                            navigation.navigate('Account');
-                                        }}
-                                    />
-                                    <DropdownLink
-                                        icon="rocket-launch-outline"
-                                        label="Upgrade to PRO"
-                                        color={theme.brand}
-                                        onPress={() => {
-                                            setProfileMenuVisible(false);
-                                            navigation.navigate('SubscriptionBenefits');
-                                        }}
-                                    />
+                                    <DropdownLink icon="account-outline" label="Account" onPress={() => { setProfileMenuVisible(false); navigation.navigate('Account'); }} />
+                                    <DropdownLink icon="rocket-launch-outline" label="Upgrade to PRO" color={theme.brand} onPress={() => { setProfileMenuVisible(false); navigation.navigate('SubscriptionBenefits'); }} />
                                     <View style={{ height: 1, backgroundColor: theme.borderDefault, marginVertical: 4 }} />
                                     <DropdownLink icon="logout" label="Sign out" color={theme.danger} onPress={handleLogout} />
                                 </View>
@@ -216,45 +239,32 @@ export default function AppLayout({ children, title, navigation, extraNotificati
                     </View>
                 </TouchableWithoutFeedback>
             </Modal>
-
-            {/* --- MENÚ MÓVIL --- */}
-            <Modal visible={isMenuOpen} animationType="slide">
-                <SafeAreaView style={{ flex: 1, backgroundColor: theme.bgPrimarySoft }}>
-                    <View style={{ padding: 20 }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                            <Text style={{ color: 'white', fontSize: 22, fontWeight: 'bold' }}>FitHub</Text>
-                            <TouchableOpacity onPress={() => setIsMenuOpen(false)}>
-                                <Ionicons name="close" size={32} color="white" />
-                            </TouchableOpacity>
-                        </View>
-                        <SidebarLinks />
-                    </View>
-                </SafeAreaView>
-            </Modal>
         </View>
     );
 }
 
 const DropdownLink = ({ icon, label, onPress, color = '#fff' }) => (
-    <TouchableOpacity
-        onPress={onPress}
-        style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 6 }}
-    >
-        <MaterialCommunityIcons
-            name={icon}
-            size={18}
-            color={color === theme.danger ? theme.danger : (color === theme.brand ? theme.brand : '#9ca3af')}
-        />
+    <TouchableOpacity onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 6 }}>
+        <MaterialCommunityIcons name={icon} size={18} color={color === theme.danger ? theme.danger : (color === theme.brand ? theme.brand : '#9ca3af')} />
         <Text style={{ marginLeft: 12, fontSize: 14, fontWeight: '500', color: color }}>{label}</Text>
     </TouchableOpacity>
 );
 
-const NavItem = ({ icon, label, active, onPress }) => (
+const NavItem = ({ icon, label, subLabel, active, onPress }) => (
     <TouchableOpacity onPress={onPress} style={{
-        flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 8, marginBottom: 5,
+        flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 10, marginBottom: 15,
         backgroundColor: active ? theme.brandSofter : 'transparent'
     }}>
-        <Ionicons name={icon} size={22} color={active ? theme.brand : theme.textBody} />
-        <Text style={{ color: active ? 'white' : theme.textBody, marginLeft: 15, fontSize: 16 }}>{label}</Text>
+        <View style={{
+            width: 44, height: 44, borderRadius: 10,
+            backgroundColor: active ? theme.brand : theme.bgSecondarySoft,
+            justifyContent: 'center', alignItems: 'center'
+        }}>
+            <Ionicons name={icon} size={24} color={active ? 'white' : theme.textBrand} />
+        </View>
+        <View style={{ marginLeft: 14, flex: 1 }}>
+            <Text style={{ color: active ? 'white' : theme.textHeading, fontSize: 17, fontWeight: '700' }}>{label}</Text>
+            <Text style={{ color: theme.textBody, fontSize: 14, marginTop: 2 }}>{subLabel}</Text>
+        </View>
     </TouchableOpacity>
 );
