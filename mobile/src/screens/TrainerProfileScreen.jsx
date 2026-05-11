@@ -7,8 +7,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { API_URL } from '../api';
+import { theme } from './AppLayout';
+
+const SPECIALTIES = [
+  'Musculación', 'Crossfit', 'Yoga', 'Pilates', 
+  'Nutrición', 'Funcional', 'HIIT', 'Fisioterapia', 'Calistenia'
+];
 
 export default function TrainerProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -91,52 +97,83 @@ export default function TrainerProfileScreen({ navigation }) {
     }
   };
 
+  const incrementRate = () => {
+    const current = parseFloat(hourlyRate) || 0;
+    setHourlyRate((current + 1).toFixed(1));
+  };
+
+  const decrementRate = () => {
+    const current = parseFloat(hourlyRate) || 0;
+    if (current >= 1) {
+      setHourlyRate((current - 1).toFixed(1));
+    } else {
+      setHourlyRate('0.0');
+    }
+  };
+
   if (cargando) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <ActivityIndicator size="large" color={theme.brand} />
         <Text style={styles.loadingText}>Cargando perfil...</Text>
       </View>
     );
   }
 
   return (
-    <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
+    <LinearGradient colors={['#000000', '#0a0a0a', '#121212']} style={styles.gradient}>
       <ScrollView
         contentContainerStyle={[styles.container, { paddingTop: insets.top + 16 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
           <View style={styles.headerIconWrap}>
-            <MaterialCommunityIcons name="account-edit" size={28} color="#4FC3F7" />
+            <MaterialCommunityIcons name="account-edit" size={28} color={theme.textBrand} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Mi Escaparate</Text>
-            <Text style={styles.headerSub}>Configura cómo te ven los clientes</Text>
+            <Text style={styles.headerTitle}>Mi Perfil</Text>
+            <Text style={styles.headerSub}>Configura tu información profesional</Text>
           </View>
         </View>
 
         <View style={styles.card}>
           <Text style={styles.fieldLabel}>Especialidad *</Text>
-          <TextInput
-            style={styles.fieldInput}
-            value={specialty}
-            onChangeText={setSpecialty}
-            placeholder="Ej: Crossfit, Musculación, Yoga..."
-            placeholderTextColor="#555"
-            maxLength={100}
-          />
+          <View style={styles.chipsContainer}>
+            {SPECIALTIES.map((s) => (
+              <TouchableOpacity
+                key={s}
+                onPress={() => setSpecialty(s)}
+                style={[
+                  styles.chip,
+                  specialty === s && { backgroundColor: theme.brand, borderColor: theme.brand }
+                ]}
+              >
+                <Text style={[styles.chipText, specialty === s && { color: '#fff', fontWeight: '700' }]}>{s}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           <Text style={styles.fieldLabel}>Tarifa por Hora (€) *</Text>
-          <TextInput
-            style={styles.fieldInput}
-            value={hourlyRate}
-            onChangeText={setHourlyRate}
-            placeholder="Ej: 20.0"
-            placeholderTextColor="#555"
-            keyboardType="numeric"
-            maxLength={10}
-          />
+          <View style={styles.stepperContainer}>
+            <TouchableOpacity onPress={decrementRate} style={styles.stepperBtn}>
+              <MaterialCommunityIcons name="minus" size={22} color="#fff" />
+            </TouchableOpacity>
+            <TextInput
+              style={[styles.fieldInput, styles.stepperInput]}
+              value={hourlyRate}
+              onChangeText={setHourlyRate}
+              placeholder="0.0"
+              placeholderTextColor="#555"
+              keyboardType="numeric"
+              maxLength={10}
+            />
+            <TouchableOpacity onPress={incrementRate} style={styles.stepperBtn}>
+              <MaterialCommunityIcons name="plus" size={22} color="#fff" />
+            </TouchableOpacity>
+          </View>
 
           <Text style={styles.fieldLabel}>Descripción / Biografía</Text>
           <TextInput
@@ -158,7 +195,7 @@ export default function TrainerProfileScreen({ navigation }) {
           activeOpacity={0.85}
         >
           <LinearGradient
-            colors={['#4CAF50', '#2E7D32']}
+            colors={[theme.brand, '#15803d']}
             style={styles.saveGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
@@ -251,4 +288,46 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  chipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#333',
+    backgroundColor: '#2a2a2a',
+  },
+  chipText: {
+    color: '#aaa',
+    fontSize: 13,
+  },
+  stepperContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 20,
+  },
+  stepperBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#333',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepperInput: {
+    flex: 1,
+    marginBottom: 0,
+    textAlign: 'center',
+  },
+  backBtn: {
+    marginRight: 10,
+    padding: 5,
+  },
 });
+

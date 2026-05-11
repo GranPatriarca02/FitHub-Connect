@@ -14,20 +14,20 @@ const isWeb = Platform.OS === 'web';
 
 // COLORES APP
 export const theme = {
-    bgPrimary: '#030712',
-    bgPrimarySoft: '#111827',
-    bgSecondarySoft: '#1f2937',
-    borderDefault: '#374151',
-    brand: '#3b82f6',
-    brandSofter: 'rgba(59, 130, 246, 0.1)',
+    bgPrimary: '#000000',
+    bgPrimarySoft: '#0a0a0a',
+    bgSecondarySoft: '#121212',
+    borderDefault: '#111111',
+    brand: '#22c55e',
+    brandSofter: 'rgba(34, 197, 94, 0.1)',
     textHeading: '#ffffff',
     textBody: '#9ca3af',
-    textBrand: '#60a5fa',
+    textBrand: '#4ade80',
     danger: '#ef4444',
 };
 
 // RANGOS PARA EL LINEAR GRADIENT DEL FONDO
-const backgroundColors = ['#040c20', '#030713', '#030712'];
+const backgroundColors = ['#000000', '#080808', '#111111'];
 
 export default function AppLayout({ children, title, navigation, extraNotifications = [] }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
