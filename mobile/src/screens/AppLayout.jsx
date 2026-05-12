@@ -67,17 +67,22 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                     color: theme.textBrand
                 };
 
-                setNotificationsList([fixedNotif, ...parsed]);
+                // Filtramos por ID para evitar duplicar el fixedNotif si ya está en parsed
+                const filteredParsed = parsed.filter(n => n.id !== 'fijo-1');
+                setNotificationsList([fixedNotif, ...filteredParsed]);
             } catch (e) {
                 console.error("Error cargando datos en Layout", e);
             }
         };
+
+        // Ejecución inmediata al montar para que al entrar del Login ya aparezcan
         loadData();
 
         // Nuevas notificaciones desde otras pantallas
+        // Mantenemos el interval para que si llega algo mientras navegas, se actualice la lista
         const interval = setInterval(loadData, 3000);
         return () => clearInterval(interval);
-    }, [profileMenuVisible, notificationsVisible]);
+    }, []); // IMPORTANTE: Dejamos esto vacío para que cargue al montar el Layout tras el login
 
     // __ FUNCIÓN CERRAR SESIÓN __
     const handleLogout = async () => {
@@ -225,10 +230,6 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                             padding: 2,
                             borderRadius: 20,
                             backgroundColor: userData.role === 'PREMIUM' ? '#FFD700' : (userData.role === 'TRAINER' ? theme.brand : 'transparent'),
-                            shadowColor: userData.role === 'PREMIUM' ? '#FFD700' : theme.brand,
-                            shadowOffset: { width: 0, height: 0 },
-                            shadowOpacity: (userData.role === 'PREMIUM' || userData.role === 'TRAINER') ? 0.5 : 0,
-                            shadowRadius: 6,
                         }}>
                             <Image
                                 source={{ uri: 'https://flowbite.com/docs/images/people/profile-picture-5.jpg' }}

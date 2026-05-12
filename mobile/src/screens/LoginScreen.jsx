@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
-// API_URL: Usando estrictamente tu .env
+// API_URL: .env
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function LoginScreen({ navigation }) {
@@ -17,6 +17,9 @@ export default function LoginScreen({ navigation }) {
   const [cargando, setCargando] = useState(false);
   const [recuerdame, setRecuerdame] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // REFERENCIAS
+  const emailRef = useRef(null);
   const passwordRef = useRef(null);
 
   // ___  SISTEMA DE POPUPS (NOTIFICACIONES) ___ 
@@ -44,6 +47,11 @@ export default function LoginScreen({ navigation }) {
       }
     };
     cargarDatosGuardados();
+
+    // ACTIVACIÓN AUTOMÁTICA DEL TECLADO AL ENTRAR
+    setTimeout(() => {
+      emailRef.current?.focus();
+    }, 500);
   }, []);
 
   // ___ LÓGICA DE POPUP ___ 
@@ -121,7 +129,7 @@ export default function LoginScreen({ navigation }) {
           )}
 
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-            <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 20, justifyContent: 'center', alignItems: 'center' }} showsVerticalScrollIndicator={false}>
+            <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 20, justifyContent: 'center', alignItems: 'center' }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <View style={{ width: '100%', maxWidth: 420, padding: 28 }}>
 
                 <View style={{ marginBottom: 24 }}>
@@ -155,6 +163,8 @@ export default function LoginScreen({ navigation }) {
                       Email<Text style={{ color: '#ef4444' }}>*</Text>
                     </Text>
                     <TextInput
+                      ref={emailRef}
+                      autoFocus={true}
                       style={{ backgroundColor: 'rgba(3, 7, 18, 0.6)', borderWidth: 1, borderColor: '#374151', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: 'white' }}
                       placeholder="ejemplo@gmail.com"
                       placeholderTextColor="#4b5563"
@@ -162,7 +172,6 @@ export default function LoginScreen({ navigation }) {
                       onChangeText={(text) => setEmail(text)}
                       autoCapitalize="none"
                       keyboardType="email-address"
-                      // --- CAMBIOS AQUÍ ---
                       returnKeyType="next"
                       onSubmitEditing={() => passwordRef.current?.focus()}
                       blurOnSubmit={false}
@@ -176,16 +185,15 @@ export default function LoginScreen({ navigation }) {
                     </Text>
                     <View style={{ position: 'relative', justifyContent: 'center' }}>
                       <TextInput
-                        ref={passwordRef} // <--- ASIGNAR REFERENCIA
+                        ref={passwordRef}
                         style={{ backgroundColor: 'rgba(3, 7, 18, 0.6)', borderWidth: 1, borderColor: '#374151', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: 'white', paddingRight: 50 }}
                         placeholder="Tu contraseña"
                         placeholderTextColor="#4b5563"
                         value={password}
                         onChangeText={setPassword}
                         secureTextEntry={!showPassword}
-                        // --- CAMBIOS AQUÍ ---
-                        returnKeyType="go" // En móviles sale "Ir" o "Acceder"
-                        onSubmitEditing={handleEntrar} // Llama a la función de login directamente
+                        returnKeyType="done"
+                        onSubmitEditing={handleEntrar}
                       />
                       <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: 16 }}>
                         <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="#6b7280" />
@@ -193,6 +201,27 @@ export default function LoginScreen({ navigation }) {
                     </View>
                   </View>
 
+                  {/* RECUÉRDAME */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                      onPress={() => setRecuerdame(!recuerdame)}
+                    >
+                      <View style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: 6,
+                        borderWidth: 2,
+                        borderColor: recuerdame ? '#4A8763' : '#374151',
+                        backgroundColor: recuerdame ? '#4A8763' : 'transparent',
+                        justifyContent: 'center',
+                        alignItems: 'center'
+                      }}>
+                        {recuerdame && <Ionicons name="checkmark" size={14} color="white" />}
+                      </View>
+                      <Text style={{ color: '#9ca3af', fontSize: 14 }}>Recuérdame</Text>
+                    </TouchableOpacity>
+                  </View>
 
                   {/* BOTON INICIAR SESIÓN */}
                   <TouchableOpacity style={{ backgroundColor: '#47765b85', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 10, borderWidth: 1, borderColor: '#4A8763' }} onPress={handleEntrar} disabled={cargando}>
