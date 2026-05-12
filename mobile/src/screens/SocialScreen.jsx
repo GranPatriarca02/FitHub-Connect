@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../api';
+import AppLayout, { theme } from './AppLayout';
 
 export default function SocialScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -268,28 +269,25 @@ export default function SocialScreen({ navigation }) {
     }
   };
 
+  const cameraBtn = (
+    <TouchableOpacity style={{ padding: 5 }}>
+      <MaterialCommunityIcons name="camera-plus-outline" size={26} color={theme.brand} />
+    </TouchableOpacity>
+  );
+
   return (
-    <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
-      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Comunidad</Text>
-        <TouchableOpacity style={styles.camBtn}>
-          <MaterialCommunityIcons name="camera-plus-outline" size={26} color="#4CAF50" />
-        </TouchableOpacity>
-      </View>
+    <AppLayout title="Comunidad" navigation={navigation} showBackButton={true} headerRight={cameraBtn}>
 
       {loading ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color="#4CAF50" />
+          <ActivityIndicator size="large" color={theme.brand} />
         </View>
       ) : (
         <ScrollView 
           contentContainerStyle={styles.container} 
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4CAF50" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.brand} />
           }
         >
           {posts.length === 0 ? (
@@ -300,9 +298,9 @@ export default function SocialScreen({ navigation }) {
             posts.map(post => (
               <View key={post.id} style={styles.postCard}>
                 <View style={styles.postHeader}>
-                  <View style={styles.postAvatar}>
+                  <LinearGradient colors={[theme.brand, '#15803d']} style={styles.postAvatar}>
                     <Text style={styles.postAvatarText}>{post.userName.charAt(0).toUpperCase()}</Text>
-                  </View>
+                  </LinearGradient>
                   <View style={styles.postMeta}>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <Text style={styles.postUser}>{post.userName}</Text>
@@ -359,11 +357,11 @@ export default function SocialScreen({ navigation }) {
       {/* Botón Flotante para crear Post */}
       <TouchableOpacity 
         style={styles.fab} 
-        activeOpacity={0.8}
+        activeOpacity={0.9}
         onPress={handleOpenCreate}
       >
         <LinearGradient
-          colors={['#4CAF50', '#2E7D32']}
+          colors={[theme.brand, '#15803d']}
           style={styles.fabGradient}
         >
           <MaterialCommunityIcons name="pencil" size={28} color="#fff" />
@@ -410,7 +408,7 @@ export default function SocialScreen({ navigation }) {
                   style={styles.submitBtnContainer}
                 >
                   <LinearGradient
-                    colors={['#4CAF50', '#2E7D32']}
+                    colors={[theme.brand, '#15803d']}
                     style={[styles.submitBtnCentered, (!postContent.trim() || isSubmitting || postContent.length > 280) && { opacity: 0.5 }]}
                   >
                     {isSubmitting ? (
@@ -446,7 +444,7 @@ export default function SocialScreen({ navigation }) {
             </View>
 
             {commentsLoading ? (
-              <ActivityIndicator size="small" color="#4CAF50" style={{ margin: 20 }} />
+              <ActivityIndicator size="small" color={theme.brand} style={{ margin: 20 }} />
             ) : (
               <FlatList
                 data={comments}
@@ -483,7 +481,7 @@ export default function SocialScreen({ navigation }) {
                 disabled={!newComment.trim()}
                 onPress={handleSendComment}
               >
-                <MaterialCommunityIcons name="send-circle" size={36} color="#4CAF50" />
+                <MaterialCommunityIcons name="send-circle" size={36} color={theme.brand} />
               </TouchableOpacity>
             </View>
 
@@ -579,132 +577,143 @@ export default function SocialScreen({ navigation }) {
         </View>
       </Modal>
 
-    </LinearGradient>
+    </AppLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingBottom: 15,
+    paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
+    borderBottomColor: theme.borderDefault,
+    backgroundColor: theme.bgPrimarySoft,
   },
   backBtn: { padding: 5 },
   camBtn: { padding: 5 },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
   container: { padding: 20, paddingBottom: 100 },
   
   postCard: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    backgroundColor: theme.bgSecondarySoft,
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 18,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: theme.borderDefault,
   },
   postHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   postAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#333',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  postAvatarText: { color: '#fff', fontWeight: 'bold' },
+  postAvatarText: { color: '#fff', fontWeight: 'bold', fontSize: 18 },
   postMeta: { flex: 1 },
-  postUser: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
-  postTime: { color: '#666', fontSize: 12, marginTop: 2 },
+  postUser: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  postTime: { color: theme.textBody, fontSize: 12, marginTop: 2 },
   postContent: {
-    color: '#ddd',
+    color: '#eee',
     fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 16,
+    lineHeight: 24,
+    marginBottom: 18,
   },
   postFooter: {
     flexDirection: 'row',
     borderTopWidth: 1,
-    borderTopColor: '#2a2a2a',
-    paddingTop: 12,
-    gap: 20,
+    borderTopColor: theme.borderDefault,
+    paddingTop: 15,
+    gap: 25,
   },
   actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
-  actionText: { color: '#888', fontSize: 14 },
+  actionText: { color: theme.textBody, fontSize: 14, fontWeight: '600' },
 
   fab: {
     position: 'absolute',
     bottom: 30,
-    right: 20,
-    elevation: 8,
+    right: 25,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 10,
+      },
+      web: {
+        boxShadow: '0 8px 16px rgba(0,0,0,0.4)',
+      }
+    })
   },
   fabGradient: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
   },
   
   emptyState: {
-    padding: 40,
+    padding: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1e1e1e',
-    borderRadius: 16,
-    marginBottom: 20,
+    backgroundColor: theme.bgSecondarySoft,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#2a2a2a'
+    borderColor: theme.borderDefault,
   },
   emptyStateText: {
-    color: '#888',
-    fontSize: 14,
+    color: theme.textBody,
+    fontSize: 15,
     textAlign: 'center',
-    lineHeight: 22
+    lineHeight: 24
   },
 
   // Action Sheet Styles
   actionSheet: {
-    backgroundColor: '#1a1a1a',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
+    backgroundColor: theme.bgSecondarySoft,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 25,
     width: '100%',
     position: 'absolute',
     bottom: 0,
     borderTopWidth: 1,
-    borderTopColor: '#333',
+    borderTopColor: theme.borderDefault,
   },
   actionSheetHeader: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 25,
   },
   actionSheetIndicator: {
     width: 40,
     height: 4,
-    backgroundColor: '#333',
+    backgroundColor: theme.borderDefault,
     borderRadius: 2,
-    marginBottom: 12,
+    marginBottom: 15,
   },
   actionSheetTitle: {
-    color: '#888',
+    color: theme.textBody,
     fontSize: 13,
-    fontWeight: 'bold',
+    fontWeight: '800',
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 1.5,
   },
   actionItem: {
     flexDirection: 'row',
@@ -739,27 +748,27 @@ const styles = StyleSheet.create({
 
   // Confirm Box Styles
   confirmBox: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 24,
-    padding: 24,
-    width: '85%',
-    maxWidth: 340,
+    backgroundColor: theme.bgSecondarySoft,
+    borderRadius: 28,
+    padding: 28,
+    width: '90%',
+    maxWidth: 360,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: theme.borderDefault,
   },
   confirmTitle: {
     color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 10,
   },
   confirmDesc: {
-    color: '#888',
+    color: theme.textBody,
     fontSize: 14,
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
+    lineHeight: 22,
+    marginBottom: 28,
   },
   confirmFooter: {
     flexDirection: 'row',
@@ -768,27 +777,27 @@ const styles = StyleSheet.create({
   },
   confirmBtnCancel: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 14,
     alignItems: 'center',
-    backgroundColor: '#2a2a2a',
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   confirmBtnCancelText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
   },
   confirmBtnDelete: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 14,
     alignItems: 'center',
-    backgroundColor: '#FF5252',
+    backgroundColor: theme.danger,
   },
   confirmBtnDeleteText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '800',
   },
 
   // Modals generic
@@ -804,10 +813,11 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: theme.borderDefault,
   },
   modalGradient: {
-    padding: 20,
+    backgroundColor: theme.bgSecondarySoft,
+    padding: 22,
   },
   modalHeaderCentered: {
     flexDirection: 'row',
@@ -871,26 +881,26 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   commentsContent: {
-    backgroundColor: '#1a1a1a',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: theme.bgPrimary,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
     minHeight: '60%',
-    maxHeight: '80%',
+    maxHeight: '85%',
     borderTopWidth: 1,
-    borderTopColor: '#333',
+    borderTopColor: theme.borderDefault,
   },
   commentsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: 22,
     borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
+    borderBottomColor: theme.borderDefault,
   },
   commentsTitle: {
     color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '800',
   },
   emptyComments: {
     color: '#888',
@@ -902,13 +912,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   commentAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#333',
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: theme.bgSecondarySoft,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: theme.borderDefault,
   },
   commentAvatarText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
   commentBody: {
@@ -924,19 +936,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 15,
     borderTopWidth: 1,
-    borderTopColor: '#2a2a2a',
+    borderTopColor: theme.borderDefault,
     alignItems: 'center',
-    backgroundColor: '#121212',
+    backgroundColor: theme.bgSecondarySoft,
   },
   commentInput: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: theme.bgPrimary,
     color: '#fff',
-    borderRadius: 20,
-    paddingHorizontal: 16,
+    borderRadius: 25,
+    paddingHorizontal: 18,
     paddingVertical: 10,
     marginRight: 10,
     maxHeight: 100,
+    borderWidth: 1,
+    borderColor: theme.borderDefault,
   },
   commentSendBtn: {
     justifyContent: 'center',

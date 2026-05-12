@@ -245,9 +245,11 @@ const loadUserData = async () => {
 
 #### 6.3.1 Ideas de Diseño
 
-- **Identidad Visual (Adaptación de Plantilla Premium)**: Para garantizar un acabado visual de alta calidad, se ha utilizado una **plantilla de diseño profesional** como base, la cual ha sido **completamente adaptada y personalizada** para encajar con la identidad de FitHub Connect. Se ha realizado una transición integral desde los colores originales hacia una estética de "Gama Alta" basada en el contraste de **Negro Puro (#000000)** y **Verde Neón (#22c55e)**.
-- **Personalización de Colores**: Hemos sustituido todos los elementos visuales genéricos por una paleta propia donde el verde destaca las acciones clave y los fondos negros neutros eliminan distracciones, mejorando el enfoque en el entrenamiento.
-- **Facilidad**: Los botones presentan dimensiones optimizadas para facilitar la interacción durante la actividad física. Hemos implementado transiciones fluidas y micro-animaciones en los componentes para mejorar la experiencia de usuario.
+- **Identidad Visual (Sistema de Diseño Premium Dark)**: Se ha implementado una estética de "Gama Alta" basada en el contraste de **Negro Puro (#000000)** y **Verde Neón (#22c55e)**, utilizando una paleta coherente para reducir la fatiga visual.
+- **Estandarización de Navegación (AppLayout)**: Un componente centralizado gestiona la navegación y el área segura (safe areas) de forma uniforme, evitando interferencias con el hardware del móvil (notch).
+- **Diferenciación de Estatus**: Los usuarios Premium y Entrenadores cuentan con anillos distintivos (dorado y verde) y distintivos dinámicos en sus perfiles.
+- **Diseño Mobile-First Responsivo**: Cada pantalla se adapta a diferentes tamaños mediante rejillas flexibles y componentes optimizados.
+- **Micro-interacciones**: Se han refinado sombras y efectos de hover para una experiencia profesional en PC y móvil.
 
 #### 6.3.2 Descripción Detallada de Pantallas
 
@@ -270,10 +272,12 @@ const loadUserData = async () => {
    - Detalle de rutina: Lista de ejercicios con su orden, series y repeticiones.
    - Reproductor de vídeo integrado para consultar la técnica de cada ejercicio.
 
-5. **Panel del Entrenador**:
-   - Vista exclusiva para el rol TRAINER.
-   - Permite gestionar su biografía, precio y horarios de trabajo.
-   - Herramienta de edición de rutinas para asignar entrenamientos a sus alumnos.
+5. **Gestor de Disponibilidad (Trainer-only)**:
+   - Pantalla exclusiva para el monitor donde puede definir sus franjas de trabajo de forma rápida.
+   - Incluye un **Resumen Semanal Minimalista** basado en indicadores de puntos que permite al profesional ver su carga semanal de un vistazo sin saturar la interfaz.
+
+6. **Muro Social y Comunidad**:
+   - Feed dinámico para compartir progresos. Se ha optimizado el diseño de los botones de interacción y las sombras para evitar fallos visuales en navegadores de PC.
 
 #### 6.3.3 Casos de Uso Formales
 
