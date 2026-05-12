@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
-    View, Text, TouchableOpacity, Platform, Modal, SafeAreaView,
+    View, Text, TouchableOpacity, Platform, Modal,
     Image, StatusBar, ScrollView, TouchableWithoutFeedback, ImageBackground
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 
 // IMPORTACIÓN DEL LOGO LOCAL
 import LogoApp from '../../assets/FITHUB.png';
