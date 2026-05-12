@@ -17,6 +17,7 @@ export default function LoginScreen({ navigation }) {
   const [cargando, setCargando] = useState(false);
   const [recuerdame, setRecuerdame] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const passwordRef = useRef(null);
 
   // ___  SISTEMA DE POPUPS (NOTIFICACIONES) ___ 
   const [notificacion, setNotificacion] = useState({ visible: false, mensaje: '', tipo: 'success' });
@@ -146,39 +147,61 @@ export default function LoginScreen({ navigation }) {
                   <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(55, 65, 81, 0.5)' }} />
                 </View>
 
+                {/* INPUT EMAIL */}
                 <View style={{ gap: 16 }}>
+                  {/* INPUT EMAIL */}
                   <View style={{ gap: 6 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '500', color: '#d1d5db' }}>Email<Text style={{ color: '#ef4444' }}>*</Text></Text>
-                    <TextInput style={{ backgroundColor: 'rgba(3, 7, 18, 0.6)', borderWidth: 1, borderColor: '#374151', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: 'white' }}
-                      placeholder="ejemplo@gmail.com" placeholderTextColor="#4b5563" value={email} onChangeText={(text) => setEmail(text)} autoCapitalize="none" keyboardType="email-address" />
+                    <Text style={{ fontSize: 13, fontWeight: '500', color: '#d1d5db' }}>
+                      Email<Text style={{ color: '#ef4444' }}>*</Text>
+                    </Text>
+                    <TextInput
+                      style={{ backgroundColor: 'rgba(3, 7, 18, 0.6)', borderWidth: 1, borderColor: '#374151', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: 'white' }}
+                      placeholder="ejemplo@gmail.com"
+                      placeholderTextColor="#4b5563"
+                      value={email}
+                      onChangeText={(text) => setEmail(text)}
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                      // --- CAMBIOS AQUÍ ---
+                      returnKeyType="next"
+                      onSubmitEditing={() => passwordRef.current?.focus()}
+                      blurOnSubmit={false}
+                    />
                   </View>
 
+                  {/* INPUT CONTRASEÑA */}
                   <View style={{ gap: 6 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '500', color: '#d1d5db' }}>Contraseña<Text style={{ color: '#ef4444' }}>*</Text></Text>
+                    <Text style={{ fontSize: 13, fontWeight: '500', color: '#d1d5db' }}>
+                      Contraseña<Text style={{ color: '#ef4444' }}>*</Text>
+                    </Text>
                     <View style={{ position: 'relative', justifyContent: 'center' }}>
-                      <TextInput style={{ backgroundColor: 'rgba(3, 7, 18, 0.6)', borderWidth: 1, borderColor: '#374151', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: 'white', paddingRight: 50 }} placeholder="Tu contraseña" placeholderTextColor="#4b5563" value={password} onChangeText={setPassword} secureTextEntry={!showPassword} />
+                      <TextInput
+                        ref={passwordRef} // <--- ASIGNAR REFERENCIA
+                        style={{ backgroundColor: 'rgba(3, 7, 18, 0.6)', borderWidth: 1, borderColor: '#374151', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: 'white', paddingRight: 50 }}
+                        placeholder="Tu contraseña"
+                        placeholderTextColor="#4b5563"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showPassword}
+                        // --- CAMBIOS AQUÍ ---
+                        returnKeyType="go" // En móviles sale "Ir" o "Acceder"
+                        onSubmitEditing={handleEntrar} // Llama a la función de login directamente
+                      />
                       <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: 16 }}>
                         <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="#6b7280" />
                       </TouchableOpacity>
                     </View>
                   </View>
 
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <TouchableOpacity onPress={() => setRecuerdame(!recuerdame)} style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <View style={{ width: 18, height: 18, borderRadius: 4, borderWidth: 1, borderColor: '#374151', marginRight: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: recuerdame ? '#4A8763' : 'transparent' }}>
-                        {recuerdame && <Ionicons name="checkmark" size={14} color="black" />}
-                      </View>
-                      <Text style={{ color: '#9ca3af', fontSize: 13 }}>Mantener inicio de sesión</Text>
-                    </TouchableOpacity>
-                  </View>
 
+                  {/* BOTON INICIAR SESIÓN */}
                   <TouchableOpacity style={{ backgroundColor: '#47765b85', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 10, borderWidth: 1, borderColor: '#4A8763' }} onPress={handleEntrar} disabled={cargando}>
                     {cargando ? <ActivityIndicator color="black" /> : <Text style={{ color: '#f3f4f6', fontWeight: '500', fontSize: 16 }}>Iniciar sesión</Text>}
                   </TouchableOpacity>
 
+                  {/* REGISTRO */}
                   <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 12 }}>
                     <Text style={{ color: '#9ca3af', fontSize: 14 }}>¿Aún no tienes una cuenta? </Text>
-                    {/* ARREGLO: Navega a 'Register' (Verifica que en tu App.js el name sea 'Register') */}
                     <TouchableOpacity onPress={() => navigation.navigate('Register')}>
                       <Text style={{ color: '#4A8763', fontWeight: '800', fontSize: 14 }}>Cuenta nueva</Text>
                     </TouchableOpacity>
