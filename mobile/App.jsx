@@ -20,6 +20,7 @@ import HomeScreen_new from './src/screens/HomeScreen_new';
 // import HomeScreen from './src/screens/HomeScreen';
 import MonitorListScreen from './src/screens/MonitorListScreen';
 import MonitorDetailScreen from './src/screens/MonitorDetailScreen';
+import { theme } from './src/screens/AppLayout';
 
 import AccountScreen from './src/screens/AccountScreen.jsx';
 import SubscriptionBenefitsScreen from './src/screens/SubscriptionBenefitsScreen.jsx';
@@ -99,10 +100,11 @@ export default function App() {
         // Si hay token, empezamos en Home, en caso contrario en el Login
         initialRouteName={userToken ? "Home" : "Login"}
         screenOptions={{
-          headerStyle: { backgroundColor: '#1e1e1e' },
+          headerStyle: { backgroundColor: theme.bgPrimarySoft },
           headerTintColor: '#fff',
-          headerTitleStyle: { fontWeight: '600' },
-          contentStyle: { backgroundColor: '#121212' },
+          headerTitleStyle: { fontWeight: '700', fontSize: 18 },
+          contentStyle: { backgroundColor: theme.bgPrimary },
+          headerShadowVisible: false,
         }}
       >
         <Stack.Screen
@@ -123,23 +125,22 @@ export default function App() {
         <Stack.Screen
           name="MonitorList"
           component={MonitorListScreen}
-          options={{ title: 'Monitores' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="MonitorDetail"
           component={MonitorDetailScreen}
-          options={{ title: 'Detalle del Monitor' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="Account"
           component={AccountScreen}
-          options={{ title: 'Mi Cuenta' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="SubscriptionBenefits"
           component={SubscriptionBenefitsScreen}
           options={{
-            title: 'Hazte Premium',
             headerShown: false,
             presentation: 'modal'
           }}
@@ -147,38 +148,39 @@ export default function App() {
         <Stack.Screen
           name="TrainerAvailability"
           component={TrainerAvailabilityScreen}
-          options={{ title: 'Mi Disponibilidad' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="TrainerProfile"
           component={TrainerProfileScreen}
-          options={{ title: 'Perfil Profesional' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="Videos"
           component={VideosScreen}
-          options={{ title: 'Videos' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="Routines"
           component={RoutinesScreen}
-          options={{ title: 'Rutinas' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="RoutineDetail"
           component={RoutineDetailScreen}
-          options={{ title: 'Detalle de rutina' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="Exercises"
           component={ExercisesScreen}
-          options={{ title: 'Ejercicios' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="Social"
           component={SocialScreen}
           options={{ headerShown: false }}
         />
+
       </Stack.Navigator>
     </NavigationContainer>
   );

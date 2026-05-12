@@ -215,43 +215,42 @@ export default function HomeScreen({ navigation }) {
       title="Dashboard"
       navigation={navigation}
       extraNotifications={notificationsList}
+      useHeroPattern={true}
     >
-      <LinearGradient
-        colors={['#000000', 'rgba(34, 197, 94, 0.1)', '#000000']}
-        style={{ flex: 1 }}
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+        showsVerticalScrollIndicator={false}
       >
-        <ImageBackground
-          source={{ uri: 'https://flowbite.s3.amazonaws.com/docs/jumbotron/hero-pattern.svg' }}
-          style={{ flex: 1 }}
-          imageStyle={{ opacity: 0.1, tintColor: theme.brand }}
-          resizeMode="repeat"
-        >
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={{ paddingHorizontal: 20, alignItems: 'center', paddingVertical: 60 }}>
-              <Text style={{ color: 'white', fontSize: 38, fontWeight: '800', textAlign: 'center', letterSpacing: -1, marginBottom: 15 }}>
-                Bienvenido de nuevo, {userName || 'Atleta'}
-              </Text>
-              <Text style={{ color: '#d1d5db', fontSize: 16, textAlign: 'center', marginBottom: 30, paddingHorizontal: 15, lineHeight: 24 }}>
-                Transforma tu cuerpo y alcanza tu mejor versión. Entrenamientos personalizados, nutrición y comunidad en un solo lugar. ¡Empieza hoy mismo!
-              </Text>
+        <View style={{ paddingHorizontal: 20, alignItems: 'center', paddingVertical: 60 }}>
+          <Text style={{ color: 'white', fontSize: 38, fontWeight: '800', textAlign: 'center', letterSpacing: -1, marginBottom: 15 }}>
+            Bienvenido de nuevo, {userName || 'Atleta'}
+          </Text>
+          <Text style={{ color: '#d1d5db', fontSize: 16, textAlign: 'center', marginBottom: 30, paddingHorizontal: 15, lineHeight: 24 }}>
+            Transforma tu cuerpo y alcanza tu mejor versión. Entrenamientos personalizados, nutrición y comunidad en un solo lugar. ¡Empieza hoy mismo!
+          </Text>
 
-              <View style={{ flexDirection: 'column', width: '100%', maxWidth: 300, gap: 12 }}>
-                <TouchableOpacity style={{ backgroundColor: theme.brand, paddingVertical: 14, borderRadius: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ color: 'white', fontWeight: '600', fontSize: 16 }}>Empieza ahora</Text>
-                  <Ionicons name="arrow-forward" size={18} color="white" style={{ marginLeft: 8 }} />
-                </TouchableOpacity>
+          <View style={{ flexDirection: 'column', width: '100%', maxWidth: 300, gap: 12 }}>
+            <TouchableOpacity
+              style={{ backgroundColor: theme.brand, paddingVertical: 14, borderRadius: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
+              onPress={() => navigation.navigate(isTrainer ? 'TrainerAvailability' : 'MonitorList')}
+            >
+              <Text style={{ color: 'white', fontWeight: '600', fontSize: 16 }}>
+                {isTrainer ? 'Mi Disponibilidad' : 'Reservar Monitor'}
+              </Text>
+              <Ionicons name={isTrainer ? 'calendar' : 'people'} size={18} color="white" style={{ marginLeft: 8 }} />
+            </TouchableOpacity>
 
-                <TouchableOpacity style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', paddingVertical: 14, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }}>
-                  <Text style={{ color: 'white', fontWeight: '600', fontSize: 16 }}>Leer más</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </ScrollView>
-        </ImageBackground>
-      </LinearGradient>
+            {!isPremium && !isTrainer && (
+              <TouchableOpacity
+                style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', paddingVertical: 14, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }}
+                onPress={() => navigation.navigate('SubscriptionBenefits')}
+              >
+                <Text style={{ color: 'white', fontWeight: '600', fontSize: 16 }}>Hazte Premium</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </ScrollView>
     </AppLayout >
   );
 }
