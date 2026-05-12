@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, Alert, TextInput, Modal
@@ -6,9 +6,9 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { API_URL } from '../api';
+import AppLayout, { theme } from './AppLayout';
 
 const DIAS_SEMANA = [
   { en: 'MONDAY',    es: 'Lunes' },
@@ -21,12 +21,9 @@ const DIAS_SEMANA = [
 ];
 
 export default function TrainerAvailabilityScreen({ navigation }) {
-  const insets = useSafeAreaInsets();
-
   const [monitorId, setMonitorId] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
-
   const [disponibilidad, setDisponibilidad] = useState([]);
   const [diaSeleccionado, setDiaSeleccionado] = useState(DIAS_SEMANA[0]);
 
@@ -35,7 +32,6 @@ export default function TrainerAvailabilityScreen({ navigation }) {
   const [horaInicio, setHoraInicio] = useState('09:00');
   const [horaFin, setHoraFin] = useState('10:00');
 
-  // Cargar monitorId del usuario logueado
   useFocusEffect(
     useCallback(() => {
       const init = async () => {
@@ -67,16 +63,14 @@ export default function TrainerAvailabilityScreen({ navigation }) {
         setDisponibilidad(data);
       }
     } catch (e) {
-      // Error silencioso, se muestra lista vacía
+      console.error("Error cargando disponibilidad", e);
     }
   };
 
-  // Franjas del día seleccionado (solo las activas)
   const franjasDelDia = disponibilidad.filter(
     (f) => f.dayOfWeek === diaSeleccionado.en && f.isAvailable
   );
 
-  // Validar formato HH:mm
   const validarHora = (hora) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(hora);
 
   const handleAñadirFranja = async () => {
@@ -145,33 +139,28 @@ export default function TrainerAvailabilityScreen({ navigation }) {
   if (cargando) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
-        <Text style={styles.loadingText}>Cargando tu perfil...</Text>
+        <ActivityIndicator size="large" color={theme.brand} />
       </View>
     );
   }
 
   return (
-    <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
-      <ScrollView
-        contentContainerStyle={[styles.container, { paddingTop: insets.top + 16 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Cabecera */}
-        <View style={styles.header}>
-          <View style={styles.headerIconWrap}>
-            <MaterialCommunityIcons name="clock-edit-outline" size={28} color="#4CAF50" />
+    <AppLayout title="Mi Disponibilidad" navigation={navigation} showBackButton={true}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+
+        {/* Info Header */}
+        <View style={styles.infoCard}>
+          <View style={styles.infoIcon}>
+            <MaterialCommunityIcons name="calendar-clock" size={26} color={theme.textBrand} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Mi Disponibilidad</Text>
-            <Text style={styles.headerSub}>
-              Publica los horarios en los que estás disponible
-            </Text>
+            <Text style={styles.infoTitle}>Agenda Semanal</Text>
+            <Text style={styles.infoDesc}>Organiza tus horas de trabajo para que los clientes puedan reservar.</Text>
           </View>
         </View>
 
         {/* Selector de Día */}
-        <Text style={styles.sectionLabel}>Día de la semana</Text>
+        <Text style={styles.sectionLabel}>Selecciona el Día</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.diasRow}>
           {DIAS_SEMANA.map((dia) => {
             const activo = diaSeleccionado.en === dia.en;
@@ -196,11 +185,9 @@ export default function TrainerAvailabilityScreen({ navigation }) {
           })}
         </ScrollView>
 
-        {/* Lista de franjas del día */}
+        {/* Lista de franjas */}
         <View style={styles.franjasHeader}>
-          <Text style={styles.sectionLabel}>
-            Horarios — {diaSeleccionado.es}
-          </Text>
+          <Text style={styles.sectionLabel}>Horarios ({diaSeleccionado.es})</Text>
           <TouchableOpacity
             style={styles.addBtn}
             onPress={() => {
@@ -208,7 +195,6 @@ export default function TrainerAvailabilityScreen({ navigation }) {
               setHoraFin('10:00');
               setModalVisible(true);
             }}
-            activeOpacity={0.8}
           >
             <Ionicons name="add" size={20} color="#fff" />
             <Text style={styles.addBtnText}>Añadir</Text>
@@ -217,347 +203,216 @@ export default function TrainerAvailabilityScreen({ navigation }) {
 
         {franjasDelDia.length === 0 ? (
           <View style={styles.emptyState}>
-            <MaterialCommunityIcons name="clock-remove-outline" size={48} color="#333" />
-            <Text style={styles.emptyTitle}>Sin horarios</Text>
-            <Text style={styles.emptyText}>
-              Pulsa "Añadir" para publicar tu disponibilidad este día
-            </Text>
+            <MaterialCommunityIcons name="clock-remove-outline" size={48} color={theme.borderDefault} />
+            <Text style={styles.emptyTitle}>Sin horarios definidos</Text>
+            <Text style={styles.emptyText}>Pulsa en añadir para indicar que estás disponible este día.</Text>
           </View>
         ) : (
           franjasDelDia.map((franja) => (
             <View key={franja.id} style={styles.franjaCard}>
               <View style={styles.franjaLeft}>
-                <MaterialCommunityIcons name="clock-outline" size={22} color="#4CAF50" />
-                <View style={{ marginLeft: 12 }}>
+                <View style={styles.clockIconWrap}>
+                  <MaterialCommunityIcons name="clock-outline" size={20} color={theme.brand} />
+                </View>
+                <View>
                   <Text style={styles.franjaTime}>
                     {franja.startTime.substring(0, 5)} – {franja.endTime.substring(0, 5)}
                   </Text>
-                  <Text style={styles.franjaDia}>{diaSeleccionado.es}</Text>
+                  <Text style={styles.franjaLabel}>Sesión de entrenamiento</Text>
                 </View>
               </View>
               <TouchableOpacity
                 style={styles.deleteBtn}
                 onPress={() => handleEliminarFranja(franja)}
-                activeOpacity={0.7}
               >
-                <Ionicons name="trash-outline" size={18} color="#FF5252" />
+                <Ionicons name="trash-outline" size={18} color={theme.danger} />
               </TouchableOpacity>
             </View>
           ))
         )}
 
-        {/* Resumen global */}
+        {/* Resumen Semanal - Minimalista */}
         <View style={styles.resumenCard}>
-          <Text style={styles.resumenTitle}>Resumen semanal</Text>
-          {DIAS_SEMANA.map((dia) => {
-            const franjas = disponibilidad.filter(
-              (f) => f.dayOfWeek === dia.en && f.isAvailable
-            );
-            return (
-              <View key={dia.en} style={styles.resumenRow}>
-                <Text style={styles.resumenDia}>{dia.es}</Text>
-                <Text style={styles.resumenCount}>
-                  {franjas.length > 0
-                    ? `${franjas.length} franja${franjas.length > 1 ? 's' : ''}`
-                    : 'Sin horario'}
-                </Text>
-              </View>
-            );
-          })}
+          <Text style={styles.resumenTitle}>Horas Totales Semanales</Text>
+          <View style={styles.resumenGrid}>
+            {DIAS_SEMANA.map((dia) => {
+              const count = disponibilidad.filter(f => f.dayOfWeek === dia.en && f.isAvailable).length;
+              return (
+                <View key={dia.en} style={styles.resumenItem}>
+                  <Text style={[styles.resumenDayShort, count > 0 && {color: theme.brand}]}>{dia.es.substring(0, 1)}</Text>
+                  <View style={[styles.resumenDot, count > 0 ? {backgroundColor: theme.brand} : {backgroundColor: 'rgba(255,255,255,0.1)'}]} />
+                </View>
+              );
+            })}
+          </View>
         </View>
 
       </ScrollView>
 
-      {/* Modal Añadir Franja */}
-      <Modal
-        transparent
-        visible={modalVisible}
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
-      >
+      {/* Modal Añadir */}
+      <Modal transparent visible={modalVisible} animationType="fade">
         <View style={styles.modalOverlay}>
-          <LinearGradient colors={['#1e1e1e', '#121212']} style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Nueva franja horaria</Text>
-            <Text style={styles.modalDia}>{diaSeleccionado.es}</Text>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Añadir Horario</Text>
+              <Text style={styles.modalSub}>{diaSeleccionado.es}</Text>
+            </View>
 
-            <View style={styles.timeRow}>
-              <View style={styles.timeInputWrapper}>
-                <Text style={styles.timeLabel}>Hora de inicio</Text>
+            <View style={styles.timeInputsRow}>
+              <View style={styles.timeCol}>
+                <Text style={styles.timeLabel}>Inicio</Text>
                 <TextInput
-                  style={styles.timeInput}
+                  style={styles.timeField}
                   value={horaInicio}
                   onChangeText={setHoraInicio}
                   placeholder="09:00"
-                  placeholderTextColor="#555"
+                  placeholderTextColor="#444"
                   keyboardType="numbers-and-punctuation"
-                  maxLength={5}
                 />
               </View>
-              <MaterialCommunityIcons
-                name="arrow-right"
-                size={24}
-                color="#555"
-                style={{ marginTop: 28 }}
-              />
-              <View style={styles.timeInputWrapper}>
-                <Text style={styles.timeLabel}>Hora de fin</Text>
+              <View style={{paddingTop: 35}}>
+                <Ionicons name="arrow-forward" size={20} color="#444" />
+              </View>
+              <View style={styles.timeCol}>
+                <Text style={styles.timeLabel}>Fin</Text>
                 <TextInput
-                  style={styles.timeInput}
+                  style={styles.timeField}
                   value={horaFin}
                   onChangeText={setHoraFin}
                   placeholder="10:00"
-                  placeholderTextColor="#555"
+                  placeholderTextColor="#444"
                   keyboardType="numbers-and-punctuation"
-                  maxLength={5}
                 />
               </View>
             </View>
 
-            <Text style={styles.formatNote}>Formato: HH:MM (ej: 09:00, 14:30)</Text>
-
-            <View style={styles.modalBtns}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => setModalVisible(false)}
-                disabled={guardando}
-              >
-                <Text style={styles.cancelBtnText}>Cancelar</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.confirmBtn, guardando && { opacity: 0.6 }]}
-                onPress={handleAñadirFranja}
-                disabled={guardando}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={['#4CAF50', '#2E7D32']}
-                  style={styles.confirmGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                >
-                  {guardando ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <Text style={styles.confirmBtnText}>Guardar franja</Text>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
+            <View style={styles.modalFooter}>
+               <TouchableOpacity style={styles.modalCancel} onPress={() => setModalVisible(false)}>
+                 <Text style={{color: '#888', fontWeight: '600'}}>Cancelar</Text>
+               </TouchableOpacity>
+               <TouchableOpacity style={styles.modalSave} onPress={handleAñadirFranja}>
+                 <LinearGradient colors={[theme.brand, '#15803d']} style={styles.modalSaveGradient}>
+                    {guardando ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{color: '#fff', fontWeight: '700'}}>Guardar</Text>}
+                 </LinearGradient>
+               </TouchableOpacity>
             </View>
-          </LinearGradient>
+          </View>
         </View>
       </Modal>
-    </LinearGradient>
+
+    </AppLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#0a0a0a',
-    gap: 16,
-  },
-  loadingText: { color: '#888', fontSize: 14 },
-
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bgPrimary },
   container: { padding: 20, paddingBottom: 40 },
-
-  header: {
+  infoCard: {
+    backgroundColor: theme.bgSecondarySoft,
+    borderRadius: 20,
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    marginBottom: 28,
-  },
-  headerIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: '#1a2a1a',
-    justifyContent: 'center',
-    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#2a3a2a',
+    borderColor: theme.borderDefault,
+    marginBottom: 24,
   },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 2,
+  infoIcon: {
+    width: 52, height: 52, borderRadius: 16,
+    backgroundColor: theme.brandSofter,
+    justifyContent: 'center', alignItems: 'center',
   },
-  headerSub: { fontSize: 12, color: '#666' },
+  infoTitle: { color: '#fff', fontSize: 18, fontWeight: '800', marginBottom: 4 },
+  infoDesc: { color: theme.textBody, fontSize: 13, lineHeight: 18 },
 
   sectionLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#4CAF50',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 12,
+    fontSize: 11, fontWeight: '800', color: theme.textBrand,
+    textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 16,
   },
 
-  diasRow: { flexDirection: 'row', marginBottom: 24 },
+  diasRow: { flexDirection: 'row', marginBottom: 28 },
   diaBox: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: '#1e1e1e',
-    borderRadius: 14,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-    alignItems: 'center',
-    minWidth: 60,
+    paddingHorizontal: 16, paddingVertical: 12,
+    backgroundColor: theme.bgSecondarySoft,
+    borderRadius: 14, marginRight: 10,
+    borderWidth: 1, borderColor: theme.borderDefault,
+    alignItems: 'center', minWidth: 65,
   },
-  diaBoxActivo: { backgroundColor: '#4CAF50', borderColor: '#4CAF50' },
-  diaNombre: { fontSize: 13, color: '#888', fontWeight: '600' },
+  diaBoxActivo: { backgroundColor: theme.brand, borderColor: theme.brand },
+  diaNombre: { fontSize: 14, color: theme.textBody, fontWeight: '700' },
   diaNombreActivo: { color: '#fff' },
-  dotIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#4CAF50',
-    marginTop: 4,
-  },
+  dotIndicator: { width: 4, height: 4, borderRadius: 2, backgroundColor: theme.brand, marginTop: 6 },
   dotIndicatorActivo: { backgroundColor: '#fff' },
 
   franjasHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 12,
   },
   addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: theme.brand, paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 8,
   },
   addBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 40,
-    gap: 8,
-  },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: '#555' },
-  emptyText: { fontSize: 13, color: '#444', textAlign: 'center', maxWidth: 240 },
+  emptyState: { alignItems: 'center', paddingVertical: 40, gap: 10 },
+  emptyTitle: { fontSize: 16, fontWeight: '800', color: '#fff' },
+  emptyText: { fontSize: 13, color: theme.textBody, textAlign: 'center', maxWidth: 220 },
 
   franjaCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#1e1e1e',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: theme.bgSecondarySoft, borderRadius: 16,
+    padding: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: theme.borderDefault,
   },
-  franjaLeft: { flexDirection: 'row', alignItems: 'center' },
-  franjaTime: { fontSize: 16, fontWeight: '700', color: '#fff' },
-  franjaDia: { fontSize: 12, color: '#666', marginTop: 2 },
+  franjaLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  clockIconWrap: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: theme.brandSofter,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  franjaTime: { fontSize: 17, fontWeight: '800', color: '#fff' },
+  franjaLabel: { fontSize: 12, color: theme.textBody, marginTop: 2 },
   deleteBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#2a1a1a',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#3a2020',
+    width: 38, height: 38, borderRadius: 10,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    justifyContent: 'center', alignItems: 'center',
   },
 
   resumenCard: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 18,
-    padding: 20,
-    marginTop: 28,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
+    backgroundColor: theme.bgSecondarySoft, borderRadius: 20,
+    padding: 20, marginTop: 20,
+    borderWidth: 1, borderColor: theme.borderDefault,
   },
-  resumenTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#4CAF50',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 16,
-  },
-  resumenRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#252525',
-  },
-  resumenDia: { fontSize: 14, color: '#ccc', fontWeight: '500' },
-  resumenCount: { fontSize: 14, color: '#666' },
+  resumenTitle: { fontSize: 13, fontWeight: '800', color: '#fff', marginBottom: 20, textTransform: 'uppercase', letterSpacing: 1 },
+  resumenGrid: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 10 },
+  resumenItem: { alignItems: 'center', gap: 10 },
+  resumenDayShort: { fontSize: 12, color: '#444', fontWeight: '800' },
+  resumenDot: { width: 8, height: 8, borderRadius: 4 },
 
   // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    justifyContent: 'flex-end',
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContent: {
+    width: '100%', maxWidth: 400,
+    backgroundColor: theme.bgSecondarySoft,
+    borderRadius: 24, padding: 24,
+    borderWidth: 1, borderColor: theme.borderDefault,
   },
-  modalCard: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 28,
-    borderWidth: 1,
-    borderColor: '#333',
+  modalHeader: { marginBottom: 24, alignItems: 'center' },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
+  modalSub: { fontSize: 14, color: theme.brand, fontWeight: '700', marginTop: 4 },
+  timeInputsRow: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginBottom: 30 },
+  timeCol: { width: 100 },
+  timeLabel: { color: theme.textBody, fontSize: 12, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
+  timeField: {
+    backgroundColor: theme.bgPrimary, borderRadius: 12,
+    color: '#fff', fontSize: 22, fontWeight: '800',
+    paddingVertical: 12, textAlign: 'center',
+    borderWidth: 1, borderColor: theme.borderDefault,
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  modalDia: {
-    fontSize: 14,
-    color: '#4CAF50',
-    fontWeight: '600',
-    marginBottom: 24,
-  },
-  timeRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 12,
-    marginBottom: 8,
-  },
-  timeInputWrapper: { flex: 1 },
-  timeLabel: { fontSize: 12, color: '#666', marginBottom: 8 },
-  timeInput: {
-    backgroundColor: '#2a2a2a',
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '700',
-    borderRadius: 14,
-    padding: 16,
-    textAlign: 'center',
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  formatNote: {
-    fontSize: 12,
-    color: '#555',
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  modalBtns: { flexDirection: 'row', gap: 12 },
-  cancelBtn: {
-    flex: 1,
-    backgroundColor: '#2a2a2a',
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  cancelBtnText: { color: '#888', fontSize: 15, fontWeight: '600' },
-  confirmBtn: { flex: 2, borderRadius: 14, overflow: 'hidden' },
-  confirmGradient: { paddingVertical: 16, alignItems: 'center' },
-  confirmBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  modalFooter: { flexDirection: 'row', gap: 12 },
+  modalCancel: { flex: 1, paddingVertical: 14, alignItems: 'center', borderRadius: 12, backgroundColor: theme.bgPrimary },
+  modalSave: { flex: 2, borderRadius: 12, overflow: 'hidden' },
+  modalSaveGradient: { paddingVertical: 14, alignItems: 'center' },
 });

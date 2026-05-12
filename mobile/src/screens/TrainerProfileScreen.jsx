@@ -6,10 +6,9 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { API_URL } from '../api';
-import { theme } from './AppLayout';
+import AppLayout, { theme } from './AppLayout';
 
 const SPECIALTIES = [
   'Musculación', 'Crossfit', 'Yoga', 'Pilates', 
@@ -17,8 +16,6 @@ const SPECIALTIES = [
 ];
 
 export default function TrainerProfileScreen({ navigation }) {
-  const insets = useSafeAreaInsets();
-  
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [userId, setUserId] = useState(null);
@@ -44,11 +41,9 @@ export default function TrainerProfileScreen({ navigation }) {
             setSpecialty(data.specialty || '');
             setBio(data.bio || '');
             setHourlyRate(data.hourlyRate ? data.hourlyRate.toString() : '0.0');
-          } else {
-             Alert.alert('Aviso', 'Aún no tienes el perfil completado o ocurrió un error');
           }
         } catch (e) {
-          Alert.alert('Error', 'No se pudo cargar el perfil profesional.');
+          console.error("Error cargando perfil", e);
         } finally {
           setCargando(false);
         }
@@ -115,32 +110,26 @@ export default function TrainerProfileScreen({ navigation }) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.brand} />
-        <Text style={styles.loadingText}>Cargando perfil...</Text>
       </View>
     );
   }
 
   return (
-    <LinearGradient colors={['#000000', '#0a0a0a', '#121212']} style={styles.gradient}>
-      <ScrollView
-        contentContainerStyle={[styles.container, { paddingTop: insets.top + 16 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.headerIconWrap}>
-            <MaterialCommunityIcons name="account-edit" size={28} color={theme.textBrand} />
+    <AppLayout title="Perfil Profesional" navigation={navigation} showBackButton={true}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        
+        <View style={styles.infoCard}>
+          <View style={styles.infoIcon}>
+            <MaterialCommunityIcons name="badge-account-horizontal" size={26} color={theme.textBrand} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Mi Perfil</Text>
-            <Text style={styles.headerSub}>Configura tu información profesional</Text>
+            <Text style={styles.infoTitle}>Información Pública</Text>
+            <Text style={styles.infoDesc}>Configura los detalles que verán los usuarios cuando busquen un entrenador.</Text>
           </View>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.fieldLabel}>Especialidad *</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Especialidad Principal *</Text>
           <View style={styles.chipsContainer}>
             {SPECIALTIES.map((s) => (
               <TouchableOpacity
@@ -151,48 +140,55 @@ export default function TrainerProfileScreen({ navigation }) {
                   specialty === s && { backgroundColor: theme.brand, borderColor: theme.brand }
                 ]}
               >
-                <Text style={[styles.chipText, specialty === s && { color: '#fff', fontWeight: '700' }]}>{s}</Text>
+                <Text style={[styles.chipText, specialty === s && { color: '#fff', fontWeight: '800' }]}>{s}</Text>
               </TouchableOpacity>
             ))}
           </View>
+        </View>
 
-          <Text style={styles.fieldLabel}>Tarifa por Hora (€) *</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Tarifa por Hora (€) *</Text>
           <View style={styles.stepperContainer}>
             <TouchableOpacity onPress={decrementRate} style={styles.stepperBtn}>
-              <MaterialCommunityIcons name="minus" size={22} color="#fff" />
+              <MaterialCommunityIcons name="minus" size={24} color="#fff" />
             </TouchableOpacity>
-            <TextInput
-              style={[styles.fieldInput, styles.stepperInput]}
-              value={hourlyRate}
-              onChangeText={setHourlyRate}
-              placeholder="0.0"
-              placeholderTextColor="#555"
-              keyboardType="numeric"
-              maxLength={10}
-            />
+            <View style={styles.rateDisplay}>
+              <TextInput
+                style={styles.rateInput}
+                value={hourlyRate}
+                onChangeText={setHourlyRate}
+                keyboardType="numeric"
+                maxLength={5}
+              />
+              <Text style={styles.rateUnit}>€/h</Text>
+            </View>
             <TouchableOpacity onPress={incrementRate} style={styles.stepperBtn}>
-              <MaterialCommunityIcons name="plus" size={22} color="#fff" />
+              <MaterialCommunityIcons name="plus" size={24} color="#fff" />
             </TouchableOpacity>
           </View>
+        </View>
 
-          <Text style={styles.fieldLabel}>Descripción / Biografía</Text>
-          <TextInput
-            style={[styles.fieldInput, styles.fieldInputMulti]}
-            value={bio}
-            onChangeText={setBio}
-            placeholder="Cuéntale a tus futuros clientes sobre tu experiencia, método de entrenamiento y logros..."
-            placeholderTextColor="#555"
-            multiline
-            numberOfLines={4}
-            maxLength={1000}
-          />
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Biografía / Presentación</Text>
+          <View style={styles.inputWrap}>
+            <TextInput
+              style={styles.textArea}
+              value={bio}
+              onChangeText={setBio}
+              placeholder="Cuéntale a tus futuros clientes sobre tu experiencia, método de entrenamiento y logros..."
+              placeholderTextColor="#555"
+              multiline
+              numberOfLines={6}
+              maxLength={1000}
+            />
+          </View>
         </View>
 
         <TouchableOpacity
-          style={[styles.saveBtn, guardando && { opacity: 0.6 }]}
+          style={[styles.saveBtn, guardando && { opacity: 0.7 }]}
           onPress={handleGuardar}
           disabled={guardando}
-          activeOpacity={0.85}
+          activeOpacity={0.9}
         >
           <LinearGradient
             colors={[theme.brand, '#15803d']}
@@ -203,131 +199,82 @@ export default function TrainerProfileScreen({ navigation }) {
             {guardando ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text style={styles.saveBtnText}>Guardar Cambios</Text>
+              <>
+                <Text style={styles.saveBtnText}>Guardar Perfil Profesional</Text>
+                <MaterialCommunityIcons name="check-circle-outline" size={20} color="#fff" style={{ marginLeft: 8 }} />
+              </>
             )}
           </LinearGradient>
         </TouchableOpacity>
 
       </ScrollView>
-    </LinearGradient>
+    </AppLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#0a0a0a',
-    gap: 16,
-  },
-  loadingText: { color: '#888', fontSize: 14 },
-  container: { padding: 20, paddingBottom: 50 },
-  header: {
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bgPrimary },
+  container: { padding: 20, paddingBottom: 40 },
+  infoCard: {
+    backgroundColor: theme.bgSecondarySoft,
+    borderRadius: 20,
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    marginBottom: 28,
-  },
-  headerIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: '#1a1a2a',
-    justifyContent: 'center',
-    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#2a2a3a',
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 2,
-  },
-  headerSub: { fontSize: 12, color: '#666' },
-  card: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 18,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: theme.borderDefault,
     marginBottom: 24,
   },
-  fieldLabel: {
-    fontSize: 13,
-    color: '#aaa',
-    marginBottom: 8,
-    fontWeight: '600'
+  infoIcon: {
+    width: 52, height: 52, borderRadius: 16,
+    backgroundColor: theme.brandSofter,
+    justifyContent: 'center', alignItems: 'center',
   },
-  fieldInput: {
-    backgroundColor: '#2a2a2a',
-    color: '#fff',
-    fontSize: 15,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#333',
-    marginBottom: 20,
-  },
-  fieldInputMulti: {
-    height: 120,
-    textAlignVertical: 'top',
-  },
-  saveBtn: {
-    borderRadius: 14,
-    overflow: 'hidden',
-  },
-  saveGradient: {
-    paddingVertical: 18,
-    alignItems: 'center',
-  },
-  saveBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  chipsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 20,
-  },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#333',
-    backgroundColor: '#2a2a2a',
-  },
-  chipText: {
-    color: '#aaa',
-    fontSize: 13,
-  },
-  stepperContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 20,
-  },
-  stepperBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#333',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  stepperInput: {
-    flex: 1,
-    marginBottom: 0,
-    textAlign: 'center',
-  },
-  backBtn: {
-    marginRight: 10,
-    padding: 5,
-  },
-});
+  infoTitle: { color: '#fff', fontSize: 18, fontWeight: '800', marginBottom: 4 },
+  infoDesc: { color: theme.textBody, fontSize: 13, lineHeight: 18 },
 
+  section: { marginBottom: 28 },
+  sectionLabel: {
+    fontSize: 11, fontWeight: '800', color: theme.textBrand,
+    textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 16,
+  },
+
+  chipsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    paddingHorizontal: 16, paddingVertical: 10,
+    backgroundColor: theme.bgSecondarySoft,
+    borderRadius: 14, borderWidth: 1, borderColor: theme.borderDefault,
+  },
+  chipText: { color: theme.textBody, fontSize: 13, fontWeight: '600' },
+
+  stepperContainer: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  stepperBtn: {
+    width: 52, height: 52, borderRadius: 16,
+    backgroundColor: theme.bgSecondarySoft,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: theme.borderDefault,
+  },
+  rateDisplay: {
+    flex: 1, height: 52, backgroundColor: theme.bgPrimary,
+    borderRadius: 16, borderWidth: 1, borderColor: theme.borderDefault,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 15,
+  },
+  rateInput: {
+    color: '#fff', fontSize: 20, fontWeight: '800', textAlign: 'right', minWidth: 40,
+  },
+  rateUnit: { color: theme.textBody, fontSize: 16, fontWeight: '700', marginLeft: 6 },
+
+  inputWrap: {
+    backgroundColor: theme.bgSecondarySoft, borderRadius: 18,
+    borderWidth: 1, borderColor: theme.borderDefault, overflow: 'hidden',
+  },
+  textArea: {
+    color: '#fff', fontSize: 15, padding: 16, textAlignVertical: 'top', minHeight: 120,
+  },
+
+  saveBtn: { borderRadius: 16, overflow: 'hidden', marginTop: 10, elevation: 8, shadowColor: theme.brand, shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  saveGradient: { paddingVertical: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+});

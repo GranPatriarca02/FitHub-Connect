@@ -1,19 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { API_URL } from '../api';
+import AppLayout, { theme } from './AppLayout';
 
 export default function AccountScreen({ navigation }) {
-  const insets = useSafeAreaInsets();
   const [userData, setUserData] = useState({ name: '', email: '', role: 'FREE' });
   const [cargando, setCargando] = useState(true);
-
   const [subscriptions, setSubscriptions] = useState([]);
   const [cargandoSubs, setCargandoSubs] = useState(false);
 
@@ -69,40 +67,44 @@ export default function AccountScreen({ navigation }) {
   if (cargando) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <ActivityIndicator size="large" color={theme.brand} />
       </View>
     );
   }
 
   return (
-    <LinearGradient colors={['#0a0a0a', '#121212']} style={styles.gradient}>
-      <ScrollView contentContainerStyle={[styles.container, { paddingTop: insets.top + 20 }]}>
-        
+    <AppLayout title="Mi Cuenta" navigation={navigation} showBackButton={true}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+
+        {/* Avatar + Nombre */}
         <View style={styles.profileHeader}>
-          <View style={styles.avatarLarge}>
-            <Text style={styles.avatarTextLarge}>{userData.name.charAt(0)}</Text>
-            {isPremium && (
-              <View style={styles.badgeLarge}>
-                <MaterialCommunityIcons name="check-decagram" size={24} color="#4CAF50" />
-              </View>
-            )}
-            {isTrainer && (
-              <View style={[styles.badgeLarge, { backgroundColor: '#1a1a2e' }]}>
-                <MaterialCommunityIcons name="dumbbell" size={20} color="#4FC3F7" />
-              </View>
-            )}
-          </View>
+          <LinearGradient colors={[theme.brand, '#15803d']} style={styles.avatarLarge}>
+            <Text style={styles.avatarTextLarge}>{userData.name.charAt(0).toUpperCase()}</Text>
+          </LinearGradient>
+          {isPremium && (
+            <View style={styles.roleBadge}>
+              <MaterialCommunityIcons name="check-decagram" size={14} color={theme.brand} />
+              <Text style={[styles.roleBadgeText, { color: theme.brand }]}>Premium</Text>
+            </View>
+          )}
+          {isTrainer && (
+            <View style={styles.roleBadge}>
+              <MaterialCommunityIcons name="dumbbell" size={14} color="#4FC3F7" />
+              <Text style={[styles.roleBadgeText, { color: '#4FC3F7' }]}>Entrenador</Text>
+            </View>
+          )}
           <Text style={styles.nameText}>{userData.name}</Text>
           <Text style={styles.roleText}>
             {isPremium ? 'Miembro Premium' : isTrainer ? 'Entrenador / Monitor' : 'Usuario Free'}
           </Text>
         </View>
-        
+
+        {/* Suscripciones activas (solo premium) */}
         {isPremium && (
           <View style={styles.infoSection}>
             <Text style={styles.sectionTitle}>Suscripciones Activas</Text>
             {cargandoSubs ? (
-              <ActivityIndicator color="#4CAF50" />
+              <ActivityIndicator color={theme.brand} />
             ) : subscriptions.length > 0 ? (
               subscriptions.map((sub, idx) => (
                 <View key={idx} style={styles.subscriptionCard}>
@@ -113,11 +115,11 @@ export default function AccountScreen({ navigation }) {
                     <Text style={styles.subName}>{sub.monitorName}</Text>
                     <Text style={styles.subExpiry}>Expira el {new Date(sub.expiresAt).toLocaleDateString()}</Text>
                   </View>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.subAction}
                     onPress={() => navigation.navigate('MonitorDetail', { monitor: { id: parseInt(sub.monitorId), name: sub.monitorName } })}
                   >
-                    <Ionicons name="chevron-forward" size={20} color="#666" />
+                    <Ionicons name="chevron-forward" size={20} color={theme.textBody} />
                   </TouchableOpacity>
                 </View>
               ))
@@ -127,22 +129,26 @@ export default function AccountScreen({ navigation }) {
           </View>
         )}
 
+        {/* Información personal */}
         <View style={styles.infoSection}>
           <Text style={styles.sectionTitle}>Información Personal</Text>
           <View style={styles.infoRow}>
-            <Ionicons name="mail-outline" size={20} color="#666" />
+            <View style={styles.infoIconWrap}>
+              <Ionicons name="mail-outline" size={20} color={theme.brand} />
+            </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Correo Electrónico</Text>
               <Text style={styles.infoValue}>{userData.email}</Text>
             </View>
           </View>
-
-          <View style={styles.infoRow}>
-            <Ionicons name="shield-checkmark-outline" size={20} color="#666" />
+          <View style={[styles.infoRow, { marginBottom: 0 }]}>
+            <View style={styles.infoIconWrap}>
+              <Ionicons name="shield-checkmark-outline" size={20} color={theme.brand} />
+            </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Estado de Cuenta</Text>
               <Text style={[styles.infoValue,
-                isPremium && { color: '#4CAF50' },
+                isPremium && { color: theme.brand },
                 isTrainer && { color: '#4FC3F7' }
               ]}>
                 {isPremium ? 'Verificado / Premium' : isTrainer ? 'Entrenador Verificado' : 'Pendiente de suscripción'}
@@ -151,110 +157,160 @@ export default function AccountScreen({ navigation }) {
           </View>
         </View>
 
+        {/* Acciones de entrenador */}
         {isTrainer && (
-          <TouchableOpacity 
-            style={[styles.backBtn, { backgroundColor: '#4CAF50', marginBottom: 15 }]} 
-            onPress={() => navigation.navigate('TrainerProfile')}
+          <View style={styles.infoSection}>
+            <Text style={styles.sectionTitle}>Panel del Entrenador</Text>
+            <TouchableOpacity
+              style={styles.actionRow}
+              onPress={() => navigation.navigate('TrainerProfile')}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: theme.brandSofter }]}>
+                <MaterialCommunityIcons name="id-card" size={20} color={theme.brand} />
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={styles.infoValue}>Perfil Profesional</Text>
+                <Text style={styles.infoLabel}>Edita tu perfil público de entrenador</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={theme.textBody} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* CTA Premium (solo FREE) */}
+        {!isPremium && !isTrainer && (
+          <TouchableOpacity
+            style={styles.premiumCta}
+            onPress={() => navigation.navigate('SubscriptionBenefits')}
           >
-            <Text style={styles.backBtnText}>Configurar Perfil Público</Text>
+            <LinearGradient
+              colors={[theme.brand, '#15803d']}
+              style={styles.premiumCtaGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <MaterialCommunityIcons name="crown" size={20} color="#FFD700" style={{ marginRight: 10 }} />
+              <Text style={styles.premiumCtaText}>Hazte Premium — Ver planes</Text>
+            </LinearGradient>
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backBtnText}>Volver</Text>
-        </TouchableOpacity>
-
       </ScrollView>
-    </LinearGradient>
+    </AppLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a' },
-  container: { padding: 24, paddingBottom: 40 },
+  loading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.bgPrimary,
+  },
+  container: {
+    padding: 20,
+    paddingBottom: 40,
+  },
   profileHeader: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 32,
+    paddingTop: 10,
   },
   avatarLarge: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#4CAF50',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-    position: 'relative',
+    marginBottom: 14,
   },
   avatarTextLarge: {
     color: '#fff',
-    fontSize: 40,
-    fontWeight: 'bold',
+    fontSize: 42,
+    fontWeight: '800',
   },
-  badgeLarge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#121212',
-    borderRadius: 15,
-    padding: 2,
+  roleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: theme.brandSofter,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginBottom: 10,
+  },
+  roleBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   nameText: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 26,
+    fontWeight: '800',
     color: '#fff',
     marginBottom: 4,
   },
   roleText: {
     fontSize: 14,
-    color: '#888',
+    color: theme.textBody,
   },
   infoSection: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: theme.bgSecondarySoft,
     borderRadius: 20,
     padding: 20,
-    marginBottom: 30,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: theme.borderDefault,
   },
   sectionTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#4CAF50',
+    fontSize: 11,
+    fontWeight: '800',
+    color: theme.textBrand,
     textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 20,
+    letterSpacing: 1.5,
+    marginBottom: 18,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 18,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  infoIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: theme.brandSofter,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  actionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
   },
   infoContent: {
-    marginLeft: 15,
+    flex: 1,
   },
   infoLabel: {
     fontSize: 12,
-    color: '#666',
-    marginBottom: 2,
+    color: theme.textBody,
+    marginTop: 2,
   },
   infoValue: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#fff',
-    fontWeight: '500',
-  },
-  backBtn: {
-    backgroundColor: '#2a2a2a',
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: 'center',
-  },
-  backBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   emptyText: {
-    color: '#666',
+    color: theme.textBody,
     fontSize: 14,
     fontStyle: 'italic',
     marginTop: 5,
@@ -262,36 +318,41 @@ const styles = StyleSheet.create({
   subscriptionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: theme.bgPrimary,
+    borderRadius: 14,
+    padding: 14,
     marginTop: 10,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: theme.borderDefault,
   },
   subIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: 'rgba(255, 215, 0, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
-  subInfo: {
-    flex: 1,
+  subInfo: { flex: 1 },
+  subName: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  subExpiry: { color: theme.textBody, fontSize: 12, marginTop: 2 },
+  subAction: { padding: 5 },
+  premiumCta: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 10,
   },
-  subName: {
+  premiumCtaGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  premiumCtaText: {
     color: '#fff',
-    fontSize: 15,
-    fontWeight: 'bold',
-  },
-  subExpiry: {
-    color: '#888',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  subAction: {
-    padding: 5,
+    fontSize: 16,
+    fontWeight: '800',
   },
 });
