@@ -31,11 +31,14 @@ export const theme = {
 // RANGOS PARA EL LINEAR GRADIENT DEL FONDO
 const backgroundColors = ['#000000', 'rgba(34, 197, 94, 0.05)', '#000000'];
 
-export default function AppLayout({ children, title, navigation, extraNotifications = [], useHeroPattern = false, showBackButton = false, headerRight = null }) {
+export default function AppLayout({ children, title, navigation, useHeroPattern = false, showBackButton = false, headerRight = null }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [notificationsVisible, setNotificationsVisible] = useState(false);
     const [profileMenuVisible, setProfileMenuVisible] = useState(false);
     const [userData, setUserData] = useState({ name: 'Usuario', email: '', role: 'FREE' });
+
+    // --- ESTADO PARA NOTIFICACIONES PERSISTENTES ---
+    const [notificationsList, setNotificationsList] = useState([]);
 
     // Cargar datos rápidos para el dropdown
     useEffect(() => {
@@ -49,12 +52,32 @@ export default function AppLayout({ children, title, navigation, extraNotificati
                     email: email || '',
                     role: role || 'FREE'
                 });
+
+                // Cargar notificaciones del storage
+                const stored = await AsyncStorage.getItem('persistent_notifications');
+                const parsed = stored ? JSON.parse(stored) : [];
+
+                // NOTIFICACIÓN TEST BORRARLO: 
+                const fixedNotif = {
+                    id: 'fijo-1',
+                    user: 'Omar Remolacha',
+                    message: "Toca tirar pa lante hermano",
+                    time: 'Hace un momento',
+                    icon: 'email',
+                    color: theme.textBrand
+                };
+
+                setNotificationsList([fixedNotif, ...parsed]);
             } catch (e) {
                 console.error("Error cargando datos en Layout", e);
             }
         };
         loadData();
-    }, [profileMenuVisible]);
+
+        // Nuevas notificaciones desde otras pantallas
+        const interval = setInterval(loadData, 3000);
+        return () => clearInterval(interval);
+    }, [profileMenuVisible, notificationsVisible]);
 
     // __ FUNCIÓN CERRAR SESIÓN __
     const handleLogout = async () => {
@@ -68,22 +91,25 @@ export default function AppLayout({ children, title, navigation, extraNotificati
         }
     };
 
+    // Función para borrar notificación individual
+    const deleteNotification = async (id) => {
+        try {
+            const stored = await AsyncStorage.getItem('persistent_notifications');
+            if (stored) {
+                const current = JSON.parse(stored);
+                const filtered = current.filter(n => n.id !== id);
+                await AsyncStorage.setItem('persistent_notifications', JSON.stringify(filtered));
+                setNotificationsList(prev => prev.filter(n => n.id !== id));
+            }
+        } catch (e) {
+            console.log("Error al borrar notificación", e);
+        }
+    };
+
     const closeAllMenus = () => {
         setNotificationsVisible(false);
         setProfileMenuVisible(false);
     };
-
-    const allNotifications = [
-        ...extraNotifications,
-        {
-            id: 'fijo-1',
-            user: 'Omar Remolacha',
-            message: "Toca tirar pa lante hermano",
-            time: 'Hace un momento',
-            icon: 'email',
-            color: theme.textBrand
-        }
-    ];
 
     const SidebarLinks = () => (
         <View style={{ marginTop: 2 }}>
@@ -133,7 +159,7 @@ export default function AppLayout({ children, title, navigation, extraNotificati
     return (
         <View style={{ flex: 1, backgroundColor: theme.bgPrimary }}>
             <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-            
+
             {/* --- TOP NAVBAR --- */}
             <View style={{
                 paddingTop: insets.top,
@@ -142,7 +168,6 @@ export default function AppLayout({ children, title, navigation, extraNotificati
             }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', height: 60 }}>
                     {!isWeb && (
-
                         <TouchableOpacity onPress={() => setIsMenuOpen(true)} style={{ padding: 5, marginRight: 10 }}>
                             <Ionicons name="menu" size={28} color="white" />
                         </TouchableOpacity>
@@ -159,34 +184,40 @@ export default function AppLayout({ children, title, navigation, extraNotificati
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <View style={{ position: 'relative' }}>
                         <TouchableOpacity onPress={() => { setProfileMenuVisible(false); setNotificationsVisible(!notificationsVisible); }} style={{ padding: 5, marginRight: 15 }}>
-                            <Ionicons name="notifications" size={24} color={theme.textBody} />
-                            {allNotifications.length > 0 && (
+                            <Ionicons name="notifications" size={24} color={notificationsList.length > 1 ? theme.brand : theme.textBody} />
+                            {notificationsList.length > 0 && (
                                 <View style={{ position: 'absolute', top: 5, right: 17, width: 10, height: 10, backgroundColor: theme.danger, borderRadius: 5, borderWidth: 2, borderColor: theme.bgPrimarySoft }} />
                             )}
                         </TouchableOpacity>
+
                         {notificationsVisible && (
                             <View style={{ position: 'absolute', top: 45, right: 0, width: 280, backgroundColor: theme.bgSecondarySoft, borderRadius: 12, borderWidth: 1, borderColor: theme.borderDefault, elevation: 20, zIndex: 3000, maxHeight: 400, overflow: 'hidden' }}>
                                 <View style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: theme.borderDefault }}>
-                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13, textAlign: 'center' }}>Notificaciones ({allNotifications.length})</Text>
+                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13, textAlign: 'center' }}>Notificaciones ({notificationsList.length})</Text>
                                 </View>
                                 <ScrollView style={{ maxHeight: 340 }}>
-                                    {allNotifications.map((item) => (
-                                        <View key={item.id} style={{ flexDirection: 'row', padding: 12, borderBottomWidth: 1, borderBottomColor: theme.borderDefault }}>
+                                    {notificationsList.map((item) => (
+                                        <View key={item.id} style={{ flexDirection: 'row', padding: 12, borderBottomWidth: 1, borderBottomColor: theme.borderDefault, alignItems: 'center' }}>
                                             <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: theme.brandSofter, justifyContent: 'center', alignItems: 'center' }}>
-                                                <MaterialCommunityIcons name={item.icon} size={18} color={item.color || theme.textBrand} />
+                                                <MaterialCommunityIcons name={item.icon || 'bell'} size={18} color={item.color || theme.textBrand} />
                                             </View>
                                             <View style={{ flex: 1, marginLeft: 10 }}>
                                                 <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>{item.user}</Text>
                                                 <Text style={{ color: theme.textBody, fontSize: 11, marginTop: 2 }}>{item.message}</Text>
                                                 <Text style={{ color: theme.textBrand, fontSize: 10, marginTop: 6, fontWeight: '500' }}>{item.time}</Text>
                                             </View>
+                                            {item.id !== 'fijo-1' && (
+                                                <TouchableOpacity onPress={() => deleteNotification(item.id)} style={{ padding: 5 }}>
+                                                    <Ionicons name="trash-outline" size={16} color={theme.danger} />
+                                                </TouchableOpacity>
+                                            )}
                                         </View>
                                     ))}
                                 </ScrollView>
                             </View>
                         )}
                     </View>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         onPress={() => { setNotificationsVisible(false); setProfileMenuVisible(true); }}
                         style={{ position: 'relative' }}
                     >
@@ -199,22 +230,22 @@ export default function AppLayout({ children, title, navigation, extraNotificati
                             shadowOpacity: (userData.role === 'PREMIUM' || userData.role === 'TRAINER') ? 0.5 : 0,
                             shadowRadius: 6,
                         }}>
-                            <Image 
-                                source={{ uri: 'https://flowbite.com/docs/images/people/profile-picture-5.jpg' }} 
-                                style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: theme.bgPrimarySoft }} 
+                            <Image
+                                source={{ uri: 'https://flowbite.com/docs/images/people/profile-picture-5.jpg' }}
+                                style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: theme.bgPrimarySoft }}
                             />
                         </View>
                         {(userData.role === 'PREMIUM' || userData.role === 'TRAINER') && (
-                            <View style={{ 
-                                position: 'absolute', bottom: -1, right: -1, 
+                            <View style={{
+                                position: 'absolute', bottom: -1, right: -1,
                                 backgroundColor: userData.role === 'PREMIUM' ? '#FFD700' : theme.brand,
                                 borderRadius: 10, width: 14, height: 14,
                                 justifyContent: 'center', alignItems: 'center',
                                 borderWidth: 1.5, borderColor: theme.bgPrimarySoft
                             }}>
-                                <MaterialCommunityIcons 
-                                    name={userData.role === 'PREMIUM' ? "star" : "dumbbell"} 
-                                    size={8} color="#000" 
+                                <MaterialCommunityIcons
+                                    name={userData.role === 'PREMIUM' ? "star" : "dumbbell"}
+                                    size={8} color="#000"
                                 />
                             </View>
                         )}
@@ -350,7 +381,7 @@ const NavItem = ({ icon, label, subLabel, active, onPress }) => (
     </TouchableOpacity>
 );
 
-// Estilos para el sub-header con botón de retroceso (igual que en SocialScreen)
+// Estilos para el sub-header con botón de retroceso
 const subHeaderStyle = {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -369,4 +400,3 @@ const subHeaderTitleStyle = {
     flex: 1,
     textAlign: 'center',
 };
-
