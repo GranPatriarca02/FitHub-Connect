@@ -6,20 +6,18 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import {
   getRoutineDetail,
   getExercises,
   addExerciseToRoutine,
   removeExerciseFromRoutine,
-  updateRoutineExercise,
 } from '../api';
+import AppLayout, { theme } from './AppLayout';
 
 const GRUPOS = ['Todos', 'PECHO', 'ESPALDA', 'PIERNAS', 'HOMBROS', 'BRAZOS', 'CORE', 'CARDIO'];
 
 export default function RoutineDetailScreen({ route, navigation }) {
-  const insets = useSafeAreaInsets();
   const { routineId } = route.params;
 
   const [userId, setUserId] = useState(null);
@@ -35,7 +33,7 @@ export default function RoutineDetailScreen({ route, navigation }) {
   // Modales
   const [catalogVisible, setCatalogVisible] = useState(false);
   const [paramsVisible, setParamsVisible] = useState(false);
-  const [selected, setSelected] = useState(null); // ejercicio seleccionado del catálogo
+  const [selected, setSelected] = useState(null);
   const [sets, setSets] = useState('3');
   const [reps, setReps] = useState('10');
   const [rest, setRest] = useState('60');
@@ -54,7 +52,7 @@ export default function RoutineDetailScreen({ route, navigation }) {
       const data = await getRoutineDetail(routineId, uid);
       setDetail(data);
     } catch (e) {
-      Alert.alert('Error', 'No se pudo cargar la rutina');
+      console.error("Error cargando rutina", e);
     } finally {
       setCargando(false);
     }
@@ -126,8 +124,7 @@ export default function RoutineDetailScreen({ route, navigation }) {
       setDeleteConfirmVisible(false);
       cargar();
     } catch (e) {
-      if (Platform.OS === 'web') alert('No se pudo quitar el ejercicio');
-      else Alert.alert('Error', 'No se pudo quitar el ejercicio');
+      Alert.alert('Error', 'No se pudo quitar el ejercicio');
     }
   };
 
@@ -140,80 +137,72 @@ export default function RoutineDetailScreen({ route, navigation }) {
 
   if (cargando || !detail) {
     return (
-      <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
-        <ActivityIndicator color="#4CAF50" style={{ marginTop: 80 }} />
-      </LinearGradient>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator color={theme.brand} size="large" />
+      </View>
     );
   }
 
   return (
-    <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
-      <ScrollView
-        contentContainerStyle={[styles.container, { paddingTop: insets.top + 16 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ---- Cabecera ---- */}
+    <AppLayout title="Detalle Rutina" navigation={navigation} showBackButton={true}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+
+        {/* Banner Rutina */}
         <View style={styles.headerCard}>
-          <LinearGradient colors={['#1a2a1a', '#1b5e20']} style={styles.headerBanner}>
-            <MaterialCommunityIcons name="clipboard-text" size={38} color="#4CAF50" />
+          <LinearGradient colors={[theme.brand, '#15803d']} style={styles.headerBanner}>
+            <MaterialCommunityIcons name="clipboard-text-outline" size={44} color="#fff" />
           </LinearGradient>
-          <View style={{ padding: 18 }}>
+          <View style={styles.headerBody}>
             <Text style={styles.title}>{detail.title}</Text>
-            <Text style={styles.author}>
-              Creada por {esPropia ? 'ti' : detail.creatorName}
-              {detail.isPublic ? '  •  Pública' : ''}
-            </Text>
+            <View style={styles.authorRow}>
+               <Text style={styles.authorText}>Creada por {esPropia ? 'ti' : detail.creatorName}</Text>
+               {detail.isPublic && (
+                  <View style={styles.publicBadge}>
+                    <Text style={styles.publicText}>Pública</Text>
+                  </View>
+               )}
+            </View>
 
-            {detail.description ? (
-              <Text style={styles.desc}>{detail.description}</Text>
-            ) : null}
+            {detail.description && (
+              <Text style={styles.descText}>{detail.description}</Text>
+            )}
 
-            <View style={styles.tagRow}>
-              {detail.difficulty ? (
-                <View style={styles.tag}>
-                  <MaterialCommunityIcons name="speedometer" size={12} color="#4CAF50" />
-                  <Text style={styles.tagText}>{detail.difficulty}</Text>
-                </View>
-              ) : null}
-              {detail.goal ? (
-                <View style={styles.tag}>
-                  <MaterialCommunityIcons name="target" size={12} color="#4FC3F7" />
-                  <Text style={[styles.tagText, { color: '#4FC3F7' }]}>{detail.goal}</Text>
-                </View>
-              ) : null}
-              <View style={styles.tag}>
-                <MaterialCommunityIcons name="dumbbell" size={12} color="#FFD700" />
-                <Text style={[styles.tagText, { color: '#FFD700' }]}>
-                  {detail.exercises.length} {detail.exercises.length === 1 ? 'ejercicio' : 'ejercicios'}
-                </Text>
-              </View>
+            <View style={styles.tagsRow}>
+               <View style={styles.tag}>
+                  <MaterialCommunityIcons name="speedometer" size={14} color={theme.brand} />
+                  <Text style={styles.tagText}>{detail.difficulty || 'Media'}</Text>
+               </View>
+               <View style={styles.tag}>
+                  <MaterialCommunityIcons name="target" size={14} color="#4FC3F7" />
+                  <Text style={[styles.tagText, {color: '#4FC3F7'}]}>{detail.goal || 'General'}</Text>
+               </View>
+               <View style={styles.tag}>
+                  <MaterialCommunityIcons name="dumbbell" size={14} color="#FFD700" />
+                  <Text style={[styles.tagText, {color: '#FFD700'}]}>{detail.exercises.length} Ejercicios</Text>
+               </View>
             </View>
           </View>
         </View>
 
-        {/* ---- Lista de ejercicios ---- */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionLabel}>Ejercicios</Text>
-          {esPropia && (
-            <TouchableOpacity style={styles.addBtn} onPress={abrirCatalogo} activeOpacity={0.85}>
-              <Ionicons name="add" size={18} color="#fff" />
-              <Text style={styles.addBtnText}>Añadir</Text>
-            </TouchableOpacity>
-          )}
+        {/* Lista de Ejercicios */}
+        <View style={styles.sectionHeader}>
+           <Text style={styles.sectionLabel}>Plan de Entrenamiento</Text>
+           {esPropia && (
+             <TouchableOpacity style={styles.addBtn} onPress={abrirCatalogo}>
+                <Ionicons name="add" size={18} color="#fff" />
+                <Text style={styles.addBtnText}>Añadir</Text>
+             </TouchableOpacity>
+           )}
         </View>
 
         {detail.exercises.length === 0 ? (
           <View style={styles.emptyCard}>
-            <MaterialCommunityIcons name="dumbbell" size={42} color="#2a2a2a" />
+            <MaterialCommunityIcons name="dumbbell" size={48} color={theme.borderDefault} />
             <Text style={styles.emptyTitle}>Rutina vacía</Text>
-            <Text style={styles.emptyText}>
-              {esPropia
-                ? 'Añade ejercicios desde el catálogo para empezar a entrenar.'
-                : 'El creador aún no ha añadido ejercicios.'}
-            </Text>
+            <Text style={styles.emptyText}>{esPropia ? 'Personaliza tu rutina añadiendo ejercicios del catálogo.' : 'Esta rutina no tiene ejercicios asignados.'}</Text>
             {esPropia && (
               <TouchableOpacity style={styles.emptyBtn} onPress={abrirCatalogo}>
-                <Text style={styles.emptyBtnText}>Añadir ejercicios</Text>
+                <Text style={styles.emptyBtnText}>Explorar Catálogo</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -229,463 +218,245 @@ export default function RoutineDetailScreen({ route, navigation }) {
             />
           ))
         )}
+
       </ScrollView>
 
-      {/* ---- Modal catálogo ---- */}
-      <Modal transparent visible={catalogVisible} animationType="slide" onRequestClose={() => setCatalogVisible(false)}>
+      {/* Modal Catálogo */}
+      <Modal transparent visible={catalogVisible} animationType="slide">
         <View style={styles.modalOverlay}>
-          <LinearGradient colors={['#1e1e1e', '#121212']} style={styles.modalCardFull}>
-            <View style={styles.modalTopRow}>
-              <Text style={styles.modalTitle}>Añadir ejercicio</Text>
-              <TouchableOpacity onPress={() => setCatalogVisible(false)}>
-                <Ionicons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
+           <View style={styles.catalogModal}>
+              <View style={styles.modalHeader}>
+                 <Text style={styles.modalTitle}>Catálogo de Ejercicios</Text>
+                 <TouchableOpacity onPress={() => setCatalogVisible(false)}>
+                    <Ionicons name="close" size={26} color="#fff" />
+                 </TouchableOpacity>
+              </View>
 
-            <View style={styles.searchBar}>
-              <Ionicons name="search" size={18} color="#555" style={{ marginRight: 8 }} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Buscar por nombre o equipo..."
-                placeholderTextColor="#555"
-                value={busqueda}
-                onChangeText={setBusqueda}
-              />
-            </View>
+              <View style={styles.searchBarWrap}>
+                 <Ionicons name="search" size={20} color="#666" style={{marginRight: 10}} />
+                 <TextInput
+                    style={styles.searchField}
+                    placeholder="Buscar ejercicio..."
+                    placeholderTextColor="#444"
+                    value={busqueda}
+                    onChangeText={setBusqueda}
+                 />
+              </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              {GRUPOS.map((g) => (
-                <TouchableOpacity
-                  key={g}
-                  style={[styles.chip, grupoFiltro === g && styles.chipActive]}
-                  onPress={() => setGrupoFiltro(g)}
-                >
-                  <Text style={[styles.chipText, grupoFiltro === g && styles.chipTextActive]}>{g}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            {cargandoCatalogo ? (
-              <ActivityIndicator color="#4CAF50" style={{ marginTop: 30 }} />
-            ) : (
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {filtrados.length === 0 ? (
-                  <Text style={styles.noContent}>No hay ejercicios que coincidan.</Text>
-                ) : (
-                  filtrados.map((ex) => (
-                    <TouchableOpacity
-                      key={ex.id}
-                      style={styles.catalogItem}
-                      activeOpacity={0.85}
-                      onPress={() => seleccionar(ex)}
-                    >
-                      <View style={styles.catalogIcon}>
-                        <MaterialCommunityIcons name="dumbbell" size={18} color="#4CAF50" />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.catalogItemName}>{ex.name}</Text>
-                        <Text style={styles.catalogItemMeta}>
-                          {ex.muscleGroup || '—'}
-                          {ex.equipment ? `  •  ${ex.equipment}` : ''}
-                        </Text>
-                      </View>
-                      <Ionicons name="add-circle" size={22} color="#4CAF50" />
-                    </TouchableOpacity>
-                  ))
-                )}
-                <View style={{ height: 20 }} />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
+                 {GRUPOS.map(g => (
+                   <TouchableOpacity
+                      key={g}
+                      style={[styles.filterChip, grupoFiltro === g && styles.filterChipActive]}
+                      onPress={() => setGrupoFiltro(g)}
+                   >
+                      <Text style={[styles.filterChipText, grupoFiltro === g && {color: '#fff'}]}>{g}</Text>
+                   </TouchableOpacity>
+                 ))}
               </ScrollView>
-            )}
-          </LinearGradient>
+
+              {cargandoCatalogo ? (
+                <ActivityIndicator color={theme.brand} style={{marginTop: 40}} />
+              ) : (
+                <ScrollView contentContainerStyle={{paddingBottom: 20}}>
+                   {filtrados.map(ex => (
+                     <TouchableOpacity key={ex.id} style={styles.catalogItem} onPress={() => seleccionar(ex)}>
+                        <View style={styles.catalogIconWrap}>
+                           <MaterialCommunityIcons name="dumbbell" size={20} color={theme.brand} />
+                        </View>
+                        <View style={{flex: 1}}>
+                           <Text style={styles.catalogName}>{ex.name}</Text>
+                           <Text style={styles.catalogMeta}>{ex.muscleGroup} • {ex.equipment || 'Libre'}</Text>
+                        </View>
+                        <Ionicons name="add-circle-outline" size={24} color={theme.brand} />
+                     </TouchableOpacity>
+                   ))}
+                </ScrollView>
+              )}
+           </View>
         </View>
       </Modal>
 
-      {/* ---- Modal parámetros (series / reps / descanso) ---- */}
-      <Modal transparent visible={paramsVisible} animationType="slide" onRequestClose={() => setParamsVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <LinearGradient colors={['#1e1e1e', '#121212']} style={styles.modalCard}>
-            <View style={styles.modalTopRow}>
-              <Text style={styles.modalTitle}>{selected?.name || 'Configurar'}</Text>
-              <TouchableOpacity onPress={() => setParamsVisible(false)} disabled={guardando}>
-                <Ionicons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.modalSub}>Define series, repeticiones y descanso</Text>
+      {/* Modal Parámetros */}
+      <Modal transparent visible={paramsVisible} animationType="fade">
+        <View style={styles.modalOverlayCenter}>
+           <View style={styles.paramsCard}>
+              <Text style={styles.paramsTitle}>{selected?.name}</Text>
+              <Text style={styles.paramsSub}>Configura los objetivos de este ejercicio</Text>
 
-            <View style={styles.threeCol}>
-              <View style={styles.col}>
-                <Text style={styles.fieldLabel}>Series</Text>
-                <TextInput
-                  style={styles.fieldInput}
-                  value={sets}
-                  onChangeText={setSets}
-                  keyboardType="numeric"
-                  placeholder="3"
-                  placeholderTextColor="#444"
-                />
+              <View style={styles.gridParams}>
+                 <View style={styles.paramCol}>
+                    <Text style={styles.paramLabel}>Series</Text>
+                    <TextInput style={styles.paramInput} value={sets} onChangeText={setSets} keyboardType="numeric" />
+                 </View>
+                 <View style={styles.paramCol}>
+                    <Text style={styles.paramLabel}>Reps</Text>
+                    <TextInput style={styles.paramInput} value={reps} onChangeText={setReps} />
+                 </View>
+                 <View style={styles.paramCol}>
+                    <Text style={styles.paramLabel}>Descanso (s)</Text>
+                    <TextInput style={styles.paramInput} value={rest} onChangeText={setRest} keyboardType="numeric" />
+                 </View>
               </View>
-              <View style={styles.col}>
-                <Text style={styles.fieldLabel}>Reps</Text>
-                <TextInput
-                  style={styles.fieldInput}
-                  value={reps}
-                  onChangeText={setReps}
-                  placeholder="8-12"
-                  placeholderTextColor="#444"
-                />
-              </View>
-              <View style={styles.col}>
-                <Text style={styles.fieldLabel}>Descanso (s)</Text>
-                <TextInput
-                  style={styles.fieldInput}
-                  value={rest}
-                  onChangeText={setRest}
-                  keyboardType="numeric"
-                  placeholder="60"
-                  placeholderTextColor="#444"
-                />
-              </View>
-            </View>
 
-            <Text style={styles.fieldLabel}>Notas</Text>
-            <TextInput
-              style={[styles.fieldInput, styles.fieldInputMulti]}
-              value={notas}
-              onChangeText={setNotas}
-              placeholder="Tempo, técnica, etc."
-              placeholderTextColor="#444"
-              multiline
-              maxLength={200}
-            />
+              <Text style={styles.paramLabel}>Notas Adicionales</Text>
+              <TextInput
+                style={styles.notesInput}
+                value={notas}
+                onChangeText={setNotas}
+                placeholder="Ej: Controlar la fase excéntrica..."
+                placeholderTextColor="#444"
+                multiline
+              />
 
-            <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setParamsVisible(false)} disabled={guardando}>
-                <Text style={styles.cancelBtnText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.confirmBtn, guardando && { opacity: 0.6 }]}
-                onPress={confirmarAnadir}
-                disabled={guardando}
-                activeOpacity={0.85}
-              >
-                <LinearGradient colors={['#4CAF50', '#2E7D32']} style={styles.confirmGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                  {guardando ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.confirmBtnText}>Añadir</Text>}
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
+              <View style={styles.modalActions}>
+                 <TouchableOpacity style={styles.btnCancel} onPress={() => setParamsVisible(false)}>
+                    <Text style={{color: '#888', fontWeight: '700'}}>Cancelar</Text>
+                 </TouchableOpacity>
+                 <TouchableOpacity style={styles.btnSave} onPress={confirmarAnadir} disabled={guardando}>
+                    <LinearGradient colors={[theme.brand, '#15803d']} style={styles.btnSaveGradient}>
+                       {guardando ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{color: '#fff', fontWeight: '800'}}>Añadir Ejercicio</Text>}
+                    </LinearGradient>
+                 </TouchableOpacity>
+              </View>
+           </View>
         </View>
       </Modal>
 
-      {/* Modal de Confirmacion de Borrado */}
-      <Modal
-        visible={deleteConfirmVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setDeleteConfirmVisible(false)}
-      >
-        <View style={styles.modalOverlayGeneric}>
-          <View style={styles.confirmBox}>
-            <MaterialCommunityIcons name="alert-circle" size={48} color="#FF5252" style={{ marginBottom: 16 }} />
-            <Text style={styles.confirmTitle}>¿Quitar ejercicio?</Text>
-            <Text style={styles.confirmDesc}>Se eliminara "{selectedExercise?.name}" de esta rutina.</Text>
-            
-            <View style={styles.confirmFooter}>
-              <TouchableOpacity 
-                style={[styles.confirmBtnCancel, { flex: 1 }]} 
-                onPress={() => setDeleteConfirmVisible(false)}
-              >
-                <Text style={styles.confirmBtnCancelText}>No, mantener</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.confirmBtnDelete, { flex: 1 }]} 
-                onPress={executeRemove}
-              >
-                <Text style={styles.confirmBtnDeleteText}>Si, quitar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+      {/* Confirmación Borrado */}
+      <Modal visible={deleteConfirmVisible} transparent animationType="fade">
+        <View style={styles.modalOverlayCenter}>
+           <View style={styles.deleteCard}>
+              <MaterialCommunityIcons name="trash-can-outline" size={40} color={theme.danger} />
+              <Text style={styles.deleteTitle}>¿Eliminar Ejercicio?</Text>
+              <Text style={styles.deleteDesc}>Se quitará de la rutina permanentemente.</Text>
+              <View style={styles.deleteActions}>
+                 <TouchableOpacity style={styles.btnCancel} onPress={() => setDeleteConfirmVisible(false)}><Text style={{color: '#888'}}>No, volver</Text></TouchableOpacity>
+                 <TouchableOpacity style={[styles.btnSave, {backgroundColor: theme.danger}]} onPress={executeRemove}><Text style={{color: '#fff', fontWeight: '700'}}>Sí, eliminar</Text></TouchableOpacity>
+              </View>
+           </View>
         </View>
       </Modal>
 
-    </LinearGradient>
+    </AppLayout>
   );
 }
 
-// ---------- COMPONENTES ----------
-
 function ExerciseRow({ index, re, canEdit, onRemove, onOpenVideo }) {
   return (
-    <View style={styles.exerciseRow}>
-      <View style={styles.indexCircle}>
-        <Text style={styles.indexText}>{index}</Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.exerciseName}>{re.name}</Text>
-        <Text style={styles.exerciseMeta}>
-          {re.muscleGroup || '—'}
-          {re.equipment ? `  •  ${re.equipment}` : ''}
-        </Text>
-        <View style={styles.exerciseStats}>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{re.sets}</Text>
-            <Text style={styles.statLabel}>series</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{re.reps}</Text>
-            <Text style={styles.statLabel}>reps</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{re.restSeconds}s</Text>
-            <Text style={styles.statLabel}>descanso</Text>
-          </View>
+    <View style={styles.exerciseCard}>
+      <View style={styles.exerciseHeader}>
+        <View style={styles.indexBadge}><Text style={styles.indexNum}>{index}</Text></View>
+        <View style={{flex: 1}}>
+          <Text style={styles.exName}>{re.name}</Text>
+          <Text style={styles.exMeta}>{re.muscleGroup} • {re.equipment || 'Libre'}</Text>
         </View>
-        {re.notes ? <Text style={styles.notes}>“{re.notes}”</Text> : null}
-      </View>
-      <View style={{ gap: 8 }}>
-        {re.videoUrl ? (
-          <TouchableOpacity style={styles.iconBtn} onPress={onOpenVideo}>
-            <Ionicons name="play" size={16} color="#4CAF50" />
+        {re.videoUrl && (
+          <TouchableOpacity onPress={onOpenVideo} style={styles.videoBtn}>
+            <Ionicons name="play" size={14} color={theme.brand} />
           </TouchableOpacity>
-        ) : null}
-        {canEdit ? (
-          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: '#2a1a1a' }]} onPress={onRemove}>
-            <Ionicons name="trash-outline" size={16} color="#FF5252" />
-          </TouchableOpacity>
-        ) : null}
+        )}
       </View>
+
+      <View style={styles.exStatsGrid}>
+         <View style={styles.exStat}><Text style={styles.exStatVal}>{re.sets}</Text><Text style={styles.exStatLab}>Series</Text></View>
+         <View style={styles.exStat}><Text style={styles.exStatVal}>{re.reps}</Text><Text style={styles.exStatLab}>Reps</Text></View>
+         <View style={styles.exStat}><Text style={styles.exStatVal}>{re.restSeconds}s</Text><Text style={styles.exStatLab}>Rest</Text></View>
+      </View>
+
+      {re.notes && <Text style={styles.exNotes}>“{re.notes}”</Text>}
+
+      {canEdit && (
+        <TouchableOpacity style={styles.deleteExBtn} onPress={onRemove}>
+          <Ionicons name="trash-outline" size={16} color={theme.danger} />
+          <Text style={{color: theme.danger, fontSize: 12, fontWeight: '700', marginLeft: 4}}>Quitar</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
 
-// ---------- ESTILOS ----------
-
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
-  container: { padding: 20, paddingBottom: 60 },
-
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bgPrimary },
+  container: { padding: 20, paddingBottom: 40 },
   headerCard: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-    marginBottom: 20,
-  },
-  headerBanner: {
-    height: 110,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#fff', marginBottom: 4 },
-  author: { fontSize: 12, color: '#777', marginBottom: 12 },
-  desc: { fontSize: 13, color: '#aaa', lineHeight: 19, marginBottom: 12 },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tag: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#1a2a1a',
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
-    borderWidth: 1, borderColor: '#2a3a2a',
-  },
-  tagText: { color: '#4CAF50', fontSize: 11, fontWeight: '600' },
-
-  sectionHeaderRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 14, marginTop: 4,
-  },
-  sectionLabel: {
-    fontSize: 11, fontWeight: '700', color: '#4CAF50',
-    textTransform: 'uppercase', letterSpacing: 1.2,
-  },
-  addBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10,
-  },
-  addBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-
-  exerciseRow: {
-    flexDirection: 'row',
-    gap: 12,
-    backgroundColor: '#1e1e1e',
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-  },
-  indexCircle: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: '#1a2a1a',
-    borderWidth: 1, borderColor: '#2a3a2a',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  indexText: { color: '#4CAF50', fontSize: 13, fontWeight: '700' },
-  exerciseName: { fontSize: 15, fontWeight: '700', color: '#fff', marginBottom: 2 },
-  exerciseMeta: { fontSize: 11, color: '#777', marginBottom: 8 },
-  exerciseStats: { flexDirection: 'row', gap: 14, marginBottom: 4 },
-  stat: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
-  statValue: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  statLabel: { color: '#666', fontSize: 11 },
-  notes: { color: '#888', fontSize: 11, fontStyle: 'italic', marginTop: 4 },
-  iconBtn: {
-    width: 32, height: 32, borderRadius: 8,
-    backgroundColor: '#1a2a1a',
-    alignItems: 'center', justifyContent: 'center',
-  },
-
-  emptyCard: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 18,
-    padding: 30,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-  },
-  emptyTitle: { fontSize: 15, fontWeight: '700', color: '#fff', marginTop: 10, marginBottom: 6 },
-  emptyText: { fontSize: 13, color: '#777', textAlign: 'center', marginBottom: 16, lineHeight: 19 },
-  emptyBtn: { backgroundColor: '#4CAF50', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12 },
-  emptyBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-
-  // Modales
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
-  modalCard: {
-    borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    padding: 24, paddingBottom: 32,
-    borderWidth: 1, borderColor: '#333',
-  },
-  modalCardFull: {
-    borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    padding: 24, paddingBottom: 24,
-    borderWidth: 1, borderColor: '#333',
-    height: '88%',
-  },
-  modalTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  modalTitle: { fontSize: 19, fontWeight: 'bold', color: '#fff' },
-  modalSub: { fontSize: 12, color: '#555', marginBottom: 18 },
-
-  searchBar: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#2a2a2a', borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderWidth: 1, borderColor: '#333',
-    marginBottom: 10,
-  },
-  searchInput: { flex: 1, color: '#fff', fontSize: 13, padding: 0 },
-
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 7,
-    backgroundColor: '#2a2a2a', borderRadius: 20, marginRight: 8,
-    borderWidth: 1, borderColor: '#333',
-  },
-  chipActive: { backgroundColor: '#4CAF50', borderColor: '#4CAF50' },
-  chipText: { color: '#888', fontSize: 12, fontWeight: '600' },
-  chipTextActive: { color: '#fff', fontWeight: '700' },
-
-  noContent: { color: '#555', fontSize: 13, marginTop: 20, textAlign: 'center' },
-
-  catalogItem: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#1e1e1e',
-    padding: 12, borderRadius: 14,
-    borderWidth: 1, borderColor: '#2a2a2a',
-    marginBottom: 8,
-  },
-  catalogIcon: {
-    width: 36, height: 36, borderRadius: 10,
-    backgroundColor: '#1a2a1a',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  catalogItemName: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  catalogItemMeta: { color: '#777', fontSize: 11, marginTop: 2 },
-
-  threeCol: { flexDirection: 'row', gap: 10 },
-  col: { flex: 1 },
-  fieldLabel: { fontSize: 12, color: '#666', marginBottom: 8, letterSpacing: 0.3 },
-  fieldInput: {
-    backgroundColor: '#2a2a2a',
-    color: '#fff',
-    fontSize: 14,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#333',
-    marginBottom: 16,
-  },
-  fieldInputMulti: { height: 70, textAlignVertical: 'top' },
-
-  modalBtns: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  cancelBtn: {
-    flex: 1, backgroundColor: '#2a2a2a', borderRadius: 14,
-    paddingVertical: 15, alignItems: 'center',
-  },
-  cancelBtnText: { color: '#888', fontSize: 14, fontWeight: '600' },
-  confirmBtn: { flex: 2, borderRadius: 14, overflow: 'hidden' },
-  confirmGradient: { paddingVertical: 15, alignItems: 'center' },
-  confirmBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-
-  // Generic Modal Styles
-  modalOverlayGeneric: { 
-    flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.85)', 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
-  confirmBox: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 24,
-    padding: 24,
-    width: '85%',
-    maxWidth: 340,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  confirmTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  confirmDesc: {
-    color: '#888',
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
+    backgroundColor: theme.bgSecondarySoft,
+    borderRadius: 24, overflow: 'hidden',
+    borderWidth: 1, borderColor: theme.borderDefault,
     marginBottom: 24,
   },
-  confirmFooter: {
-    flexDirection: 'row',
-    gap: 12,
-    width: '100%',
+  headerBanner: { height: 100, justifyContent: 'center', alignItems: 'center' },
+  headerBody: { padding: 20 },
+  title: { color: '#fff', fontSize: 24, fontWeight: '800', marginBottom: 4 },
+  authorRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  authorText: { color: theme.textBody, fontSize: 13, fontWeight: '600' },
+  publicBadge: { backgroundColor: theme.brandSofter, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  publicText: { color: theme.brand, fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
+  descText: { color: theme.textBody, fontSize: 14, lineHeight: 20, marginBottom: 16 },
+  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  tag: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
+  tagText: { color: theme.brand, fontSize: 12, fontWeight: '700' },
+
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  sectionLabel: { fontSize: 11, fontWeight: '800', color: theme.textBrand, textTransform: 'uppercase', letterSpacing: 1.5 },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: theme.brand, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  addBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+
+  emptyCard: { alignItems: 'center', paddingVertical: 40, backgroundColor: theme.bgSecondarySoft, borderRadius: 20, borderWidth: 1, borderColor: theme.borderDefault },
+  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#fff', marginTop: 12, marginBottom: 4 },
+  emptyText: { color: theme.textBody, fontSize: 14, textAlign: 'center', maxWidth: 220, marginBottom: 20 },
+  emptyBtn: { backgroundColor: theme.brand, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 },
+  emptyBtnText: { color: '#fff', fontWeight: '700' },
+
+  exerciseCard: {
+    backgroundColor: theme.bgSecondarySoft, borderRadius: 20,
+    padding: 16, marginBottom: 16,
+    borderWidth: 1, borderColor: theme.borderDefault,
   },
-  confirmBtnCancel: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    backgroundColor: '#2a2a2a',
-    justifyContent: 'center',
-    minHeight: 48,
-  },
-  confirmBtnCancelText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  confirmBtnDelete: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    backgroundColor: '#FF5252',
-    justifyContent: 'center',
-    minHeight: 48,
-  },
-  confirmBtnDeleteText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
+  exerciseHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 14 },
+  indexBadge: { width: 32, height: 32, borderRadius: 10, backgroundColor: theme.brandSofter, justifyContent: 'center', alignItems: 'center' },
+  indexNum: { color: theme.brand, fontWeight: '800', fontSize: 14 },
+  exName: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  exMeta: { color: theme.textBody, fontSize: 12, marginTop: 2 },
+  videoBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center' },
+  exStatsGrid: { flexDirection: 'row', gap: 20, marginBottom: 12, paddingHorizontal: 4 },
+  exStat: { alignItems: 'flex-start' },
+  exStatVal: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  exStatLab: { color: theme.textBody, fontSize: 10, textTransform: 'uppercase', marginTop: 2 },
+  exNotes: { color: '#888', fontSize: 12, fontStyle: 'italic', backgroundColor: 'rgba(255,255,255,0.03)', padding: 10, borderRadius: 10, marginBottom: 12 },
+  deleteExBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', padding: 8 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'flex-end' },
+  catalogModal: { height: '90%', backgroundColor: theme.bgSecondarySoft, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, borderWidth: 1, borderColor: theme.borderDefault },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { color: '#fff', fontSize: 20, fontWeight: '800' },
+  searchBarWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.bgPrimary, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 16, borderWidth: 1, borderColor: theme.borderDefault },
+  searchField: { flex: 1, color: '#fff', fontSize: 15 },
+  filterRow: { flexDirection: 'row', marginBottom: 20 },
+  filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: theme.bgPrimary, marginRight: 8, borderWidth: 1, borderColor: theme.borderDefault },
+  filterChipActive: { backgroundColor: theme.brand, borderColor: theme.brand },
+  filterChipText: { color: theme.textBody, fontSize: 12, fontWeight: '700' },
+  catalogItem: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: theme.borderDefault },
+  catalogIconWrap: { width: 40, height: 40, borderRadius: 10, backgroundColor: theme.brandSofter, justifyContent: 'center', alignItems: 'center' },
+  catalogName: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  catalogMeta: { color: theme.textBody, fontSize: 11, marginTop: 2 },
+
+  modalOverlayCenter: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  paramsCard: { width: '100%', maxWidth: 400, backgroundColor: theme.bgSecondarySoft, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: theme.borderDefault },
+  paramsTitle: { color: '#fff', fontSize: 20, fontWeight: '800', textAlign: 'center' },
+  paramsSub: { color: theme.textBody, fontSize: 13, textAlign: 'center', marginTop: 4, marginBottom: 24 },
+  gridParams: { flexDirection: 'row', gap: 12, marginBottom: 20 },
+  paramCol: { flex: 1 },
+  paramLabel: { color: theme.textBody, fontSize: 12, fontWeight: '700', marginBottom: 8 },
+  paramInput: { backgroundColor: theme.bgPrimary, borderRadius: 12, padding: 14, color: '#fff', fontSize: 16, fontWeight: '800', textAlign: 'center', borderWidth: 1, borderColor: theme.borderDefault },
+  notesInput: { backgroundColor: theme.bgPrimary, borderRadius: 12, padding: 14, color: '#fff', fontSize: 14, minHeight: 80, textAlignVertical: 'top', borderWidth: 1, borderColor: theme.borderDefault, marginBottom: 24 },
+  modalActions: { flexDirection: 'row', gap: 12 },
+  btnCancel: { flex: 1, paddingVertical: 14, alignItems: 'center', borderRadius: 12, backgroundColor: theme.bgPrimary },
+  btnSave: { flex: 2, borderRadius: 12, overflow: 'hidden' },
+  btnSaveGradient: { paddingVertical: 14, alignItems: 'center' },
+
+  deleteCard: { width: '100%', maxWidth: 320, backgroundColor: theme.bgSecondarySoft, borderRadius: 24, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: theme.borderDefault },
+  deleteTitle: { color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 12 },
+  deleteDesc: { color: theme.textBody, fontSize: 14, textAlign: 'center', marginTop: 6, marginBottom: 24 },
+  deleteActions: { flexDirection: 'row', gap: 12 },
 });

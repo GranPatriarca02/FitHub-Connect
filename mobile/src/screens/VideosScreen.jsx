@@ -9,6 +9,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { API_URL } from '../api';
+import AppLayout, { theme } from './AppLayout';
 
 // Extrae el thumbnail de YouTube si la URL es de YT
 const getYoutubeThumbnail = (url) => {
@@ -158,7 +159,7 @@ export default function VideosScreen({ navigation }) {
             <View style={styles.thumbnailPlaceholder}>
               {/* En web usaríamos <Image>, en native igual; aquí usamos color + icono para evitar dependencias extras */}
               <LinearGradient
-                colors={['#1a2a1a', '#2E7D32']}
+                colors={[theme.brandSofter, theme.bgSecondarySoft]}
                 style={styles.thumbGradient}
               >
                 <MaterialCommunityIcons name="play-circle" size={44} color="rgba(255,255,255,0.8)" />
@@ -166,7 +167,7 @@ export default function VideosScreen({ navigation }) {
             </View>
           ) : (
             <LinearGradient
-              colors={['#1a1a2e', '#16213e']}
+              colors={[theme.bgSecondarySoft, theme.bgPrimary]}
               style={styles.thumbGradient}
             >
               <MaterialCommunityIcons name="play-circle" size={44} color="rgba(255,255,255,0.8)" />
@@ -216,9 +217,9 @@ export default function VideosScreen({ navigation }) {
   const misVideos = isTrainer ? videos : []; // Para el entrenador, la API ya devuelve solo los suyos
 
   return (
-    <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
+    <AppLayout title="Vídeos" navigation={navigation} showBackButton={true}>
       <ScrollView
-        contentContainerStyle={[styles.container, { paddingTop: insets.top + 16 }]}
+        contentContainerStyle={[styles.container]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.pageHeader}>
@@ -248,7 +249,7 @@ export default function VideosScreen({ navigation }) {
         </View>
 
         {cargando ? (
-          <ActivityIndicator color="#4CAF50" style={{ marginTop: 40 }} />
+          <ActivityIndicator color={theme.brand} style={{ marginTop: 40 }} />
         ) : (
           <>
             {/* VISTA PARA ENTRENADORES: Solo sus propios videos */}
@@ -280,7 +281,7 @@ export default function VideosScreen({ navigation }) {
                   <Text style={styles.sectionLabel}>Contenido Premium</Text>
                   {isPremium && (
                     <View style={styles.unlockedBadge}>
-                      <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
+                      <Ionicons name="checkmark-circle" size={14} color={theme.brand} />
                       <Text style={styles.unlockedText}>Desbloqueado</Text>
                     </View>
                   )}
@@ -333,7 +334,7 @@ export default function VideosScreen({ navigation }) {
         onPublish={handlePublicar}
         guardando={guardando}
       />
-    </LinearGradient>
+    </AppLayout>
   );
 }
 
@@ -412,7 +413,7 @@ function PublishModal({ visible, onClose, titulo, setTitulo, desc, setDesc, url,
               disabled={guardando}
               activeOpacity={0.85}
             >
-              <LinearGradient colors={['#4CAF50', '#2E7D32']} style={styles.confirmGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+              <LinearGradient colors={[theme.brand, '#15803d']} style={styles.confirmGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
                 {guardando ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
@@ -442,19 +443,19 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 16,
-    backgroundColor: '#1a2a1a',
+    backgroundColor: theme.brandSofter,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#2a3a2a',
+    borderColor: theme.borderDefault,
   },
-  pageTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff', marginBottom: 2 },
-  pageSub: { fontSize: 12, color: '#666' },
+  pageTitle: { fontSize: 22, fontWeight: '800', color: '#fff', marginBottom: 2 },
+  pageSub: { fontSize: 12, color: theme.textBody },
   publishBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#4CAF50',
+    backgroundColor: theme.brand,
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 12,
@@ -464,7 +465,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#4CAF50',
+    color: theme.textBrand,
     textTransform: 'uppercase',
     letterSpacing: 1.2,
     marginBottom: 14,
@@ -482,17 +483,17 @@ const styles = StyleSheet.create({
     gap: 4,
     marginBottom: 14,
   },
-  unlockedText: { fontSize: 11, color: '#4CAF50', fontWeight: '600' },
-  noContent: { color: '#555', fontSize: 13, marginBottom: 12 },
+  unlockedText: { fontSize: 11, color: theme.brand, fontWeight: '600' },
+  noContent: { color: theme.textBody, fontSize: 13, marginBottom: 12 },
 
   // Tarjeta de video
   card: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: theme.bgSecondarySoft,
     borderRadius: 18,
     overflow: 'hidden',
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: theme.borderDefault,
   },
   thumbnailContainer: { position: 'relative' },
   thumbnailPlaceholder: { width: '100%', height: 160 },
@@ -537,12 +538,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#1a2a1a',
+    backgroundColor: theme.brandSofter,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
   },
-  playHintText: { fontSize: 11, color: '#4CAF50', fontWeight: '600' },
+  playHintText: { fontSize: 11, color: theme.textBrand, fontWeight: '600' },
 
   // Sección bloqueada
   lockedSection: { borderRadius: 18, overflow: 'hidden', marginBottom: 14 },
@@ -590,24 +591,25 @@ const styles = StyleSheet.create({
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
   modalCard: {
+    backgroundColor: theme.bgSecondarySoft,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: theme.borderDefault,
   },
   modalTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
-  modalSub: { fontSize: 12, color: '#555', marginBottom: 22 },
-  fieldLabel: { fontSize: 12, color: '#666', marginBottom: 8, letterSpacing: 0.3 },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
+  modalSub: { fontSize: 12, color: theme.textBody, marginBottom: 22 },
+  fieldLabel: { fontSize: 12, color: theme.textBody, marginBottom: 8, letterSpacing: 0.3 },
   fieldInput: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: theme.bgPrimary,
     color: '#fff',
     fontSize: 14,
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: theme.borderDefault,
     marginBottom: 16,
   },
   fieldInputMulti: { height: 80, textAlignVertical: 'top' },
@@ -620,34 +622,34 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     alignItems: 'center',
   },
-  cancelBtnText: { color: '#888', fontSize: 14, fontWeight: '600' },
+  cancelBtnText: { color: theme.textBody, fontSize: 14, fontWeight: '600' },
   confirmBtn: { flex: 2, borderRadius: 14, overflow: 'hidden' },
   confirmGradient: { paddingVertical: 15, alignItems: 'center' },
   confirmBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   emptyPersonal: {
     paddingVertical: 20,
     paddingHorizontal: 10,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: theme.bgSecondarySoft,
     borderRadius: 12,
     borderStyle: 'dashed',
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: theme.borderDefault,
     marginBottom: 20,
   },
   separator: {
     height: 1,
-    backgroundColor: '#2a2a2a',
+    backgroundColor: theme.borderDefault,
     marginVertical: 25,
   },
   visibilityContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: theme.bgPrimary,
     padding: 15,
     borderRadius: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: theme.borderDefault,
   },
   visibilityTitle: { color: '#fff', fontSize: 14, fontWeight: '700', marginBottom: 2 },
   visibilityDesc: { color: '#666', fontSize: 11 },
@@ -658,10 +660,10 @@ const styles = StyleSheet.create({
     padding: 4,
     justifyContent: 'center',
   },
-  toggleBtnOn: { backgroundColor: '#4CAF50' },
+  toggleBtnOn: { backgroundColor: theme.brand },
   toggleBtnOff: { backgroundColor: '#444' },
   toggleCircle: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff' },
   toggleCircleOn: { alignSelf: 'flex-end' },
   toggleCircleOff: { alignSelf: 'flex-start' },
-  separatorModal: { height: 1, backgroundColor: '#333', marginBottom: 20 },
+  separatorModal: { height: 1, backgroundColor: theme.borderDefault, marginBottom: 20 },
 });

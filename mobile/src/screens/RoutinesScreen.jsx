@@ -9,6 +9,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { getRoutines, createRoutine, deleteRoutine } from '../api';
+import AppLayout, { theme } from './AppLayout';
 
 const DIFICULTADES = ['Beginner', 'Intermediate', 'Advanced'];
 const OBJETIVOS = ['Fuerza', 'Hipertrofia', 'Pérdida de peso', 'Resistencia', 'Movilidad'];
@@ -129,15 +130,15 @@ export default function RoutinesScreen({ navigation }) {
   const rutinasPublicas = routines.filter((r) => String(r.creatorId) !== String(userId) && r.isPublic);
 
   return (
-    <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
+    <AppLayout title="Rutinas" navigation={navigation} showBackButton={true}>
       <ScrollView
-        contentContainerStyle={[styles.container, { paddingTop: insets.top + 16 }]}
+        contentContainerStyle={[styles.container]}
         showsVerticalScrollIndicator={false}
       >
         {/* ---- Cabecera ---- */}
         <View style={styles.pageHeader}>
           <View style={styles.headerIconWrap}>
-            <MaterialCommunityIcons name="clipboard-text" size={26} color="#4CAF50" />
+            <MaterialCommunityIcons name="clipboard-text" size={26} color={theme.brand} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.pageTitle}>Mis Rutinas</Text>
@@ -162,24 +163,24 @@ export default function RoutinesScreen({ navigation }) {
           activeOpacity={0.85}
         >
           <LinearGradient
-            colors={['#1a2a1a', '#1b5e20']}
+            colors={[theme.brandSofter, 'rgba(21,128,61,0.2)']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.catalogGradient}
           >
-            <MaterialCommunityIcons name="dumbbell" size={24} color="#4CAF50" />
+            <MaterialCommunityIcons name="dumbbell" size={24} color={theme.brand} />
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={styles.catalogTitle}>Catálogo de ejercicios</Text>
               <Text style={styles.catalogSub}>
                 {isTrainer ? 'Consulta o crea nuevos ejercicios' : 'Explora todos los ejercicios disponibles'}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#4CAF50" />
+            <Ionicons name="chevron-forward" size={20} color={theme.brand} />
           </LinearGradient>
         </TouchableOpacity>
 
         {cargando ? (
-          <ActivityIndicator color="#4CAF50" style={{ marginTop: 40 }} />
+          <ActivityIndicator color={theme.brand} style={{ marginTop: 40 }} />
         ) : (
           <>
             <Text style={styles.sectionLabel}>Creadas por ti</Text>
@@ -308,7 +309,7 @@ export default function RoutinesScreen({ navigation }) {
         </View>
       </Modal>
 
-    </LinearGradient>
+    </AppLayout>
   );
 }
 
@@ -317,7 +318,7 @@ function RoutineCard({ routine, isOwner = false, onPress, onDelete }) {
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
       <View style={styles.cardHeader}>
-        <LinearGradient colors={['#4CAF50', '#2E7D32']} style={styles.cardIcon}>
+        <LinearGradient colors={[theme.brand, '#15803d']} style={styles.cardIcon}>
           <MaterialCommunityIcons name="clipboard-text" size={22} color="#fff" />
         </LinearGradient>
         <View style={{ flex: 1 }}>
@@ -347,7 +348,7 @@ function RoutineCard({ routine, isOwner = false, onPress, onDelete }) {
       <View style={styles.tagRow}>
         {routine.difficulty ? (
           <View style={styles.tag}>
-            <MaterialCommunityIcons name="speedometer" size={12} color="#4CAF50" />
+            <MaterialCommunityIcons name="speedometer" size={12} color={theme.brand} />
             <Text style={styles.tagText}>{routine.difficulty}</Text>
           </View>
         ) : null}
@@ -474,7 +475,7 @@ function CreateRoutineModal({
                 disabled={guardando}
                 activeOpacity={0.85}
               >
-                <LinearGradient colors={['#4CAF50', '#2E7D32']} style={styles.confirmGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                <LinearGradient colors={[theme.brand, '#15803d']} style={styles.confirmGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
                   {guardando ? (
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
@@ -506,19 +507,19 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 16,
-    backgroundColor: '#1a2a1a',
+    backgroundColor: theme.brandSofter,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#2a3a2a',
+    borderColor: theme.borderDefault,
   },
-  pageTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff', marginBottom: 2 },
-  pageSub: { fontSize: 12, color: '#666' },
+  pageTitle: { fontSize: 22, fontWeight: '800', color: '#fff', marginBottom: 2 },
+  pageSub: { fontSize: 12, color: theme.textBody },
   publishBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#4CAF50',
+    backgroundColor: theme.brand,
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 12,
@@ -531,7 +532,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderWidth: 1,
-    borderColor: '#2a3a2a',
+    borderColor: theme.borderDefault,
     borderRadius: 16,
   },
   catalogTitle: { color: '#fff', fontSize: 14, fontWeight: '700', marginBottom: 2 },
@@ -540,7 +541,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#4CAF50',
+    color: theme.textBrand,
     textTransform: 'uppercase',
     letterSpacing: 1.2,
     marginBottom: 14,
@@ -549,12 +550,12 @@ const styles = StyleSheet.create({
 
   // Tarjeta de rutina
   card: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: theme.bgSecondarySoft,
     borderRadius: 18,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: theme.borderDefault,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
   cardIcon: {
@@ -576,7 +577,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2a3a2a',
   },
-  tagText: { color: '#4CAF50', fontSize: 11, fontWeight: '600' },
+  tagText: { color: theme.brand, fontSize: 11, fontWeight: '600' },
   deleteBtn: {
     width: 30, height: 30, borderRadius: 8,
     backgroundColor: '#2a1a1a',
@@ -585,18 +586,18 @@ const styles = StyleSheet.create({
 
   // Empty state
   emptyCard: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: theme.bgSecondarySoft,
     borderRadius: 18,
     padding: 32,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: theme.borderDefault,
     marginBottom: 8,
   },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: '#fff', marginTop: 12, marginBottom: 6 },
-  emptyText: { fontSize: 13, color: '#777', textAlign: 'center', marginBottom: 18, lineHeight: 19 },
+  emptyText: { fontSize: 13, color: theme.textBody, textAlign: 'center', marginBottom: 18, lineHeight: 19 },
   emptyBtn: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: theme.brand,
     paddingHorizontal: 20, paddingVertical: 11, borderRadius: 12,
   },
   emptyBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
@@ -604,26 +605,27 @@ const styles = StyleSheet.create({
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
   modalCard: {
+    backgroundColor: theme.bgSecondarySoft,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: 24,
     paddingBottom: 32,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: theme.borderDefault,
     maxHeight: '92%',
   },
   modalTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
-  modalSub: { fontSize: 12, color: '#555', marginBottom: 22 },
-  fieldLabel: { fontSize: 12, color: '#666', marginBottom: 8, letterSpacing: 0.3 },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
+  modalSub: { fontSize: 12, color: theme.textBody, marginBottom: 22 },
+  fieldLabel: { fontSize: 12, color: theme.textBody, marginBottom: 8, letterSpacing: 0.3 },
   fieldInput: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: theme.bgPrimary,
     color: '#fff',
     fontSize: 14,
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: theme.borderDefault,
     marginBottom: 16,
   },
   fieldInputMulti: { height: 80, textAlignVertical: 'top' },
@@ -636,8 +638,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#333',
   },
-  chipActive: { backgroundColor: '#4CAF50', borderColor: '#4CAF50' },
-  chipText: { color: '#888', fontSize: 12, fontWeight: '600' },
+  chipActive: { backgroundColor: theme.brand, borderColor: theme.brand },
+  chipText: { color: theme.textBody, fontSize: 12, fontWeight: '600' },
   chipTextActive: { color: '#fff', fontWeight: '700' },
 
   toggleRow: {
@@ -661,7 +663,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     alignItems: 'center',
   },
-  cancelBtnText: { color: '#888', fontSize: 14, fontWeight: '600' },
+  cancelBtnText: { color: theme.textBody, fontSize: 14, fontWeight: '600' },
   confirmBtn: { flex: 2, borderRadius: 14, overflow: 'hidden' },
   confirmGradient: { paddingVertical: 15, alignItems: 'center' },
   confirmBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
@@ -674,23 +676,23 @@ const styles = StyleSheet.create({
     alignItems: 'center' 
   },
   confirmBox: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: theme.bgSecondarySoft,
     borderRadius: 24,
     padding: 24,
     width: '85%',
     maxWidth: 340,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: theme.borderDefault,
   },
   confirmTitle: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '800',
     marginBottom: 8,
   },
   confirmDesc: {
-    color: '#888',
+    color: theme.textBody,
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
@@ -720,7 +722,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 12,
     alignItems: 'center',
-    backgroundColor: '#FF5252',
+    backgroundColor: theme.danger,
     justifyContent: 'center',
     minHeight: 48,
   },

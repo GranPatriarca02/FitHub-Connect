@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useStripePlatform, StripeWrapper } from './StripeHelper';
 import { getMonitorDetail, API_URL } from '../api';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import AppLayout, { theme } from './AppLayout';
 
 const DIES_SEMANA_EN = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 const NOMBRES_DIAS_ES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -20,7 +21,7 @@ const getNext14Days = () => {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
     days.push({
-      dateString: d.toISOString().split('T')[0], // YYYY-MM-DD
+      dateString: d.toISOString().split('T')[0],
       dayOfWeekEn: DIES_SEMANA_EN[d.getDay()],
       shortDayEs: NOMBRES_DIAS_ES[d.getDay()],
       dayNum: d.getDate()
@@ -31,7 +32,6 @@ const getNext14Days = () => {
 
 export default function MonitorDetailScreen({ route, navigation }) {
   const { monitor: initialMonitor } = route.params;
-  // Fallback seguro para cuando venimos del redirect de pago (solo trae id)
   const safeInitial = { name: '', specialty: '', hourlyRate: 0, ...initialMonitor };
   const [monitorDetail, setMonitorDetail] = useState(safeInitial);
   const [disponibilidad, setDisponibilidad] = useState([]);
@@ -48,7 +48,6 @@ export default function MonitorDetailScreen({ route, navigation }) {
   const [showSuccess, setShowSuccess] = useState(false);
   const [precioPagado, setPrecioPagado] = useState(0);
 
-  // Comprobamos si el usuario tiene suscripción activa con este entrenador
   useFocusEffect(
     React.useCallback(() => {
       const checkSubscription = async () => {
@@ -61,7 +60,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
           const data = await res.json();
           setIsSubscribed(data.isSubscribed === true);
         } catch (e) {
-          // Si falla la comprobación, asumimos no suscrito
+          console.error("Error check subscription", e);
         } finally {
           setCargandoSuscripcion(false);
         }
@@ -78,7 +77,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
         setDisponibilidad(detail.availability || []);
         setOccupiedSlots(detail.occupiedSlots || []);
       } catch (e) {
-        // Error cargando detalle
+        console.error("Error fetching detail", e);
       } finally {
         setCargandoDatos(false);
       }
@@ -86,17 +85,14 @@ export default function MonitorDetailScreen({ route, navigation }) {
     fetchDetail();
   }, [initialMonitor.id]);
 
-  // Al cambiar la fecha, limpiamos el slot seleccionado
   useEffect(() => {
     setSlotSeleccionado(null);
   }, [fechaSeleccionada]);
 
-  // Filtramos los slots disponibles para el día elegido
   const slotsDelDia = disponibilidad.filter(
     s => s.dayOfWeek === fechaSeleccionada.dayOfWeekEn && s.isAvailable
   );
 
-  // --- USAMOS EL HELPER EN LUGAR DEL HOOK DIRECTO ---
   const { initPaymentSheet, presentPaymentSheet, isWeb } = useStripePlatform();
 
   const handleContratar = async () => {
@@ -104,23 +100,13 @@ export default function MonitorDetailScreen({ route, navigation }) {
         Alert.alert('Selecciona un horario', 'Elige una franja horaria antes de continuar.');
         return;
     }
-
     setCargandoPago(true);
-
     try {
       const userId = await AsyncStorage.getItem('userId');
-      const finalApiUrl = API_URL;
-
       if (isWeb) {
-        // ___ LÓGICA WEB ___
-
-        // 1. Llamada al backend para crear la sesión de Stripe Checkout
-        const response = await fetch(`${finalApiUrl}/create-checkout-session`, {
+        const response = await fetch(`${API_URL}/create-checkout-session`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-User-Id': userId
-          },
+          headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
           body: JSON.stringify({
             monitorId: monitorDetail.id,
             monitorName: monitorDetail.name,
@@ -131,33 +117,18 @@ export default function MonitorDetailScreen({ route, navigation }) {
             webReturnUrl: window.location.origin,
           }),
         });
-
         const data = await response.json();
-
         if (!response.ok) throw new Error(data.error || 'Error al crear sesión de pago');
-
-        // 2. Redirigir a la URL de Stripe si existe, si no, éxito directo (Premium)
         if (data.url) {
           window.location.href = data.url;
         } else {
-          // Éxito Premium en Web -> BLOQUEO INSTANTÁNEO
-          setOccupiedSlots(prev => [...prev, {
-            date: fechaSeleccionada.dateString,
-            startTime: slotSeleccionado.startTime
-          }]);
+          setOccupiedSlots(prev => [...prev, { date: fechaSeleccionada.dateString, startTime: slotSeleccionado.startTime }]);
           setShowSuccess(true);
         }
-
       } else {
-        // ___ LÓGICA TELEFONO ANDR - IOS ___
-
-        // 2. Crear reserva y obtener clientSecret
-        const response = await fetch(`${finalApiUrl}/bookings`, {
+        const response = await fetch(`${API_URL}/bookings`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-User-Id': userId
-          },
+          headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
           body: JSON.stringify({
             monitorId: monitorDetail.id,
             date: fechaSeleccionada.dateString,
@@ -165,54 +136,29 @@ export default function MonitorDetailScreen({ route, navigation }) {
             endTime: slotSeleccionado.endTime.substring(0,5),
           }),
         });
-
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Error al crear la reserva');
-
-        // SI TIENE SUSCRIPCIÓN a este entrenador, reserva gratuita directa
         if (!data.clientSecret || isSubscribed) {
           setPrecioPagado(0);
-          setOccupiedSlots(prev => [...prev, {
-            date: fechaSeleccionada.dateString,
-            startTime: slotSeleccionado.startTime
-          }]);
+          setOccupiedSlots(prev => [...prev, { date: fechaSeleccionada.dateString, startTime: slotSeleccionado.startTime }]);
           setShowSuccess(true);
           return;
         }
-
-        // 3. Inicializar pasarela nativa
         const { error: initError } = await initPaymentSheet({
           paymentIntentClientSecret: data.clientSecret,
           merchantDisplayName: 'FitHub Connect',
           appearance: {
-            colors: {
-              primary: '#4CAF50',
-              background: '#121212',
-              componentBackground: '#1e1e1e',
-              text: '#ffffff',
-            },
+            colors: { primary: theme.brand, background: theme.bgPrimary, componentBackground: theme.bgSecondarySoft, text: '#ffffff' },
             shapes: { borderRadius: 12 }
           }
         });
-
         if (initError) throw new Error(initError.message);
-
-        // 4. Mostrar pasarela nativa
         const { error: paymentError } = await presentPaymentSheet();
-
         if (paymentError) {
-          if (paymentError.code !== 'Canceled') {
-            Alert.alert('Error en el pago', paymentError.message);
-          }
+          if (paymentError.code !== 'Canceled') Alert.alert('Error en el pago', paymentError.message);
         } else {
-          // ÉXITO TRAS PAGO -> BLOQUEAR SLOT EN LA UI
-          // NOTA: El webhook de Stripe confirma la reserva en el backend automáticamente.
-          // Pagar una clase NO cambia el rol del usuario a PREMIUM.
           setPrecioPagado(monitorDetail.hourlyRate);
-          setOccupiedSlots(prev => [...prev, {
-            date: fechaSeleccionada.dateString,
-            startTime: slotSeleccionado.startTime
-          }]);
+          setOccupiedSlots(prev => [...prev, { date: fechaSeleccionada.dateString, startTime: slotSeleccionado.startTime }]);
           setShowSuccess(true);
         }
       }
@@ -225,460 +171,267 @@ export default function MonitorDetailScreen({ route, navigation }) {
 
   return (
     <StripeWrapper>
-      <LinearGradient colors={['#0a0a0a', '#121212', '#1a1a2e']} style={styles.gradient}>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <AppLayout title="Detalle Monitor" navigation={navigation} showBackButton={true}>
+        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
 
-        {/* Perfil del monitor */}
-        <View style={styles.profileCard}>
-          <LinearGradient colors={['#4CAF50', '#2E7D32']} style={styles.avatarLarge}>
-            <Text style={styles.avatarText}>{(monitorDetail.name || '').charAt(0)}</Text>
-          </LinearGradient>
-          <Text style={styles.name}>{monitorDetail.name}</Text>
-          <Text style={styles.specialty}>{monitorDetail.specialty}</Text>
-          {monitorDetail.bio && <Text style={styles.bioText}>{monitorDetail.bio}</Text>}
+          {/* Card Principal Monitor */}
+          <View style={styles.profileCard}>
+            <LinearGradient colors={[theme.brand, '#15803d']} style={styles.avatarLarge}>
+              <Text style={styles.avatarText}>{(monitorDetail.name || 'M').charAt(0).toUpperCase()}</Text>
+            </LinearGradient>
+            <Text style={styles.name}>{monitorDetail.name}</Text>
+            <View style={styles.specialtyBadge}>
+               <Text style={styles.specialtyText}>{monitorDetail.specialty}</Text>
+            </View>
+            {monitorDetail.bio && <Text style={styles.bioText} numberOfLines={3}>{monitorDetail.bio}</Text>}
 
-          <View style={styles.statsRow}>
-            <View style={styles.stat}>
-              <Ionicons name="star" size={18} color="#FFD700" />
-              <Text style={styles.statValue}>{monitorDetail.rating || 'N/A'}</Text>
-              <Text style={styles.statLabel}>Valoración</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.stat}>
-              <MaterialCommunityIcons name="calendar-check" size={18} color="#4CAF50" />
-              <Text style={styles.statValue}>{monitorDetail.sessions || 0}</Text>
-              <Text style={styles.statLabel}>Sesiones</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.stat}>
-              <MaterialCommunityIcons name="cash" size={18} color="#4CAF50" />
-              <Text style={styles.statValue}>{monitorDetail.hourlyRate}€</Text>
-              <Text style={styles.statLabel}>Por hora</Text>
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <Ionicons name="star" size={16} color="#FFD700" />
+                <Text style={styles.statValue}>{monitorDetail.rating || '4.9'}</Text>
+                <Text style={styles.statLabel}>Valoración</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <MaterialCommunityIcons name="calendar-check" size={16} color={theme.brand} />
+                <Text style={styles.statValue}>{monitorDetail.sessions || 120}+</Text>
+                <Text style={styles.statLabel}>Sesiones</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <MaterialCommunityIcons name="currency-eur" size={16} color={theme.brand} />
+                <Text style={styles.statValue}>{monitorDetail.hourlyRate}€</Text>
+                <Text style={styles.statLabel}>Por hora</Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* Banner de suscripción movido a la sección de reservas */}
+          {/* Disponibilidad */}
+          <Text style={styles.sectionTitle}>Reserva tu Sesión</Text>
+          <Text style={styles.sectionHint}>Selecciona un día y una franja horaria disponible</Text>
 
-        <Text style={styles.sectionTitle}>Disponibilidad semanal</Text>
-        <Text style={styles.sectionHint}>Selecciona el día y la franja horaria que prefieras</Text>
-
-        {cargandoDatos ? (
-          <ActivityIndicator color="#4CAF50" style={{ marginVertical: 30 }} />
-        ) : (
-          <>
-            {/* Lista horizontal de Días (14 días próximos) */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.datesRow}>
-              {fechas.map((fecha, i) => (
-                <TouchableOpacity
-                  key={fecha.dateString}
-                  style={[
-                    styles.dateBox,
-                    fechaSeleccionada.dateString === fecha.dateString && styles.dateBoxSelected
-                  ]}
-                  onPress={() => setFechaSeleccionada(fecha)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[
-                    styles.dateDayName,
-                    fechaSeleccionada.dateString === fecha.dateString && styles.dateDayNameSelected
-                  ]}>
-                    {fecha.shortDayEs}
-                  </Text>
-                  <Text style={[
-                    styles.dateDayNum,
-                    fechaSeleccionada.dateString === fecha.dateString && styles.dateDayNumSelected
-                  ]}>
-                    {fecha.dayNum}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            {/* Tarjetas de horario para el día seleccionado */}
-            {slotsDelDia.length > 0 ? (
-              slotsDelDia.map((slot) => {
-                const isOccupied = occupiedSlots.some(
-                  os => os.date === fechaSeleccionada.dateString && 
-                  os.startTime.substring(0,5) === slot.startTime.substring(0,5)
-                );
-                
-                const isSelected = slotSeleccionado?.id === slot.id;
-
-                return (
+          {cargandoDatos ? (
+            <ActivityIndicator color={theme.brand} style={{ marginVertical: 40 }} />
+          ) : (
+            <>
+              {/* Calendario horizontal */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.datesRow}>
+                {fechas.map((fecha) => (
                   <TouchableOpacity
-                    key={slot.id}
+                    key={fecha.dateString}
                     style={[
-                      styles.slotCard,
-                      slotSeleccionado?.id === slot.id && styles.slotCardSelected,
-                      isOccupied && styles.slotCardOccupied
+                      styles.dateBox,
+                      fechaSeleccionada.dateString === fecha.dateString && styles.dateBoxSelected
                     ]}
-                    onPress={() => !isOccupied && setSlotSeleccionado(slot)}
-                    activeOpacity={isOccupied ? 1 : 0.8}
-                    disabled={isOccupied}
+                    onPress={() => setFechaSeleccionada(fecha)}
                   >
-                    <View>
-                      <Text style={[styles.slotDay, isOccupied && { color: '#666' }]}>
-                        {fechaSeleccionada.shortDayEs} {fechaSeleccionada.dayNum}
-                      </Text>
-                      <Text style={styles.slotTime}>
-                        {slot.startTime.substring(0,5)} – {slot.endTime.substring(0,5)}
-                      </Text>
-                    </View>
-                    <View style={[
-                      styles.slotBadge,
-                      slotSeleccionado?.id === slot.id && styles.slotBadgeSelected,
-                      isOccupied && styles.slotBadgeOccupied
-                    ]}>
-                      <Text style={[
-                        styles.slotBadgeText,
-                        slotSeleccionado?.id === slot.id && styles.slotBadgeTextSelected,
-                        isOccupied && styles.slotBadgeTextOccupied
-                      ]}>
-                        {isOccupied ? 'Ocupado' : (slotSeleccionado?.id === slot.id ? 'Seleccionado' : 'Disponible')}
-                      </Text>
-                    </View>
+                    <Text style={[styles.dateDayName, fechaSeleccionada.dateString === fecha.dateString && {color: '#fff'}]}>
+                      {fecha.shortDayEs}
+                    </Text>
+                    <Text style={[styles.dateDayNum, fechaSeleccionada.dateString === fecha.dateString && {color: '#fff'}]}>
+                      {fecha.dayNum}
+                    </Text>
                   </TouchableOpacity>
-                );
-              })
-            ) : (
-              <Text style={styles.noSlotsText}>No hay disponibilidad para este día.</Text>
-            )}
+                ))}
+              </ScrollView>
 
-            {(() => {
-              const selectedOccupied = slotSeleccionado && occupiedSlots.some(
-                os => os.date === fechaSeleccionada.dateString && 
-                os.startTime.substring(0,5) === slotSeleccionado.startTime.substring(0,5)
-              );
-              const isDisabled = cargandoPago || !slotSeleccionado || selectedOccupied;
+              {/* Franjas Horarias */}
+              <View style={styles.slotsContainer}>
+                {slotsDelDia.length > 0 ? (
+                  slotsDelDia.map((slot) => {
+                    const isOccupied = occupiedSlots.some(
+                      os => os.date === fechaSeleccionada.dateString && 
+                      os.startTime.substring(0,5) === slot.startTime.substring(0,5)
+                    );
+                    const isSelected = slotSeleccionado?.id === slot.id;
 
-              return (
-                <View>
-                  {!isSubscribed && !cargandoSuscripcion && (
-                    <TouchableOpacity
-                      style={[styles.subscribeBtn, { marginBottom: 16 }]}
-                      onPress={() => navigation.navigate('SubscriptionBenefits', {
-                        monitorId: monitorDetail.id,
-                        monitorName: monitorDetail.name,
-                      })}
-                      activeOpacity={0.85}
-                    >
-                      <LinearGradient
-                        colors={['#FFD700', '#B8860B']}
-                        style={styles.subscribeBtnGradient}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
+                    return (
+                      <TouchableOpacity
+                        key={slot.id}
+                        style={[
+                          styles.slotCard,
+                          isSelected && styles.slotCardSelected,
+                          isOccupied && styles.slotCardOccupied
+                        ]}
+                        onPress={() => !isOccupied && setSlotSeleccionado(slot)}
+                        disabled={isOccupied}
                       >
-                        <MaterialCommunityIcons name="crown" size={18} color="#000" style={{ marginRight: 8 }} />
-                        <Text style={styles.subscribeBtnText}>Suscribirme a {monitorDetail.name} — 29.99€/mes</Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  )}
+                        <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
+                          <View style={[styles.slotIconWrap, isSelected && {backgroundColor: theme.brand}]}>
+                            <MaterialCommunityIcons name="clock-outline" size={18} color={isSelected ? '#fff' : (isOccupied ? '#444' : theme.brand)} />
+                          </View>
+                          <Text style={[styles.slotTimeText, isOccupied && {color: '#444'}]}>
+                            {slot.startTime.substring(0,5)} – {slot.endTime.substring(0,5)}
+                          </Text>
+                        </View>
+                        <View style={[styles.statusBadge, isOccupied && styles.statusBadgeOccupied, isSelected && {backgroundColor: '#fff'}]}>
+                           <Text style={[styles.statusBadgeText, isOccupied && {color: '#666'}, isSelected && {color: theme.brand, fontWeight: '800'}]}>
+                             {isOccupied ? 'Ocupado' : (isSelected ? 'Elegido' : 'Libre')}
+                           </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })
+                ) : (
+                  <View style={styles.emptySlots}>
+                    <MaterialCommunityIcons name="calendar-remove" size={40} color={theme.borderDefault} />
+                    <Text style={styles.emptySlotsText}>No hay horarios para este día</Text>
+                  </View>
+                )}
+              </View>
 
+              {/* Botones Acción */}
+              <View style={styles.footerActions}>
+                {!isSubscribed && !cargandoSuscripcion && (
                   <TouchableOpacity
-                    style={[styles.ctaWrapper, isDisabled && { opacity: 0.5 }]}
-                    onPress={handleContratar}
-                    activeOpacity={0.85}
-                    disabled={isDisabled}
+                    style={styles.subscribeBtn}
+                    onPress={() => navigation.navigate('SubscriptionBenefits', {
+                      monitorId: monitorDetail.id,
+                      monitorName: monitorDetail.name,
+                    })}
                   >
+                    <LinearGradient colors={['#FFD700', '#B8860B']} style={styles.subscribeGradient} start={{x:0, y:0}} end={{x:1, y:0}}>
+                      <MaterialCommunityIcons name="crown" size={18} color="#000" style={{marginRight: 8}} />
+                      <Text style={styles.subscribeText}>Suscripción Premium {monitorDetail.name}</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                  style={[styles.mainCta, (cargandoPago || !slotSeleccionado) && {opacity: 0.6}]}
+                  onPress={handleContratar}
+                  disabled={cargandoPago || !slotSeleccionado}
+                >
                   <LinearGradient
-                    colors={isDisabled ? ['#555', '#333'] : ['#4CAF50', '#2E7D32']}
-                    style={styles.ctaButton}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
+                    colors={[theme.brand, '#15803d']}
+                    style={styles.mainCtaGradient}
+                    start={{x:0, y:0}} end={{x:1, y:0}}
                   >
                     {cargandoPago ? (
                       <ActivityIndicator color="#fff" />
                     ) : (
-                      <Text style={styles.ctaText}>
-                        {selectedOccupied
-                          ? 'Horario Ocupado'
-                          : slotSeleccionado
-                            ? isSubscribed
-                              ? 'Confirmar Reserva — Incluida en tu suscripción'
-                              : `Pagar Reserva – ${monitorDetail.hourlyRate}€`
-                            : 'Selecciona un horario'}
+                      <Text style={styles.mainCtaText}>
+                        {slotSeleccionado
+                          ? (isSubscribed ? 'Confirmar Reserva (Incluida)' : `Pagar Reserva – ${monitorDetail.hourlyRate}€`)
+                          : 'Selecciona un horario'}
                       </Text>
                     )}
                   </LinearGradient>
                 </TouchableOpacity>
-                </View>
-              );
-            })()}
-          </>
-        )}
+              </View>
+            </>
+          )}
 
-        {/* Modal de Éxito Reserva */}
-        <SuccessModal 
-          visible={showSuccess} 
-          onClose={() => {
-            setShowSuccess(false);
-            navigation.navigate('Home');
-          }}
-          monitorName={monitorDetail.name}
-          time={`${slotSeleccionado?.startTime.substring(0,5)} – ${slotSeleccionado?.endTime.substring(0,5)}`}
-          date={fechaSeleccionada.dateString}
-          precio={precioPagado}
-        />
-
-      </ScrollView>
-      </LinearGradient>
+          <SuccessModal 
+            visible={showSuccess} 
+            onClose={() => { setShowSuccess(false); navigation.navigate('Home'); }}
+            monitorName={monitorDetail.name}
+            time={`${slotSeleccionado?.startTime.substring(0,5)} – ${slotSeleccionado?.endTime.substring(0,5)}`}
+            date={fechaSeleccionada.dateString}
+            precio={precioPagado}
+          />
+        </ScrollView>
+      </AppLayout>
     </StripeWrapper>
   );
 }
 
 function SuccessModal({ visible, onClose, monitorName, time, date, precio }) {
-  const esPremium = precio === 0;
+  const esGratis = precio === 0;
   return (
     <Modal transparent visible={visible} animationType="fade">
       <View style={styles.modalOverlay}>
-        <LinearGradient
-          colors={['#1e1e1e', '#121212']}
-          style={styles.successCard}
-        >
+        <View style={styles.successCard}>
           <View style={styles.checkCircle}>
             <MaterialCommunityIcons name="check" size={50} color="#fff" />
           </View>
-          
           <Text style={styles.successTitle}>¡Reserva Confirmada!</Text>
-          <Text style={styles.successSub}>Tu sesión ha sido agendada con éxito.</Text>
-
+          <Text style={styles.successSub}>Tu sesión ha sido agendada correctamente.</Text>
           <View style={styles.detailsBox}>
-            <DetailItem icon="account" label="Monitor" value={monitorName} />
-            <DetailItem icon="calendar" label="Fecha" value={date} />
-            <DetailItem icon="clock-outline" label="Hora" value={time} />
-            <DetailItem 
-              icon="cash-check" 
-              label="Precio" 
-              value={esPremium ? '0.00€ (incluido en tu suscripción)' : `${precio}€`} 
-              isFree={esPremium} 
-            />
+            <View style={styles.detailItem}><Ionicons name="person-outline" size={18} color={theme.brand} /><Text style={styles.detailValue}>{monitorName}</Text></View>
+            <View style={styles.detailItem}><Ionicons name="calendar-outline" size={18} color={theme.brand} /><Text style={styles.detailValue}>{date}</Text></View>
+            <View style={styles.detailItem}><Ionicons name="time-outline" size={18} color={theme.brand} /><Text style={styles.detailValue}>{time}</Text></View>
+            <View style={styles.detailItem}><Ionicons name="card-outline" size={18} color={theme.brand} /><Text style={styles.detailValue}>{esGratis ? 'Incluido en suscripción' : `${precio}€`}</Text></View>
           </View>
-
           <TouchableOpacity style={styles.closeModalBtn} onPress={onClose}>
-            <LinearGradient
-              colors={['#4CAF50', '#2E7D32']}
-              style={styles.closeModalGradient}
-            >
-              <Text style={styles.closeModalText}>Ir al Inicio</Text>
+            <LinearGradient colors={[theme.brand, '#15803d']} style={styles.closeModalGradient}>
+              <Text style={styles.closeModalText}>Volver al Inicio</Text>
             </LinearGradient>
           </TouchableOpacity>
-        </LinearGradient>
+        </View>
       </View>
     </Modal>
   );
 }
 
-function DetailItem({ icon, label, value, isFree }) {
-  return (
-    <View style={styles.detailItem}>
-      <MaterialCommunityIcons name={icon} size={20} color="#4CAF50" />
-      <View style={{ marginLeft: 12 }}>
-        <Text style={styles.detailLabel}>{label}</Text>
-        <Text style={[styles.detailValue, isFree && { color: '#4CAF50' }]}>{value}</Text>
-      </View>
-    </View>
-  );
-}
-
-// --- ESTILOS ---
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
-  container: { padding: 20, paddingTop: 12, paddingBottom: 40 },
+  container: { padding: 20, paddingBottom: 40 },
   profileCard: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 20,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
+    backgroundColor: theme.bgSecondarySoft,
+    borderRadius: 24, padding: 24,
+    alignItems: 'center', marginBottom: 28,
+    borderWidth: 1, borderColor: theme.borderDefault,
   },
-  avatarLarge: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  avatarText: { color: '#fff', fontSize: 36, fontWeight: 'bold' },
-  name: { fontSize: 22, fontWeight: 'bold', color: '#fff', marginBottom: 4 },
-  bioText: { fontSize: 13, color: '#aaa', marginTop: 10, textAlign: 'center', marginHorizontal: 20, marginBottom: 15 },
-  statsRow: { flexDirection: 'row', alignItems: 'center', width: '100%' },
-  stat: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 16, fontWeight: '700', color: '#fff', marginBottom: 2 },
-  statLabel: { fontSize: 11, color: '#666' },
-  divider: { width: 1, height: 32, backgroundColor: '#2a2a2a' },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: '#fff', marginBottom: 4 },
-  sectionHint: { fontSize: 12, color: '#666', marginBottom: 16 },
+  avatarLarge: { width: 90, height: 90, borderRadius: 45, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  avatarText: { color: '#fff', fontSize: 40, fontWeight: '800' },
+  name: { fontSize: 24, fontWeight: '800', color: '#fff', marginBottom: 6 },
+  specialtyBadge: { backgroundColor: theme.brandSofter, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, marginBottom: 12 },
+  specialtyText: { color: theme.brand, fontSize: 13, fontWeight: '700' },
+  bioText: { color: theme.textBody, fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 20 },
+  statsRow: { flexDirection: 'row', width: '100%', borderTopWidth: 1, borderTopColor: theme.borderDefault, paddingTop: 20 },
+  statItem: { flex: 1, alignItems: 'center' },
+  statValue: { color: '#fff', fontSize: 16, fontWeight: '800', marginBottom: 2 },
+  statLabel: { color: theme.textBody, fontSize: 11, fontWeight: '600', textTransform: 'uppercase' },
+  statDivider: { width: 1, height: 30, backgroundColor: theme.borderDefault },
 
-  // Suscripción por entrenador
-  subscribedBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#5a4500',
-    gap: 10,
-  },
-  subscribedText: {
-    flex: 1,
-    color: '#FFD700',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  subscribeBtn: {
-    borderRadius: 14,
-    overflow: 'hidden',
-    marginBottom: 20,
-  },
-  subscribeBtnGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  subscribeBtnText: {
-    color: '#000',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  
-  datesRow: { flexDirection: 'row', marginBottom: 20 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#fff', marginBottom: 4 },
+  sectionHint: { fontSize: 13, color: theme.textBody, marginBottom: 20 },
+
+  datesRow: { flexDirection: 'row', marginBottom: 24 },
   dateBox: {
-    width: 60,
-    height: 75,
-    backgroundColor: '#1e1e1e',
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
+    width: 65, height: 80,
+    backgroundColor: theme.bgSecondarySoft, borderRadius: 16,
+    justifyContent: 'center', alignItems: 'center',
+    marginRight: 12, borderWidth: 1, borderColor: theme.borderDefault,
   },
-  dateBoxSelected: { backgroundColor: '#4CAF50', borderColor: '#4CAF50' },
-  dateDayName: { fontSize: 13, color: '#888', marginBottom: 4 },
-  dateDayNameSelected: { color: '#e0f2f1' },
-  dateDayNum: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
-  dateDayNumSelected: { color: '#fff' },
-  noSlotsText: { color: '#888', textAlign: 'center', marginVertical: 20 },
+  dateBoxSelected: { backgroundColor: theme.brand, borderColor: theme.brand },
+  dateDayName: { fontSize: 12, color: theme.textBody, fontWeight: '700', marginBottom: 4, textTransform: 'uppercase' },
+  dateDayNum: { fontSize: 20, fontWeight: '800', color: '#fff' },
 
+  slotsContainer: { gap: 12, marginBottom: 24 },
   slotCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#1e1e1e',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: theme.bgSecondarySoft, borderRadius: 16,
+    padding: 16, borderWidth: 1, borderColor: theme.borderDefault,
   },
-  slotCardSelected: { borderColor: '#4CAF50', backgroundColor: '#1a2a1a' },
-  slotDay: { fontSize: 15, fontWeight: '600', color: '#fff', marginBottom: 2 },
-  slotTime: { fontSize: 13, color: '#888' },
-  slotBadge: { paddingHorizontal: 12, paddingVertical: 5, backgroundColor: '#2a2a2a', borderRadius: 10 },
-  slotBadgeSelected: { backgroundColor: '#4CAF50' },
-  slotBadgeText: { fontSize: 12, color: '#888', fontWeight: '500' },
-  slotBadgeTextSelected: { color: '#fff', fontWeight: '700' },
-  ctaWrapper: { marginTop: 16, borderRadius: 16, overflow: 'hidden' },
-  ctaButton: { paddingVertical: 18, alignItems: 'center', minHeight: 60 },
-  ctaText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
-  slotCardOccupied: {
-    borderColor: '#333',
-    backgroundColor: '#161616',
-    opacity: 0.6,
-  },
-  slotBadgeOccupied: {
-    backgroundColor: '#333',
-  },
-  slotBadgeTextOccupied: {
-    color: '#888',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  successCard: {
-    width: '100%',
-    maxWidth: 400,
-    borderRadius: 30,
-    padding: 30,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  checkCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#4CAF50',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  successTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 10,
-  },
-  successSub: {
-    fontSize: 14,
-    color: '#888',
-    textAlign: 'center',
-    marginBottom: 30,
-  },
-  detailsBox: {
-    width: '100%',
-    backgroundColor: '#161616',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 30,
-    borderWidth: 1,
-    borderColor: '#222',
-  },
-  detailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  detailLabel: {
-    fontSize: 11,
-    color: '#666',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  detailValue: {
-    fontSize: 15,
-    color: '#fff',
-    fontWeight: '600',
-  },
-  closeModalBtn: {
-    width: '100%',
-    borderRadius: 15,
-    overflow: 'hidden',
-  },
-  closeModalGradient: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  closeModalText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+  slotCardSelected: { borderColor: theme.brand, backgroundColor: theme.brandSofter },
+  slotCardOccupied: { opacity: 0.5, backgroundColor: theme.bgPrimary },
+  slotIconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center' },
+  slotTimeText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  statusBadge: { backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  statusBadgeOccupied: { backgroundColor: 'rgba(255,0,0,0.1)' },
+  statusBadgeText: { color: theme.textBody, fontSize: 12, fontWeight: '700' },
+
+  footerActions: { gap: 12 },
+  subscribeBtn: { borderRadius: 16, overflow: 'hidden' },
+  subscribeGradient: { paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  subscribeText: { color: '#000', fontSize: 14, fontWeight: '800' },
+  mainCta: { borderRadius: 16, overflow: 'hidden', elevation: 4 },
+  mainCtaGradient: { paddingVertical: 18, alignItems: 'center', justifyContent: 'center' },
+  mainCtaText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+
+  emptySlots: { alignItems: 'center', paddingVertical: 40, gap: 10 },
+  emptySlotsText: { color: theme.textBody, fontSize: 14, fontWeight: '600' },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  successCard: { width: '100%', maxWidth: 400, backgroundColor: theme.bgSecondarySoft, borderRadius: 32, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: theme.borderDefault },
+  checkCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: theme.brand, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  successTitle: { fontSize: 24, fontWeight: '800', color: '#fff', marginBottom: 8 },
+  successSub: { fontSize: 14, color: theme.textBody, textAlign: 'center', marginBottom: 24 },
+  detailsBox: { width: '100%', backgroundColor: theme.bgPrimary, borderRadius: 20, padding: 20, marginBottom: 24, gap: 12 },
+  detailItem: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  detailValue: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  closeModalBtn: { width: '100%', borderRadius: 16, overflow: 'hidden' },
+  closeModalGradient: { paddingVertical: 16, alignItems: 'center' },
+  closeModalText: { color: '#fff', fontSize: 16, fontWeight: '800' },
 });
