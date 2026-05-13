@@ -13,6 +13,9 @@ import LogoApp from '../../assets/FITHUB.png';
 
 const isWeb = Platform.OS === 'web';
 
+// CONFIGURACIÓN DE API DESDE EL .ENV
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
 // COLORES APP
 export const theme = {
     bgPrimary: '#000000',
@@ -31,13 +34,30 @@ export const theme = {
 // RANGOS PARA EL LINEAR GRADIENT DEL FONDO
 const backgroundColors = ['#000000', 'rgba(34, 197, 94, 0.05)', '#000000'];
 
+// Función auxiliar para formatear la fecha de forma relativa
+const formatRelativeTime = (dateString) => {
+    try {
+        const now = new Date();
+        const past = new Date(dateString);
+        const diffInMs = now - past;
+        const diffInMins = Math.floor(diffInMs / 60000);
+
+        if (diffInMins < 1) return 'Ahora mismo';
+        if (diffInMins < 60) return `Hace ${diffInMins} min`;
+        if (diffInMins < 1440) return `Hace ${Math.floor(diffInMins / 60)} h`;
+        return past.toLocaleDateString();
+    } catch (e) {
+        return dateString;
+    }
+};
+
 export default function AppLayout({ children, title, navigation, useHeroPattern = false, showBackButton = false, headerRight = null }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [notificationsVisible, setNotificationsVisible] = useState(false);
     const [profileMenuVisible, setProfileMenuVisible] = useState(false);
     const [userData, setUserData] = useState({ name: 'Usuario', email: '', role: 'FREE' });
 
-    // --- ESTADO PARA NOTIFICACIONES PERSISTENTES ---
+    // --- LISTA DE NOTIFICACIONES (HISTORIAL REAL DEL BACKEND) ---
     const [notificationsList, setNotificationsList] = useState([]);
 
     // Cargar datos rápidos para el dropdown
@@ -47,42 +67,44 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                 const name = await AsyncStorage.getItem('userName');
                 const email = await AsyncStorage.getItem('userEmail');
                 const role = await AsyncStorage.getItem('userRole');
+                const userId = await AsyncStorage.getItem('userId');
+
                 setUserData({
                     name: name || 'Atleta',
                     email: email || '',
                     role: role || 'FREE'
                 });
 
-                // Cargar notificaciones del storage
-                const stored = await AsyncStorage.getItem('persistent_notifications');
-                const parsed = stored ? JSON.parse(stored) : [];
-
-                // NOTIFICACIÓN TEST BORRARLO: 
-                const fixedNotif = {
-                    id: 'fijo-1',
-                    user: 'Omar Remolacha',
-                    message: "Toca tirar pa lante hermano",
-                    time: 'Hace un momento',
-                    icon: 'email',
-                    color: theme.textBrand
-                };
-
-                // Filtramos por ID para evitar duplicar el fixedNotif si ya está en parsed
-                const filteredParsed = parsed.filter(n => n.id !== 'fijo-1');
-                setNotificationsList([fixedNotif, ...filteredParsed]);
+                // --- OBTENER HISTORIAL REAL DE INICIOS DE SESIÓN ---
+                if (userId && API_URL) {
+                    const response = await fetch(`${API_URL}/auth/login-history/${userId}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        const formatted = data.map((log, index) => ({
+                            id: `log-${index}`,
+                            user: "Seguridad de Cuenta",
+                            message: `Nuevo inicio de sesión`,
+                            time: formatRelativeTime(log.created_at),
+                            icon: 'shield-check',
+                            color: theme.brand,
+                            ip: log.ip_address,
+                            location: log.location || "Ubicación desconocida"
+                        }));
+                        setNotificationsList(formatted);
+                    }
+                }
             } catch (e) {
                 console.error("Error cargando datos en Layout", e);
             }
         };
 
-        // Ejecución inmediata al montar para que al entrar del Login ya aparezcan
+        // Ejecución inicial
         loadData();
 
-        // Nuevas notificaciones desde otras pantallas
-        // Mantenemos el interval para que si llega algo mientras navegas, se actualice la lista
-        const interval = setInterval(loadData, 3000);
+        // Intervalo para refrescar datos
+        const interval = setInterval(loadData, 10000);
         return () => clearInterval(interval);
-    }, []); // IMPORTANTE: Dejamos esto vacío para que cargue al montar el Layout tras el login
+    }, []);
 
     // __ FUNCIÓN CERRAR SESIÓN __
     const handleLogout = async () => {
@@ -96,19 +118,9 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
         }
     };
 
-    // Función para borrar notificación individual
-    const deleteNotification = async (id) => {
-        try {
-            const stored = await AsyncStorage.getItem('persistent_notifications');
-            if (stored) {
-                const current = JSON.parse(stored);
-                const filtered = current.filter(n => n.id !== id);
-                await AsyncStorage.setItem('persistent_notifications', JSON.stringify(filtered));
-                setNotificationsList(prev => prev.filter(n => n.id !== id));
-            }
-        } catch (e) {
-            console.log("Error al borrar notificación", e);
-        }
+    // Función para borrar notificación (Visualmente)
+    const deleteNotification = (id) => {
+        setNotificationsList(prev => prev.filter(n => n.id !== id));
     };
 
     const closeAllMenus = () => {
@@ -189,39 +201,58 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <View style={{ position: 'relative' }}>
                         <TouchableOpacity onPress={() => { setProfileMenuVisible(false); setNotificationsVisible(!notificationsVisible); }} style={{ padding: 5, marginRight: 15 }}>
-                            <Ionicons name="notifications" size={24} color={notificationsList.length > 1 ? theme.brand : theme.textBody} />
+                            <Ionicons name="notifications" size={24} color={notificationsList.length > 0 ? theme.brand : theme.textBody} />
                             {notificationsList.length > 0 && (
                                 <View style={{ position: 'absolute', top: 5, right: 17, width: 10, height: 10, backgroundColor: theme.danger, borderRadius: 5, borderWidth: 2, borderColor: theme.bgPrimarySoft }} />
                             )}
                         </TouchableOpacity>
 
+                        {/* --- DROPDOWN DE NOTIFICACIONES --- */}
                         {notificationsVisible && (
                             <View style={{ position: 'absolute', top: 45, right: 0, width: 280, backgroundColor: theme.bgSecondarySoft, borderRadius: 12, borderWidth: 1, borderColor: theme.borderDefault, elevation: 20, zIndex: 3000, maxHeight: 400, overflow: 'hidden' }}>
                                 <View style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: theme.borderDefault }}>
                                     <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13, textAlign: 'center' }}>Notificaciones ({notificationsList.length})</Text>
                                 </View>
                                 <ScrollView style={{ maxHeight: 340 }}>
-                                    {notificationsList.map((item) => (
-                                        <View key={item.id} style={{ flexDirection: 'row', padding: 12, borderBottomWidth: 1, borderBottomColor: theme.borderDefault, alignItems: 'center' }}>
-                                            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: theme.brandSofter, justifyContent: 'center', alignItems: 'center' }}>
-                                                <MaterialCommunityIcons name={item.icon || 'bell'} size={18} color={item.color || theme.textBrand} />
-                                            </View>
-                                            <View style={{ flex: 1, marginLeft: 10 }}>
-                                                <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>{item.user}</Text>
-                                                <Text style={{ color: theme.textBody, fontSize: 11, marginTop: 2 }}>{item.message}</Text>
-                                                <Text style={{ color: theme.textBrand, fontSize: 10, marginTop: 6, fontWeight: '500' }}>{item.time}</Text>
-                                            </View>
-                                            {item.id !== 'fijo-1' && (
-                                                <TouchableOpacity onPress={() => deleteNotification(item.id)} style={{ padding: 5 }}>
+                                    {notificationsList.length === 0 ? (
+                                        <View style={{ padding: 20, alignItems: 'center' }}>
+                                            <Text style={{ color: theme.textBody, fontSize: 12 }}>No hay notificaciones recientes</Text>
+                                        </View>
+                                    ) : (
+                                        notificationsList.map((item) => (
+                                            <TouchableOpacity
+                                                key={item.id}
+                                                onPress={() => {
+                                                    setNotificationsVisible(false);
+                                                    navigation.navigate('Account'); // Te lleva al perfil para ver todos los inicios
+                                                }}
+                                                style={{ flexDirection: 'row', padding: 12, borderBottomWidth: 1, borderBottomColor: theme.borderDefault, alignItems: 'center' }}
+                                            >
+                                                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: theme.brandSofter, justifyContent: 'center', alignItems: 'center' }}>
+                                                    <MaterialCommunityIcons name={item.icon} size={18} color={item.color} />
+                                                </View>
+                                                <View style={{ flex: 1, marginLeft: 10 }}>
+                                                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>{item.user}</Text>
+                                                    <Text style={{ color: theme.textBody, fontSize: 11, marginTop: 2 }}>{item.message}</Text>
+
+                                                    {/* SECCIÓN DE UBICACIÓN E IP */}
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+                                                        <Ionicons name="location-outline" size={10} color={theme.textBrand} />
+                                                        <Text style={{ color: theme.textBrand, fontSize: 10, marginLeft: 2, fontWeight: '500' }}>{item.location}</Text>
+                                                    </View>
+                                                    <Text style={{ color: theme.textBody, fontSize: 9, marginTop: 2 }}>{item.time} • {item.ip}</Text>
+                                                </View>
+                                                <TouchableOpacity onPress={(e) => { e.stopPropagation(); deleteNotification(item.id); }} style={{ padding: 5 }}>
                                                     <Ionicons name="trash-outline" size={16} color={theme.danger} />
                                                 </TouchableOpacity>
-                                            )}
-                                        </View>
-                                    ))}
+                                            </TouchableOpacity>
+                                        ))
+                                    )}
                                 </ScrollView>
                             </View>
                         )}
                     </View>
+
                     <TouchableOpacity
                         onPress={() => { setNotificationsVisible(false); setProfileMenuVisible(true); }}
                         style={{ position: 'relative' }}
@@ -271,7 +302,6 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                                 imageStyle={{ opacity: 0.1, tintColor: theme.brand }}
                                 resizeMode="repeat"
                             >
-                                {/* Sub-header con back + título */}
                                 {showBackButton && title && (
                                     <View style={subHeaderStyle}>
                                         <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 6 }}>
@@ -285,7 +315,6 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                             </ImageBackground>
                         ) : (
                             <>
-                                {/* Sub-header con back + título */}
                                 {showBackButton && title && (
                                     <View style={subHeaderStyle}>
                                         <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 6 }}>
@@ -300,9 +329,6 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                         )}
                     </LinearGradient>
 
-                    {/* Overlay sólo activo cuando hay un menú abierto. Evita
-                        que un TouchableWithoutFeedback envuelva los ScrollView
-                        y bloquee el scroll vertical en móvil. */}
                     {(notificationsVisible || profileMenuVisible) && (
                         <TouchableWithoutFeedback onPress={closeAllMenus}>
                             <View

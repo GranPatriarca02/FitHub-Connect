@@ -1,72 +1,63 @@
 import React, { useState } from 'react';
-import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator
-} from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { API_URL } from '../api';
 import AppLayout, { theme } from './AppLayout';
 
 export default function AccountScreen({ navigation }) {
-  const [userData, setUserData] = useState({ name: '', email: '', role: 'FREE' });
+  const [userData, setUserData] = useState({ name: '', email: '', role: 'FREE', points: 0 });
   const [cargando, setCargando] = useState(true);
-  const [subscriptions, setSubscriptions] = useState([]);
-  const [cargandoSubs, setCargandoSubs] = useState(false);
+  const [loginHistory, setLoginHistory] = useState([]);
+
+  const pointsToPremium = 10000;
+  const progress = Math.min((userData.points || 0) / pointsToPremium, 1);
 
   useFocusEffect(
     React.useCallback(() => {
-      const loadData = async () => {
+      const loadAllData = async () => {
         try {
           const userId = await AsyncStorage.getItem('userId');
           if (!userId) return;
 
-          const profileRes = await fetch(`${API_URL}/auth/user/${userId}`);
+          const [profileRes, loginsRes] = await Promise.all([
+            fetch(`${API_URL}/auth/user/${userId}`),
+            fetch(`${API_URL}/auth/login-history/${userId}`)
+          ]);
+
           if (profileRes.ok) {
             const profileData = await profileRes.json();
-            await AsyncStorage.setItem('userRole', profileData.role);
-            await AsyncStorage.setItem('userName', profileData.name);
-            setUserData({ name: profileData.name, email: profileData.email, role: profileData.role });
-            if (profileData.role === 'PREMIUM') fetchSubscriptions(userId);
-          } else {
-            const name = await AsyncStorage.getItem('userName');
-            const email = await AsyncStorage.getItem('userEmail');
-            const role = await AsyncStorage.getItem('userRole');
-            setUserData({ name: name || '', email: email || '', role: role || 'FREE' });
-            if (role === 'PREMIUM') fetchSubscriptions(userId);
+            setUserData(profileData);
+          }
+
+          if (loginsRes.ok) {
+            const loginsData = await loginsRes.json();
+            setLoginHistory(Array.isArray(loginsData) ? loginsData : []);
           }
         } catch (e) {
-          console.error(e);
+          console.error("DEBUG: Error en la carga:", e);
         } finally {
           setCargando(false);
         }
       };
-      loadData();
+      loadAllData();
     }, [])
   );
 
-  const fetchSubscriptions = async (userId) => {
-    setCargandoSubs(true);
-    try {
-      const res = await fetch(`${API_URL}/subscriptions/user/${userId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSubscriptions(data);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setCargandoSubs(false);
-    }
+  // Función para extraer hora y fecha formateada
+  const formatDateTime = (dateString) => {
+    if (!dateString) return { date: '--/--/--', time: '--:--' };
+    const dateObj = new Date(dateString);
+    return {
+      date: dateObj.toLocaleDateString(),
+      time: dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
   };
-
-  const isPremium = userData.role === 'PREMIUM';
-  const isTrainer = userData.role === 'TRAINER';
 
   if (cargando) {
     return (
-      <View style={styles.loading}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bgPrimary }}>
         <ActivityIndicator size="large" color={theme.brand} />
       </View>
     );
@@ -74,285 +65,137 @@ export default function AccountScreen({ navigation }) {
 
   return (
     <AppLayout title="Mi Cuenta" navigation={navigation} showBackButton={true}>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
+        showsVerticalScrollIndicator={false}
+      >
 
-        {/* Avatar + Nombre */}
-        <View style={styles.profileHeader}>
-          <LinearGradient colors={[theme.brand, '#15803d']} style={styles.avatarLarge}>
-            <Text style={styles.avatarTextLarge}>{userData.name.charAt(0).toUpperCase()}</Text>
-          </LinearGradient>
-          {isPremium && (
-            <View style={styles.roleBadge}>
-              <MaterialCommunityIcons name="check-decagram" size={14} color={theme.brand} />
-              <Text style={[styles.roleBadgeText, { color: theme.brand }]}>Premium</Text>
-            </View>
-          )}
-          {isTrainer && (
-            <View style={styles.roleBadge}>
-              <MaterialCommunityIcons name="dumbbell" size={14} color="#4FC3F7" />
-              <Text style={[styles.roleBadgeText, { color: '#4FC3F7' }]}>Entrenador</Text>
-            </View>
-          )}
-          <Text style={styles.nameText}>{userData.name}</Text>
-          <Text style={styles.roleText}>
-            {isPremium ? 'Miembro Premium' : isTrainer ? 'Entrenador / Monitor' : 'Usuario Free'}
-          </Text>
+        {/* 1. ESTADÍSTICAS RÁPIDAS */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
+          <StatCard
+            icon="shield-key-outline"
+            label="Accesos"
+            value={loginHistory.length}
+            trend="+2"
+          />
+          <StatCard
+            icon="trophy-outline"
+            label="Puntos"
+            value={userData.points || 0}
+            trend={`${Math.floor(progress * 100)}%`}
+          />
         </View>
 
-        {/* Suscripciones activas (solo premium) */}
-        {isPremium && (
-          <View style={styles.infoSection}>
-            <Text style={styles.sectionTitle}>Suscripciones Activas</Text>
-            {cargandoSubs ? (
-              <ActivityIndicator color={theme.brand} />
-            ) : subscriptions.length > 0 ? (
-              subscriptions.map((sub, idx) => (
-                <View key={idx} style={styles.subscriptionCard}>
-                  <View style={styles.subIcon}>
-                    <MaterialCommunityIcons name="crown" size={20} color="#FFD700" />
+        {/* 2. PANEL PREMIUM */}
+        <View style={{
+          backgroundColor: theme.bgSecondarySoft,
+          borderRadius: 15,
+          padding: 20,
+          marginBottom: 25,
+          borderWidth: 1,
+          borderColor: theme.borderDefault
+        }}>
+          <View style={{ alignItems: 'center', marginBottom: 15 }}>
+            <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: theme.brandSofter, justifyContent: 'center', alignItems: 'center' }}>
+              <MaterialCommunityIcons name="rocket-launch" size={32} color={theme.brand} />
+            </View>
+            <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 12 }}>¡Hola, {userData.name}!</Text>
+            <Text style={{ color: theme.textBody, textAlign: 'center', fontSize: 13, marginTop: 5 }}>
+              {userData.role === 'PREMIUM'
+                ? 'Suscripción Premium activa.'
+                : `Te faltan ${pointsToPremium - (userData.points || 0)} puntos para el nivel Premium.`}
+            </Text>
+          </View>
+
+          {userData.role !== 'PREMIUM' && (
+            <View style={{ marginTop: 5 }}>
+              <View style={{ height: 6, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
+                <View style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: theme.brand }} />
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: theme.textBody, fontSize: 11 }}>Nivel: {userData.role}</Text>
+                <Text style={{ color: theme.brand, fontSize: 11, fontWeight: '700' }}>{userData.points || 0} / {pointsToPremium}</Text>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* 3. DETALLES DE PERFIL */}
+        <Text style={{ color: theme.brand, fontSize: 12, fontWeight: '800', marginBottom: 15, textTransform: 'uppercase', letterSpacing: 1 }}>Detalles de Perfil</Text>
+        <View style={{ backgroundColor: theme.bgSecondarySoft, borderRadius: 15, paddingHorizontal: 16, borderWidth: 1, borderColor: theme.borderDefault, marginBottom: 25 }}>
+          <DetailRow label="Nombre" value={userData.name} />
+          <DetailRow label="Email" value={userData.email} />
+          <DetailRow label="Suscripción" value={userData.role} isBrand />
+          <DetailRow label="ID" value={`#${userData.id || '---'}`} last />
+        </View>
+
+        {/* 4. NOTIFICACIONES CON FECHA Y HORA */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+          <Text style={{ color: theme.brand, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 }}>Historial de Conexión</Text>
+        </View>
+
+        <View style={{ backgroundColor: theme.bgSecondarySoft, borderRadius: 15, overflow: 'hidden', borderWidth: 1, borderColor: theme.borderDefault }}>
+          {loginHistory.length > 0 ? (
+            loginHistory.map((log, idx) => {
+              const { date, time } = formatDateTime(log.created_at);
+              return (
+                <View key={idx} style={{
+                  flexDirection: 'row',
+                  padding: 16,
+                  borderBottomWidth: idx === loginHistory.length - 1 ? 0 : 1,
+                  borderColor: theme.borderDefault,
+                  alignItems: 'center'
+                }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.03)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <MaterialCommunityIcons name="shield-check-outline" size={20} color={theme.brand} />
                   </View>
-                  <View style={styles.subInfo}>
-                    <Text style={styles.subName}>{sub.monitorName}</Text>
-                    <Text style={styles.subExpiry}>Expira el {new Date(sub.expiresAt).toLocaleDateString()}</Text>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>Acceso Autorizado</Text>
+                    <Text style={{ color: theme.textBody, fontSize: 11, marginTop: 2 }} numberOfLines={1}>{log.device || 'Navegador Web'}</Text>
+
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5 }}>
+                      <Ionicons name="location-outline" size={12} color={theme.brand} />
+                      <Text style={{ color: theme.textBody, fontSize: 10, marginLeft: 3 }}>IP: {log.ip_address}</Text>
+                      <Text style={{ color: 'rgba(255,255,255,0.2)', marginHorizontal: 6 }}>|</Text>
+                      <Ionicons name="map-outline" size={12} color={theme.brand} />
+                      <Text style={{ color: theme.textBody, fontSize: 10, marginLeft: 3 }}>{log.location || 'España'}</Text>
+                    </View>
                   </View>
-                  <TouchableOpacity
-                    style={styles.subAction}
-                    onPress={() => navigation.navigate('MonitorDetail', { monitor: { id: parseInt(sub.monitorId), name: sub.monitorName } })}
-                  >
-                    <Ionicons name="chevron-forward" size={20} color={theme.textBody} />
-                  </TouchableOpacity>
+
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>{time}</Text>
+                    <Text style={{ color: theme.textBody, fontSize: 10, marginTop: 2 }}>{date}</Text>
+                  </View>
                 </View>
-              ))
-            ) : (
-              <Text style={styles.emptyText}>No tienes suscripciones activas.</Text>
-            )}
-          </View>
-        )}
-
-        {/* Información personal */}
-        <View style={styles.infoSection}>
-          <Text style={styles.sectionTitle}>Información Personal</Text>
-          <View style={styles.infoRow}>
-            <View style={styles.infoIconWrap}>
-              <Ionicons name="mail-outline" size={20} color={theme.brand} />
+              );
+            })
+          ) : (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+              <Text style={{ color: theme.textBody, fontSize: 12 }}>Sin registros de actividad.</Text>
             </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Correo Electrónico</Text>
-              <Text style={styles.infoValue}>{userData.email}</Text>
-            </View>
-          </View>
-          <View style={[styles.infoRow, { marginBottom: 0 }]}>
-            <View style={styles.infoIconWrap}>
-              <Ionicons name="shield-checkmark-outline" size={20} color={theme.brand} />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Estado de Cuenta</Text>
-              <Text style={[styles.infoValue,
-                isPremium && { color: theme.brand },
-                isTrainer && { color: '#4FC3F7' }
-              ]}>
-                {isPremium ? 'Verificado / Premium' : isTrainer ? 'Entrenador Verificado' : 'Pendiente de suscripción'}
-              </Text>
-            </View>
-          </View>
+          )}
         </View>
-
-        {/* Acciones de entrenador */}
-        {isTrainer && (
-          <View style={styles.infoSection}>
-            <Text style={styles.sectionTitle}>Panel del Entrenador</Text>
-            <TouchableOpacity
-              style={styles.actionRow}
-              onPress={() => navigation.navigate('TrainerProfile')}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: theme.brandSofter }]}>
-                <MaterialCommunityIcons name="id-card" size={20} color={theme.brand} />
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoValue}>Perfil Profesional</Text>
-                <Text style={styles.infoLabel}>Edita tu perfil público de entrenador</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={theme.textBody} />
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* CTA Premium (solo FREE) */}
-        {!isPremium && !isTrainer && (
-          <TouchableOpacity
-            style={styles.premiumCta}
-            onPress={() => navigation.navigate('SubscriptionBenefits')}
-          >
-            <LinearGradient
-              colors={[theme.brand, '#15803d']}
-              style={styles.premiumCtaGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              <MaterialCommunityIcons name="crown" size={20} color="#FFD700" style={{ marginRight: 10 }} />
-              <Text style={styles.premiumCtaText}>Hazte Premium — Ver planes</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
 
       </ScrollView>
     </AppLayout>
   );
 }
 
-const styles = StyleSheet.create({
-  loading: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.bgPrimary,
-  },
-  container: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  profileHeader: {
-    alignItems: 'center',
-    marginBottom: 32,
-    paddingTop: 10,
-  },
-  avatarLarge: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  avatarTextLarge: {
-    color: '#fff',
-    fontSize: 42,
-    fontWeight: '800',
-  },
-  roleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: theme.brandSofter,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    marginBottom: 10,
-  },
-  roleBadgeText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  nameText: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  roleText: {
-    fontSize: 14,
-    color: theme.textBody,
-  },
-  infoSection: {
-    backgroundColor: theme.bgSecondarySoft,
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: theme.borderDefault,
-  },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: theme.textBrand,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-    marginBottom: 18,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 18,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-  },
-  infoIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: theme.brandSofter,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  actionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  infoContent: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: theme.textBody,
-    marginTop: 2,
-  },
-  infoValue: {
-    fontSize: 15,
-    color: '#fff',
-    fontWeight: '600',
-  },
-  emptyText: {
-    color: theme.textBody,
-    fontSize: 14,
-    fontStyle: 'italic',
-    marginTop: 5,
-  },
-  subscriptionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.bgPrimary,
-    borderRadius: 14,
-    padding: 14,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: theme.borderDefault,
-  },
-  subIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 215, 0, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  subInfo: { flex: 1 },
-  subName: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  subExpiry: { color: theme.textBody, fontSize: 12, marginTop: 2 },
-  subAction: { padding: 5 },
-  premiumCta: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 10,
-  },
-  premiumCtaGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-  },
-  premiumCtaText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-});
+const StatCard = ({ icon, label, value, trend }) => (
+  <View style={{ width: '48%', backgroundColor: theme.bgSecondarySoft, padding: 16, borderRadius: 15, borderWidth: 1, borderColor: theme.borderDefault }}>
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+      <MaterialCommunityIcons name={icon} size={22} color={theme.brand} />
+      <Text style={{ color: theme.brand, fontSize: 11, fontWeight: 'bold' }}>{trend}</Text>
+    </View>
+    <Text style={{ color: theme.textBody, fontSize: 12, marginTop: 10 }}>{label}</Text>
+    <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', marginTop: 4 }}>{value}</Text>
+  </View>
+);
+
+const DetailRow = ({ label, value, isBrand, last }) => (
+  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: last ? 0 : 1, borderColor: theme.borderDefault }}>
+    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>{label}</Text>
+    <Text style={{ color: isBrand ? theme.textBrand : theme.textBody, fontSize: 14 }}>{value || '---'}</Text>
+  </View>
+);

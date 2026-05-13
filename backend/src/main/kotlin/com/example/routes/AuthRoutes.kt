@@ -35,6 +35,27 @@ fun generateToken(userId: Int, role: String): String {
 
 fun Application.authRoutes() {
     routing {
+        // EndPoint de inicios de sesión
+        get("/auth/login-history/{id}") {
+            val id = call.parameters["id"]?.toIntOrNull()
+                ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID no valido."))
+
+            val history = transaction {
+                ActivityLog.find { ActivityLogs.user eq id }
+                    .orderBy(ActivityLogs.createdAt to SortOrder.DESC)
+                    .limit(10)
+                    .map {
+                        mapOf(
+                            "category" to it.category,
+                            "device" to it.device,
+                            "ip_address" to it.ipAddress,
+                            "status" to it.status,
+                            "created_at" to it.createdAt.toString()
+                        )
+                    }
+            }
+            call.respond(history)
+        }
 
         // Endpoint para registrar un usuario nuevo
         post("/auth/register") {
@@ -191,32 +212,75 @@ fun Application.authRoutes() {
         post("/auth/login") {
             val body = call.receive<LoginRequest>()
 
-            val user = transaction {
-                User.find { Users.email eq body.email }.firstOrNull()
+            // Usamos una sola transacción para todo el proceso de login
+            val result = transaction {
+                val user = User.find { Users.email eq body.email }.firstOrNull()
+
+                // Caso 1: Error de credenciales
+                if (user == null || user.passwordHash != hashPassword(body.password)) {
+                    // OPCIONAL: Registrar intento fallido si el usuario existe
+                    if (user != null) {
+                        try {
+                            ActivityLog.new {
+                                this.user = user
+                                this.category = "Security"
+                                this.device = "Intento fallido"
+                                this.ipAddress = call.request.local.remoteHost
+                                this.status = "Failed"
+                            }
+                            println("No se ha podido registrar en la base de datos: ${body.email}")
+                        } catch (e: Exception) {
+                            println("Error al registrar en la base de datos: ${e.message}")
+                        }
+                    }
+                    null // Retornamos null para manejar el Unauthorized fuera
+                } else if (!user.isVerified) {
+                    // Verificación del correo.
+                    "NOT_VERIFIED"
+                } else {
+                    // --- LOG DE ÉXITO ---
+                    // Registramos que el login fue correcto antes de responder
+                    try {
+                        ActivityLog.new {
+                            this.user = user
+                            this.category = "Login"
+                            // Intentamos obtener el navegador, si no, ponemos uno genérico
+                            this.device = call.request.headers["User-Agent"]?.take(50) ?: "Unknown Device"
+                            this.ipAddress = call.request.local.remoteHost
+                            this.status = "Success"
+                        }
+                        println("Se ha registrado correctamente en la base de datos: ${user.email}")
+                    } catch (e: Exception) {
+                        println("Error al registrar en la base de datos: ${e.message}")
+                        e.printStackTrace()
+                    }
+                    user // Retornamos el usuario para la respuesta final
+                }
             }
 
-            if (user == null || user.passwordHash != hashPassword(body.password)) {
-                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Email o contrasena incorrectos."))
-                return@post
+            // Manejo de las respuestas de Ktor fuera de la transacción
+            when (result) {
+                null -> {
+                    call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Email o contrasena incorrectos."))
+                }
+                "NOT_VERIFIED" -> {
+                    call.respond(
+                        HttpStatusCode.Forbidden, 
+                        mapOf("error" to "Debes verificar tu email primero para poder entrar.")
+                    )
+                }
+                is User -> {
+                    call.respond(
+                        AuthResponse(
+                            userId = result.id.value,
+                            name = result.name,
+                            email = result.email,
+                            role = result.role.name,
+                            token = generateToken(result.id.value, result.role.name)
+                        )
+                    )
+                }
             }
-
-            // Verificación del correo.
-            if (!user.isVerified) {
-                return@post call.respond(
-                    HttpStatusCode.Forbidden, 
-                    mapOf("error" to "Debes verificar tu email primero para poder entrar.")
-                )
-            }
-
-            call.respond(
-                AuthResponse(
-                    userId = user.id.value,
-                    name = user.name,
-                    email = user.email,
-                    role = user.role.name,
-                    token = generateToken(user.id.value, user.role.name)
-                )
-            )
         }
 
         // Obtener perfil del usuario

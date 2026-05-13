@@ -17,7 +17,7 @@ object DatabaseFactory {
         Database.connect(pool)
         transaction {
             SchemaUtils.createMissingTablesAndColumns(
-                Users, Monitors, Routines, Availabilities, Bookings, Videos,
+                Users, ActivityLogs, Notifications, Monitors, Routines, Availabilities, Bookings, Videos,
                 Exercises, RoutineExercises, Subscriptions, Posts, PostLikes, Comments
             )
 

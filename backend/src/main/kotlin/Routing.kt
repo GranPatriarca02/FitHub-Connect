@@ -26,23 +26,24 @@ fun Application.configureRouting() {
         allowNonSimpleContentTypes = true 
     }
 
-    // Registro de todas las rutas de la API bajo la protección de CORS
-    authRoutes()
-    availabilityRoutes()
-    monitorRoutes()
-    bookingRoutes()
-    subscriptionRoutes()
-    videoRoutes()
-    exerciseRoutes()
-    routineRoutes()
-    socialRoutes()
-
     // Leemos FRONTEND_URL para redirecciones web tras el pago
     val env = io.github.cdimascio.dotenv.dotenv { ignoreIfMissing = true }
     val frontendUrl = env["FRONTEND_URL"] ?: System.getenv("FRONTEND_URL") ?: "http://localhost:8081"
 
     // Rutas base y de ayuda
     routing {
+        // Registro de todas las rutas de la API bajo la protección de CORS
+        authRoutes()
+        availabilityRoutes()
+        securityRoutes()
+        monitorRoutes()
+        bookingRoutes()
+        subscriptionRoutes()
+        videoRoutes()
+        exerciseRoutes()
+        routineRoutes()
+        socialRoutes()
+
         get("/") {
             call.respondText("FitHub Connect API v0.1")
         }

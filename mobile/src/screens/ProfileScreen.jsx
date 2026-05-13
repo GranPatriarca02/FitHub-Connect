@@ -21,7 +21,7 @@ export default function ProfileScreen({ navigation }) {
         const name = await AsyncStorage.getItem('userName');
         const email = await AsyncStorage.getItem('userEmail');
         const savedRole = await AsyncStorage.getItem('userRole');
-        
+
         if (name) setUserName(name);
         if (email) setUserEmail(email);
         if (savedRole) setRole(savedRole);
@@ -40,8 +40,8 @@ export default function ProfileScreen({ navigation }) {
       "¿Estás seguro de que quieres salir?",
       [
         { text: "Cancelar", style: "cancel" },
-        { 
-          text: "Sí, salir", 
+        {
+          text: "Sí, salir",
           style: "destructive",
           onPress: async () => {
             await AsyncStorage.clear();
@@ -103,7 +103,7 @@ export default function ProfileScreen({ navigation }) {
   return (
     <View style={styles.modalOverlay}>
       <LinearGradient colors={['#1a1a1a', '#0a0a0a']} style={styles.modalContent}>
-        
+
         {/* Barra superior con botón de cerrar */}
         <View style={styles.topBar}>
           <Text style={styles.modalTitle}>Mi Perfil</Text>
@@ -113,7 +113,7 @@ export default function ProfileScreen({ navigation }) {
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          
+
           {/* Info del Usuario */}
           <View style={styles.profileSection}>
             <View style={styles.avatarWrapper}>
@@ -147,8 +147,8 @@ export default function ProfileScreen({ navigation }) {
               <Ionicons name="chevron-forward" size={20} color="#333" />
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.menuItem} 
+            <TouchableOpacity
+              style={styles.menuItem}
               activeOpacity={0.7}
               onPress={handleLogout}
             >
@@ -163,9 +163,9 @@ export default function ProfileScreen({ navigation }) {
           <Text style={styles.sectionTitle}>Planes Disponibles</Text>
 
           {/* Card: Suscripción Ilimitada */}
-          <TouchableOpacity 
-            style={styles.planCard} 
-            activeOpacity={0.9} 
+          <TouchableOpacity
+            style={styles.planCard}
+            activeOpacity={0.9}
             onPress={handleSubscribeUnlimited}
             disabled={procesandoPago}
           >
