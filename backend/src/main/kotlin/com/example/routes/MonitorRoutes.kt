@@ -120,12 +120,13 @@ fun Application.monitorRoutes() {
 
                     // OBTENER SLOTS OCUPADOS (RESERVAS ACTIVAS)
                     val occupiedSlots = Booking.find {
-                        (Bookings.monitorId eq monitorId) and 
+                        (Bookings.monitorId eq monitorId) and
                         (Bookings.status neq BookingStatus.CANCELLED)
                     }.map {
                         OccupiedSlotDto(
                             date = it.date.toLocalDate().toString(),
-                            startTime = it.startTime
+                            startTime = it.startTime,
+                            endTime = it.endTime
                         )
                     }
 

@@ -17,8 +17,76 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.*
+import java.time.Duration
 import java.time.LocalDateTime
 import java.time.LocalDate
+import java.time.LocalTime
+
+// === Helpers de validacion de reservas ===
+private fun isHalfHourAligned(t: LocalTime): Boolean =
+    t.second == 0 && t.nano == 0 && (t.minute == 0 || t.minute == 30)
+
+/**
+ * Valida una reserva de usuario:
+ *  - start/end alineados a bloques de 30 min
+ *  - start < end
+ *  - duracion entre 60 y 180 minutos
+ *  - encaja dentro de ALGUNA franja del entrenador ese dia
+ *  - no solapa con otras reservas activas del entrenador ese dia
+ *
+ * Devuelve el numero de horas (Double, p.ej. 1.5) cuando es valida,
+ * o lanza IllegalArgumentException con el mensaje al usuario.
+ */
+private fun validateBookingSlot(
+    monitorId: Int,
+    dateStr: String,
+    startStr: String,
+    endStr: String
+): Double {
+    val date = try { LocalDate.parse(dateStr) }
+    catch (e: Exception) { throw IllegalArgumentException("Fecha invalida") }
+
+    val start = try { LocalTime.parse(startStr) }
+    catch (e: Exception) { throw IllegalArgumentException("Hora de inicio invalida") }
+
+    val end = try { LocalTime.parse(endStr) }
+    catch (e: Exception) { throw IllegalArgumentException("Hora de fin invalida") }
+
+    if (!isHalfHourAligned(start) || !isHalfHourAligned(end))
+        throw IllegalArgumentException("Las horas deben estar alineadas a bloques de 30 min")
+
+    if (!start.isBefore(end))
+        throw IllegalArgumentException("El inicio debe ser anterior al fin")
+
+    val minutes = Duration.between(start, end).toMinutes()
+    if (minutes < 60 || minutes > 180)
+        throw IllegalArgumentException("La reserva debe ser de entre 1 y 3 horas")
+
+    // Encaja en alguna franja del entrenador ese dia?
+    val franjas = com.example.models.Availability.find {
+        (com.example.models.Availabilities.monitorId eq monitorId) and
+        (com.example.models.Availabilities.dayOfWeek eq date.dayOfWeek) and
+        (com.example.models.Availabilities.isAvailable eq true)
+    }.toList()
+    val encaja = franjas.any { f ->
+        !start.isBefore(f.startTime) && !end.isAfter(f.endTime)
+    }
+    if (!encaja)
+        throw IllegalArgumentException("La reserva debe estar dentro de la disponibilidad del entrenador")
+
+    // No solapa con otra reserva activa?
+    val solapa = Booking.find {
+        (Bookings.monitorId eq monitorId) and
+        (Bookings.status neq BookingStatus.CANCELLED)
+    }.filter { it.date.toLocalDate() == date }.any { b ->
+        val bs = LocalTime.parse(b.startTime)
+        val be = LocalTime.parse(b.endTime)
+        start.isBefore(be) && end.isAfter(bs)
+    }
+    if (solapa) throw IllegalArgumentException("Este horario ya esta reservado")
+
+    return minutes / 60.0  // 1.0, 1.5, 2.0, 2.5, 3.0
+}
 
 fun Application.bookingRoutes() {
     // 1. Cargamos las variables del archivo .env
@@ -50,18 +118,19 @@ fun Application.bookingRoutes() {
                 val result = transaction {
                     val bookingDateTime = LocalDateTime.parse("${body.date}T${body.startTime}:00")
 
-                    // VALIDACIÓN ANTI-DUPLICADOS
-                    val existing = Booking.find {
-                        (Bookings.monitorId eq body.monitorId) and 
-                        (Bookings.date eq bookingDateTime) and 
-                        (Bookings.status neq BookingStatus.CANCELLED)
-                    }.firstOrNull()
-
-                    if (existing != null) {
-                        throw Exception("Este horario ya está reservado. Por favor, elige otro.")
-                    }
+                    // Validacion completa: alineacion 30 min, duracion 1-3h,
+                    // encaje en franja, sin solape. Devuelve horas (1.0..3.0 en saltos de 0.5).
+                    val horas = validateBookingSlot(
+                        monitorId = body.monitorId,
+                        dateStr = body.date,
+                        startStr = body.startTime,
+                        endStr = body.endTime
+                    )
 
                     val isPremium = user.role == UserRole.PREMIUM
+                    val hourlyRate = monitor.hourlyRate?.toDouble() ?: 0.0
+                    // Precio = horas * tarifa/h (1h30 = 1.5x, 2h30 = 2.5x, etc.)
+                    val precioTotal = (horas * hourlyRate).toBigDecimal()
 
                     val booking = Booking.new {
                         this.user = user
@@ -71,7 +140,7 @@ fun Application.bookingRoutes() {
                         this.endTime = body.endTime
                         this.status = if (isPremium) BookingStatus.CONFIRMED else BookingStatus.PENDING
                         this.notes = body.notes
-                        this.amount = if (isPremium) 0.0.toBigDecimal() else (monitor.hourlyRate ?: 0.0.toBigDecimal())
+                        this.amount = if (isPremium) 0.0.toBigDecimal() else precioTotal
                     }
 
                     if (isPremium) {
@@ -92,12 +161,15 @@ fun Application.bookingRoutes() {
                     }
                 }
                 call.respond(HttpStatusCode.Created, result)
+            } catch (e: IllegalArgumentException) {
+                // Validacion fallida (alineacion, duracion, encaje, solape...)
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Reserva no valida")))
             } catch (e: Exception) {
                 // LIMPIEZA DE RESERVA FANTASMA
                 transaction {
                    // Intentamos borrar la reserva que acabamos de crear si falló Stripe
-                   Booking.find { 
-                       (Bookings.userId eq userId) and (Bookings.status eq BookingStatus.PENDING) 
+                   Booking.find {
+                       (Bookings.userId eq userId) and (Bookings.status eq BookingStatus.PENDING)
                    }.sortedByDescending { it.id.value }.firstOrNull()?.delete()
                 }
                 call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (e.message ?: "Error desconocido")))
@@ -115,10 +187,8 @@ fun Application.bookingRoutes() {
                 
                 val monitorId = request["monitorId"]?.toString()?.replace("\"", "")?.toIntOrNull() ?: 1
                 val monitorName = request["monitorName"]?.toString()?.replace("\"", "") ?: "Monitor"
-                val priceString = request["price"]?.toString()?.replace("\"", "") ?: "0.0"
-                val price = priceString.toDoubleOrNull() ?: 0.0
 
-                // 1. Verificar si el usuario es Premium
+                // 1. Verificar usuario / monitor
                 val (user, monitor) = transaction {
                     User.findById(userId) to Monitor.findById(monitorId)
                 }
@@ -126,23 +196,29 @@ fun Application.bookingRoutes() {
                 if (user == null || monitor == null)
                     return@post call.respond(HttpStatusCode.NotFound, mapOf("error" to "Usuario o Monitor no encontrado"))
 
+                val dateStr = request["date"]?.toString()?.replace("\"", "") ?: LocalDate.now().toString()
+                val hourStr = request["startTime"]?.toString()?.replace("\"", "") ?: "10:00"
+                val endStr  = request["endTime"]?.toString()?.replace("\"", "") ?: "11:00"
+
+                // Validacion completa + calculo del precio en servidor
+                val horas = try {
+                    transaction {
+                        validateBookingSlot(
+                            monitorId = monitorId,
+                            dateStr = dateStr,
+                            startStr = hourStr,
+                            endStr = endStr
+                        )
+                    }
+                } catch (e: IllegalArgumentException) {
+                    return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Reserva no valida")))
+                }
+
+                val hourlyRate = monitor.hourlyRate?.toDouble() ?: 0.0
+                val price = horas * hourlyRate
+
                 if (user.role == UserRole.PREMIUM) {
-                    val dateStr = request["date"]?.toString()?.replace("\"", "") ?: LocalDate.now().toString()
-                    val hourStr = request["startTime"]?.toString()?.replace("\"", "") ?: "10:00"
                     val bDateTime = LocalDateTime.parse("${dateStr}T${hourStr}:00")
-
-                    // VALIDACIÓN ANTI-DUPLICADOS (Web Premium)
-                    val alreadyBooked = transaction {
-                        Booking.find {
-                            (Bookings.monitorId eq monitorId) and 
-                            (Bookings.date eq bDateTime) and 
-                            (Bookings.status neq BookingStatus.CANCELLED)
-                        }.any()
-                    }
-
-                    if (alreadyBooked) {
-                        return@post call.respond(HttpStatusCode.Conflict, mapOf("error" to "Este horario ya está reservado."))
-                    }
 
                     // Si es PREMIUM, creamos la reserva directamente y no abrimos Stripe
                     transaction {
@@ -151,7 +227,7 @@ fun Application.bookingRoutes() {
                             this.monitor = monitor
                             this.date = bDateTime
                             this.startTime = hourStr
-                            this.endTime = request["endTime"]?.toString()?.replace("\"", "") ?: "11:00"
+                            this.endTime = endStr
                             this.status = BookingStatus.CONFIRMED
                             this.amount = 0.0.toBigDecimal()
                         }
@@ -161,8 +237,6 @@ fun Application.bookingRoutes() {
 
                 // 2. Si no es Premium, flujo normal de Stripe
                 val bookingId = transaction {
-                    val dateStr = request["date"]?.toString()?.replace("\"", "") ?: LocalDate.now().toString()
-                    val hourStr = request["startTime"]?.toString()?.replace("\"", "") ?: "10:00"
                     val bDateTime = LocalDateTime.parse("${dateStr}T${hourStr}:00")
 
                     Booking.new {
@@ -170,7 +244,7 @@ fun Application.bookingRoutes() {
                         this.monitor = monitor
                         this.date = bDateTime
                         this.startTime = hourStr
-                        this.endTime = request["endTime"]?.toString()?.replace("\"", "") ?: "11:00"
+                        this.endTime = endStr
                         this.status = BookingStatus.PENDING
                         this.amount = price.toBigDecimal()
                     }.id.value

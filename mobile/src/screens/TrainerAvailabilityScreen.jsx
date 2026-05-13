@@ -1,13 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, TextInput, Modal
+  ActivityIndicator, Alert, Modal
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { API_URL } from '../api';
+import { API_URL, deleteAvailability } from '../api';
 import AppLayout, { theme } from './AppLayout';
 
 const DIAS_SEMANA = [
@@ -19,6 +19,24 @@ const DIAS_SEMANA = [
   { en: 'SATURDAY',  es: 'Sábado' },
   { en: 'SUNDAY',    es: 'Domingo' },
 ];
+
+// Convierte "HH:MM" a minutos desde medianoche.
+const aMin = (hhmm) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+};
+// Convierte minutos desde medianoche a "HH:MM".
+const deMin = (mins) => {
+  const h = Math.floor(mins / 60) % 24;
+  const m = mins % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+// Suma/resta N bloques de 30 min, clampando entre [0, 1410] (=23:30).
+const moverBloque = (hhmm, delta) => {
+  const total = aMin(hhmm) + delta * 30;
+  const clamped = Math.max(0, Math.min(23 * 60 + 30, total));
+  return deMin(clamped);
+};
 
 export default function TrainerAvailabilityScreen({ navigation }) {
   const [monitorId, setMonitorId] = useState(null);
@@ -71,14 +89,8 @@ export default function TrainerAvailabilityScreen({ navigation }) {
     (f) => f.dayOfWeek === diaSeleccionado.en && f.isAvailable
   );
 
-  const validarHora = (hora) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(hora);
-
   const handleAñadirFranja = async () => {
-    if (!validarHora(horaInicio) || !validarHora(horaFin)) {
-      Alert.alert('Formato incorrecto', 'Usa el formato HH:MM (ej: 09:00)');
-      return;
-    }
-    if (horaInicio >= horaFin) {
+    if (aMin(horaInicio) >= aMin(horaFin)) {
       Alert.alert('Hora inválida', 'La hora de inicio debe ser anterior a la de fin');
       return;
     }
@@ -94,7 +106,8 @@ export default function TrainerAvailabilityScreen({ navigation }) {
           isAvailable: true,
         }),
       });
-      if (!res.ok) throw new Error('Error al guardar la franja');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Error al guardar la franja');
       setModalVisible(false);
       await cargarDisponibilidad(monitorId);
     } catch (e) {
@@ -115,17 +128,7 @@ export default function TrainerAvailabilityScreen({ navigation }) {
           style: 'destructive',
           onPress: async () => {
             try {
-              const res = await fetch(`${API_URL}/availability/${monitorId}/update`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  dayOfWeek: franja.dayOfWeek,
-                  startTime: franja.startTime,
-                  endTime: franja.endTime,
-                  isAvailable: false,
-                }),
-              });
-              if (!res.ok) throw new Error('Error al eliminar');
+              await deleteAvailability(franja.id);
               await cargarDisponibilidad(monitorId);
             } catch (e) {
               Alert.alert('Error', e.message);
@@ -261,30 +264,61 @@ export default function TrainerAvailabilityScreen({ navigation }) {
             <View style={styles.timeInputsRow}>
               <View style={styles.timeCol}>
                 <Text style={styles.timeLabel}>Inicio</Text>
-                <TextInput
-                  style={styles.timeField}
-                  value={horaInicio}
-                  onChangeText={setHoraInicio}
-                  placeholder="09:00"
-                  placeholderTextColor="#444"
-                  keyboardType="numbers-and-punctuation"
-                />
+                <View style={styles.timeStepperRow}>
+                  <TouchableOpacity
+                    style={styles.stepperBtn}
+                    onPress={() => {
+                      const nuevo = moverBloque(horaInicio, -1);
+                      setHoraInicio(nuevo);
+                      // Mantener fin > inicio (mínimo un bloque)
+                      if (aMin(horaFin) <= aMin(nuevo)) setHoraFin(moverBloque(nuevo, 1));
+                    }}
+                  >
+                    <Ionicons name="remove" size={20} color="#fff" />
+                  </TouchableOpacity>
+                  <View style={styles.timeField}>
+                    <Text style={styles.timeFieldText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{horaInicio}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.stepperBtn}
+                    onPress={() => {
+                      const nuevo = moverBloque(horaInicio, +1);
+                      setHoraInicio(nuevo);
+                      if (aMin(horaFin) <= aMin(nuevo)) setHoraFin(moverBloque(nuevo, 1));
+                    }}
+                  >
+                    <Ionicons name="add" size={20} color="#fff" />
+                  </TouchableOpacity>
+                </View>
               </View>
-              <View style={{paddingTop: 35}}>
-                <Ionicons name="arrow-forward" size={20} color="#444" />
-              </View>
+
               <View style={styles.timeCol}>
                 <Text style={styles.timeLabel}>Fin</Text>
-                <TextInput
-                  style={styles.timeField}
-                  value={horaFin}
-                  onChangeText={setHoraFin}
-                  placeholder="10:00"
-                  placeholderTextColor="#444"
-                  keyboardType="numbers-and-punctuation"
-                />
+                <View style={styles.timeStepperRow}>
+                  <TouchableOpacity
+                    style={styles.stepperBtn}
+                    onPress={() => {
+                      const nuevo = moverBloque(horaFin, -1);
+                      // No permitir fin <= inicio
+                      if (aMin(nuevo) > aMin(horaInicio)) setHoraFin(nuevo);
+                    }}
+                  >
+                    <Ionicons name="remove" size={20} color="#fff" />
+                  </TouchableOpacity>
+                  <View style={styles.timeField}>
+                    <Text style={styles.timeFieldText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{horaFin}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.stepperBtn}
+                    onPress={() => setHoraFin(moverBloque(horaFin, +1))}
+                  >
+                    <Ionicons name="add" size={20} color="#fff" />
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
+
+            <Text style={styles.helperHint}>Los horarios se mueven en bloques de 30 min</Text>
 
             <View style={styles.modalFooter}>
                <TouchableOpacity style={styles.modalCancel} onPress={() => setModalVisible(false)}>
@@ -402,15 +436,27 @@ const styles = StyleSheet.create({
   modalHeader: { marginBottom: 24, alignItems: 'center' },
   modalTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
   modalSub: { fontSize: 14, color: theme.brand, fontWeight: '700', marginTop: 4 },
-  timeInputsRow: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginBottom: 30 },
-  timeCol: { width: 100 },
+  timeInputsRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 12 },
+  timeCol: { flex: 1 },
   timeLabel: { color: theme.textBody, fontSize: 12, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
-  timeField: {
-    backgroundColor: theme.bgPrimary, borderRadius: 12,
-    color: '#fff', fontSize: 22, fontWeight: '800',
-    paddingVertical: 12, textAlign: 'center',
+  timeStepperRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  stepperBtn: {
+    width: 34, height: 44, borderRadius: 10,
+    backgroundColor: theme.bgPrimary,
     borderWidth: 1, borderColor: theme.borderDefault,
+    justifyContent: 'center', alignItems: 'center',
   },
+  timeField: {
+    flex: 1,
+    minWidth: 70,
+    backgroundColor: theme.bgPrimary, borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderWidth: 1, borderColor: theme.borderDefault,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  timeFieldText: { color: '#fff', fontSize: 20, fontWeight: '800', textAlign: 'center' },
+  helperHint: { color: '#555', fontSize: 11, textAlign: 'center', marginBottom: 24 },
   modalFooter: { flexDirection: 'row', gap: 12 },
   modalCancel: { flex: 1, paddingVertical: 14, alignItems: 'center', borderRadius: 12, backgroundColor: theme.bgPrimary },
   modalSave: { flex: 2, borderRadius: 12, overflow: 'hidden' },

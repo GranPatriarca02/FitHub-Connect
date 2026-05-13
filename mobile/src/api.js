@@ -49,6 +49,21 @@ export async function getMonitorDetail(id) {
   return response.json();
 }
 
+/**
+ * Borra una franja horaria del entrenador por su id.
+ * DELETE /availability/{availabilityId}
+ */
+export async function deleteAvailability(availabilityId) {
+  const res = await fetch(`${API_URL}/availability/${availabilityId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `Error eliminando franja: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function healthCheck() {
   try {
     const response = await fetch(`${API_URL}/`);

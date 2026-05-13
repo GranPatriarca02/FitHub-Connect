@@ -12,8 +12,9 @@ data class MonitorListItem(
 
 @Serializable
 data class OccupiedSlotDto(
-    val date: String,     // "2026-04-20"
-    val startTime: String // "10:00"
+    val date: String,      // "2026-04-20"
+    val startTime: String, // "10:00"
+    val endTime: String    // "11:30"
 )
 
 @Serializable
