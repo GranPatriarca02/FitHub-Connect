@@ -435,5 +435,34 @@ Durante el desarrollo han surgido diversos desafíos técnicos que han requerido
 ---
 
 ## 10. Anexos
+   - 10.1 Historial de Cambios y Evolución Arquitectónica
 
 - **Repositorio de Código**: El código fuente completo, tanto del backend como del frontend móvil, se encuentra disponible en GitHub para su revisión técnica: [FitHub-Connect en GitHub](https://github.com/GranPatriarca02/FitHub-Connect)
+
+### 10.1 Historial de Cambios y Evolución Arquitectónica
+
+A lo largo de las etapas finales del desarrollo, la plataforma FitHub Connect experimentó una evolución significativa en su modelo de negocio y arquitectura subyacente para alinearse mejor con las dinámicas de la economía de los creadores (Creator Economy):
+
+**Transición al Modelo de Suscripciones por Entrenador (Trainer-Centric Model)**
+Originalmente, el sistema contemplaba un rol `GLOBAL_PREMIUM` que otorgaba a los usuarios acceso ilimitado a todos los entrenadores y rutinas de la plataforma mediante un pago único o suscripción general. Tras reevaluar el enfoque del producto, se determinó que este modelo desincentivaba a los entrenadores y centralizaba excesivamente la monetización.
+
+Por tanto, se llevó a cabo una refactorización estructural completa:
+- **Eliminación del Rol Premium Global:** Se eliminó por completo el rol `GLOBAL_PREMIUM` (y su predecesor genérico `PREMIUM`) de la base de datos y de la lógica de autorización. El sistema ahora opera exclusivamente con los roles `FREE` y `TRAINER` (y roles administrativos).
+- **Control de Acceso Basado en Patrocinios:** El acceso a contenido restringido (vídeos premium, rutinas exclusivas y reservas de sesiones gratuitas) ya no depende del rol del usuario, sino de la existencia de un registro activo en la tabla de `Subscriptions` que vincule al usuario directamente con el creador de dicho contenido.
+- **Limpieza de Webhooks e Interfaz:** Se actualizaron los procesadores de pagos de Stripe para gestionar únicamente suscripciones específicas. La interfaz móvil fue rediseñada para ocultar las opciones de "Premium Global", mostrando en su lugar el estado dinámico "ACTIVA" basado en el conteo de suscripciones vigentes del usuario, e incorporando distintivos premium (halo dorado y estrella) de forma reactiva al estado de suscripción.
+
+#### Últimos Commits (Registro de Cambios Recientes)
+
+A continuación se expone el registro de los últimos commits realizados durante esta fase de pulido y transición arquitectónica, reflejando el trabajo técnico llevado a cabo en el repositorio:
+
+```text
+98c6a8f Refactor: Eliminación total del rol PREMIUM obsoleto
+eee5fca Docs: Actualización de documentación tras cambios en la monetización
+8e0b38c Refactor: Transición al modelo de suscripciones por entrenador
+0c9d52c Fix: Mejoras en UI y validacion de disponibilidad y vídeos
+c3b4846 docs: actualizar documentación técnica con el nuevo sistema de suscripciones y endpoints
+c6937f9 ui: actualizar indicadores premium y visibilidad de botones para planes globales
+44a5dca fix: corregir pasarela de pagos Stripe y configuración de metadatos
+8f5c870 feat: implementar rol GLOBAL_PREMIUM y lógica de acceso segmentada por entrenador
+d307ff1 refactor: Sistema de notificaciones por base de datos
+```
