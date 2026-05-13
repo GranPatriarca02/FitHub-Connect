@@ -32,6 +32,12 @@ data class SubscriptionStatusResponse(
     val expiresAt: String?
 )
 
+@Serializable
+data class SubscriptionCheckResponse(
+    val isSubscribed: Boolean,
+    val userRole: String
+)
+
 fun Application.subscriptionRoutes() {
     val env = io.github.cdimascio.dotenv.dotenv { ignoreIfMissing = true }
     Stripe.apiKey = env["STRIPE_SECRET_KEY"] ?: System.getenv("STRIPE_SECRET_KEY") ?: ""
@@ -133,9 +139,6 @@ fun Application.subscriptionRoutes() {
                         this.status = SubscriptionStatus.ACTIVE
                         this.expiresAt = LocalDateTime.now().plusMonths(1)
                     }
-                    
-                    // Asegurar que el usuario tiene el rol PREMIUM
-                    user.role = UserRole.PREMIUM
                 }
 
                 call.respond(HttpStatusCode.OK, mapOf("message" to "Suscripción activada correctamente"))
@@ -146,50 +149,27 @@ fun Application.subscriptionRoutes() {
 
         // --- 3. COMPROBAR SI EL USUARIO ESTÁ SUSCRITO A UN ENTRENADOR ---
         get("/subscriptions/check") {
-            val userId    = call.request.queryParameters["userId"]?.toIntOrNull()
-                ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Falta userId"))
+            val userId = call.request.queryParameters["userId"]?.toIntOrNull()
             val monitorId = call.request.queryParameters["monitorId"]?.toIntOrNull()
-                ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Falta monitorId"))
 
-            val result = transaction {
-                val sub = Subscription.find {
-                    (Subscriptions.userId    eq userId) and
+            if (userId == null || monitorId == null) {
+                return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Faltan parámetros"))
+            }
+
+            val (isSubscribed, role) = transaction {
+                val user = User.findById(userId)
+                val hasSub = Subscription.find {
+                    (Subscriptions.userId eq userId) and
                     (Subscriptions.monitorId eq monitorId) and
-                    (Subscriptions.status    eq SubscriptionStatus.ACTIVE)
-                }.firstOrNull()
-
-                if (sub != null) {
-                    // Comprobar si la suscripción no ha expirado
-                    val notExpired = sub.expiresAt == null || sub.expiresAt!!.isAfter(LocalDateTime.now())
-                    if (!notExpired) {
-                        sub.status = SubscriptionStatus.EXPIRED
-                        null
-                    } else {
-                        sub
-                    }
-                } else null
+                    (Subscriptions.status eq SubscriptionStatus.ACTIVE)
+                }.any { it.expiresAt == null || it.expiresAt!!.isAfter(LocalDateTime.now()) }
+                Pair(hasSub, user?.role?.name ?: "FREE")
             }
 
-            if (result != null) {
-                val monitorName = transaction { result.monitor.user.name }
-                call.respond(
-                    SubscriptionStatusResponse(
-                        isSubscribed = true,
-                        monitorId    = monitorId,
-                        monitorName  = monitorName,
-                        expiresAt    = result.expiresAt?.toString()
-                    )
-                )
-            } else {
-                call.respond(
-                    SubscriptionStatusResponse(
-                        isSubscribed = false,
-                        monitorId    = null,
-                        monitorName  = null,
-                        expiresAt    = null
-                    )
-                )
-            }
+            call.respond(SubscriptionCheckResponse(
+                isSubscribed = isSubscribed,
+                userRole = role
+            ))
         }
 
         // --- 4. LISTA DE SUSCRIPCIONES ACTIVAS DEL USUARIO ---
@@ -212,6 +192,34 @@ fun Application.subscriptionRoutes() {
                 }
             }
             call.respond(subs)
+        }
+        // --- 5. CREAR INTENTO PARA PREMIUM GLOBAL ---
+        post("/subscriptions/global/intent") {
+            try {
+                val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
+                    ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Falta ID de usuario"))
+
+                val price = 49.99 // Ejemplo: Premium Global más caro
+                
+                val intent = com.stripe.model.PaymentIntent.create(
+                    com.stripe.param.PaymentIntentCreateParams.builder()
+                        .setAmount((price * 100).toLong())
+                        .setCurrency("eur")
+                        .setDescription("Suscripción Global Premium — FitHub Connect")
+                        .putMetadata("userId", userId.toString())
+                        .putMetadata("type", "GLOBAL_PREMIUM")
+                        .setAutomaticPaymentMethods(
+                            com.stripe.param.PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
+                                .setEnabled(true)
+                                .build()
+                        )
+                        .build()
+                )
+
+                call.respond(HttpStatusCode.OK, mapOf("clientSecret" to intent.clientSecret, "price" to price))
+            } catch (e: Exception) {
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (e.message ?: "Error")))
+            }
         }
     }
 }

@@ -88,6 +88,21 @@ private fun validateBookingSlot(
     return minutes / 60.0  // 1.0, 1.5, 2.0, 2.5, 3.0
 }
 
+/**
+ * Verifica si el usuario tiene una suscripción activa con este monitor específico.
+ */
+private fun isSubscribedToMonitor(userId: Int, monitorId: Int): Boolean {
+    return transaction {
+        Subscription.find {
+            (Subscriptions.userId eq userId) and
+            (Subscriptions.monitorId eq monitorId) and
+            (Subscriptions.status eq SubscriptionStatus.ACTIVE)
+        }.any { sub ->
+            sub.expiresAt == null || sub.expiresAt!!.isAfter(LocalDateTime.now())
+        }
+    }
+}
+
 fun Application.bookingRoutes() {
     // 1. Cargamos las variables del archivo .env
     val env = io.github.cdimascio.dotenv.dotenv { ignoreIfMissing = true }
@@ -127,7 +142,11 @@ fun Application.bookingRoutes() {
                         endStr = body.endTime
                     )
 
-                    val isPremium = user.role == UserRole.PREMIUM
+                    // Un usuario tiene reserva gratis si:
+                    // 1. Está suscrito a ESTE monitor específico
+                    // 2. Es GLOBAL_PREMIUM (acceso total)
+                    val isFree = isSubscribedToMonitor(userId, body.monitorId) || user.role == UserRole.GLOBAL_PREMIUM
+                    
                     val hourlyRate = monitor.hourlyRate?.toDouble() ?: 0.0
                     // Precio = horas * tarifa/h (1h30 = 1.5x, 2h30 = 2.5x, etc.)
                     val precioTotal = (horas * hourlyRate).toBigDecimal()
@@ -138,12 +157,12 @@ fun Application.bookingRoutes() {
                         this.date = bookingDateTime
                         this.startTime = body.startTime
                         this.endTime = body.endTime
-                        this.status = if (isPremium) BookingStatus.CONFIRMED else BookingStatus.PENDING
+                        this.status = if (isFree) BookingStatus.CONFIRMED else BookingStatus.PENDING
                         this.notes = body.notes
-                        this.amount = if (isPremium) 0.0.toBigDecimal() else precioTotal
+                        this.amount = if (isFree) 0.0.toBigDecimal() else precioTotal
                     }
 
-                    if (isPremium) {
+                    if (isFree) {
                         CheckoutResponse(
                             bookingId = booking.id.value,
                             clientSecret = null, // No se requiere pago
@@ -217,10 +236,12 @@ fun Application.bookingRoutes() {
                 val hourlyRate = monitor.hourlyRate?.toDouble() ?: 0.0
                 val price = horas * hourlyRate
 
-                if (user.role == UserRole.PREMIUM) {
+                val isFree = isSubscribedToMonitor(userId, monitorId) || user.role == UserRole.GLOBAL_PREMIUM
+
+                if (isFree) {
                     val bDateTime = LocalDateTime.parse("${dateStr}T${hourStr}:00")
 
-                    // Si es PREMIUM, creamos la reserva directamente y no abrimos Stripe
+                    // Si es PREMIUM (global o por monitor), creamos la reserva directamente
                     transaction {
                         Booking.new {
                             this.user = user
@@ -232,7 +253,7 @@ fun Application.bookingRoutes() {
                             this.amount = 0.0.toBigDecimal()
                         }
                     }
-                    return@post call.respond(mapOf("url" to "", "message" to "Reserva gratuita confirmada (Premium)"))
+                    return@post call.respond(mapOf("url" to "", "message" to "Reserva gratuita confirmada"))
                 }
 
                 // 2. Si no es Premium, flujo normal de Stripe
@@ -319,7 +340,7 @@ fun Application.bookingRoutes() {
                             // Confirmar reserva si existe
                             bId?.let { id -> Booking.findById(id)?.let { it.status = BookingStatus.CONFIRMED } }
 
-                            // Si es una suscripción a entrenador, activarla
+                            // 1. Si es una suscripción a entrenador, activarla
                             if (type == "TRAINER_SUBSCRIPTION" && uId != null && mId != null) {
                                 val user    = User.findById(uId)
                                 val monitor = Monitor.findById(mId)
@@ -338,11 +359,14 @@ fun Application.bookingRoutes() {
                                         this.expiresAt = java.time.LocalDateTime.now().plusMonths(1)
                                         this.paymentId = dataObject.id
                                     }
-                                    
-                                    // Actualizar el rol del usuario a PREMIUM para que toda la app lo reconozca
-                                    user.role = UserRole.PREMIUM
                                 }
                             }
+
+                            // 2. Si es una suscripción global, activarla
+                            if (type == "GLOBAL_PREMIUM" && uId != null) {
+                                User.findById(uId)?.let { it.role = UserRole.GLOBAL_PREMIUM }
+                            }
+
                             // NOTA: pagar una reserva normal NO cambia el rol del usuario a PREMIUM
                         }
                     }
@@ -357,10 +381,13 @@ fun Application.bookingRoutes() {
                     val type = session?.metadata?.get("type")
                     
                     transaction {
-                        // Activamos Premium si es necesario
-                        uId?.let { id -> User.findById(id)?.let { it.role = UserRole.PREMIUM } }
                         // Confirmamos la reserva si existe
                         bId?.let { id -> Booking.findById(id)?.let { it.status = BookingStatus.CONFIRMED } }
+
+                        // Activamos Premium si es una suscripción global
+                        if (type == "GLOBAL_PREMIUM") {
+                            uId?.let { id -> User.findById(id)?.let { it.role = UserRole.GLOBAL_PREMIUM } }
+                        }
 
                         // Si es una suscripción a entrenador desde la WEB, activarla
                         if (type == "TRAINER_SUBSCRIPTION" && uId != null && mId != null) {
@@ -393,7 +420,25 @@ fun Application.bookingRoutes() {
         }
 
 
-        // --- 4. OBTENER RESERVAS ---
+        // --- 4. CANCELAR/BORRAR RESERVA PENDIENTE ---
+        delete("/bookings/{id}") {
+            val id = call.parameters["id"]?.toIntOrNull()
+                ?: return@delete call.respond(HttpStatusCode.BadRequest, "ID inválido")
+            val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
+                ?: return@delete call.respond(HttpStatusCode.Unauthorized, "Falta ID de usuario")
+
+            val success = transaction {
+                val booking = Booking.findById(id)
+                if (booking != null && booking.user.id.value == userId && booking.status == BookingStatus.PENDING) {
+                    booking.delete()
+                    true
+                } else false
+            }
+            if (success) call.respond(HttpStatusCode.OK, mapOf("message" to "Reserva eliminada"))
+            else call.respond(HttpStatusCode.NotFound, mapOf("error" to "Reserva no encontrada o no es cancelable"))
+        }
+
+        // --- 5. OBTENER RESERVAS ---
         get("/bookings/user/{userId}") {
             val userId = call.parameters["userId"]?.toIntOrNull()
                 ?: return@get call.respond(HttpStatusCode.BadRequest, "ID inválido")
@@ -494,6 +539,64 @@ fun Application.bookingRoutes() {
                 call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (e.message ?: "Error al crear sesión de suscripción")))
             }
         }
+
+        post("/create-global-subscription-session") {
+            try {
+                val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
+                    ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Falta ID de usuario"))
+
+                val price = 49.99
+
+                val rawBody = call.receiveText()
+                val webReturnUrl = try {
+                    val request = io.ktor.serialization.kotlinx.json.DefaultJson.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(rawBody)
+                    request["webReturnUrl"]?.toString()?.replace("\"", "") ?: ""
+                } catch (_: Exception) { "" }
+
+                val backendUrl = env["BACKEND_URL"] ?: "http://localhost:8080"
+                val successUrl = if (webReturnUrl.isNotEmpty()) {
+                    "${webReturnUrl}/?payment=success&type=global"
+                } else {
+                    "${backendUrl}/payment-success"
+                }
+                val cancelUrl = if (webReturnUrl.isNotEmpty()) {
+                    "${webReturnUrl}/?payment=cancelled"
+                } else {
+                    "${backendUrl}/payment-cancel"
+                }
+
+                val params = SessionCreateParams.builder()
+                    .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
+                    .setMode(SessionCreateParams.Mode.PAYMENT)
+                    .setSuccessUrl(successUrl)
+                    .setCancelUrl(cancelUrl)
+                    .putMetadata("userId", userId.toString())
+                    .putMetadata("type", "GLOBAL_PREMIUM")
+                    .addLineItem(
+                        SessionCreateParams.LineItem.builder()
+                            .setQuantity(1L)
+                            .setPriceData(
+                                SessionCreateParams.LineItem.PriceData.builder()
+                                    .setCurrency("eur")
+                                    .setUnitAmount((price * 100).toLong())
+                                    .setProductData(
+                                        SessionCreateParams.LineItem.PriceData.ProductData.builder()
+                                            .setName("FitHub Premium Global")
+                                            .setDescription("Acceso ilimitado a todos los entrenadores y contenido de la plataforma")
+                                            .build()
+                                    )
+                                    .build()
+                            )
+                            .build()
+                    )
+                    .build()
+
+                val session = Session.create(params)
+                call.respond(HttpStatusCode.OK, mapOf("url" to session.url))
+            } catch (e: Exception) {
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (e.message ?: "Error al crear sesión de suscripción global")))
+            }
+        }
         // --- 4. CONFIRMAR SUSCRIPCIÓN PREMIUM ---
         post("/confirm-premium") {
             try {
@@ -503,7 +606,7 @@ fun Application.bookingRoutes() {
                 transaction {
                     val user = User.findById(userId)
                     if (user != null) {
-                        user.role = UserRole.PREMIUM
+                        user.role = UserRole.GLOBAL_PREMIUM
                     }
                 }
                 call.respond(HttpStatusCode.OK, mapOf("message" to "Usuario actualizado a PREMIUM"))
