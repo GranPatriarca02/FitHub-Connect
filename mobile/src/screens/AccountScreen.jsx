@@ -8,6 +8,7 @@ import AppLayout, { theme } from './AppLayout';
 
 export default function AccountScreen({ navigation }) {
   const [userData, setUserData] = useState({ name: '', email: '', role: 'FREE', points: 0 });
+  const [subscriptions, setSubscriptions] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [loginHistory, setLoginHistory] = useState([]);
 
@@ -21,9 +22,10 @@ export default function AccountScreen({ navigation }) {
           const userId = await AsyncStorage.getItem('userId');
           if (!userId) return;
 
-          const [profileRes, loginsRes] = await Promise.all([
+          const [profileRes, loginsRes, subsRes] = await Promise.all([
             fetch(`${API_URL}/auth/user/${userId}`),
-            fetch(`${API_URL}/auth/login-history/${userId}`)
+            fetch(`${API_URL}/auth/login-history/${userId}`),
+            fetch(`${API_URL}/subscriptions/user/${userId}`)
           ]);
 
           if (profileRes.ok) {
@@ -34,6 +36,11 @@ export default function AccountScreen({ navigation }) {
           if (loginsRes.ok) {
             const loginsData = await loginsRes.json();
             setLoginHistory(Array.isArray(loginsData) ? loginsData : []);
+          }
+
+          if (subsRes.ok) {
+            const subsData = await subsRes.json();
+            setSubscriptions(Array.isArray(subsData) ? subsData : []);
           }
         } catch (e) {
           console.error("DEBUG: Error en la carga:", e);
@@ -101,13 +108,13 @@ export default function AccountScreen({ navigation }) {
             </View>
             <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 12 }}>¡Hola, {userData.name}!</Text>
             <Text style={{ color: theme.textBody, textAlign: 'center', fontSize: 13, marginTop: 5 }}>
-              {userData.role === 'PREMIUM'
-                ? 'Suscripción Premium activa.'
+              {(userData.role === 'PREMIUM' || userData.role === 'GLOBAL_PREMIUM')
+                ? 'Nivel de cuenta Premium.'
                 : `Te faltan ${pointsToPremium - (userData.points || 0)} puntos para el nivel Premium.`}
             </Text>
           </View>
 
-          {userData.role !== 'PREMIUM' && (
+          {userData.role !== 'PREMIUM' && userData.role !== 'GLOBAL_PREMIUM' && (
             <View style={{ marginTop: 5 }}>
               <View style={{ height: 6, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
                 <View style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: theme.brand }} />
@@ -120,12 +127,47 @@ export default function AccountScreen({ navigation }) {
           )}
         </View>
 
-        {/* 3. DETALLES DE PERFIL */}
+        {/* 3. MIS SUSCRIPCIONES (Solo para clientes/premium, no para entrenadores) */}
+        {userData.role !== 'TRAINER' && (
+          <>
+            <Text style={{ color: theme.brand, fontSize: 12, fontWeight: '800', marginBottom: 15, textTransform: 'uppercase', letterSpacing: 1 }}>Mis Suscripciones</Text>
+            <View style={{ backgroundColor: theme.bgSecondarySoft, borderRadius: 15, overflow: 'hidden', borderWidth: 1, borderColor: theme.borderDefault, marginBottom: 25 }}>
+              {subscriptions.length > 0 ? (
+                subscriptions.map((sub, idx) => (
+                  <View key={idx} style={{
+                    flexDirection: 'row',
+                    padding: 16,
+                    borderBottomWidth: idx === subscriptions.length - 1 ? 0 : 1,
+                    borderColor: theme.borderDefault,
+                    alignItems: 'center'
+                  }}>
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: theme.brandSofter, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                      <MaterialCommunityIcons name="star" size={20} color={theme.brand} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>{sub.monitorName}</Text>
+                      <Text style={{ color: theme.textBody, fontSize: 11 }}>Expira el: {sub.expiresAt.substring(0, 10)}</Text>
+                    </View>
+                    <View style={{ backgroundColor: 'rgba(76, 175, 80, 0.1)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+                      <Text style={{ color: '#4CAF50', fontSize: 10, fontWeight: '800' }}>ACTIVA</Text>
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <View style={{ padding: 25, alignItems: 'center' }}>
+                  <Text style={{ color: theme.textBody, fontSize: 12 }}>No tienes suscripciones activas.</Text>
+                </View>
+              )}
+            </View>
+          </>
+        )}
+
+        {/* 4. DETALLES DE PERFIL */}
         <Text style={{ color: theme.brand, fontSize: 12, fontWeight: '800', marginBottom: 15, textTransform: 'uppercase', letterSpacing: 1 }}>Detalles de Perfil</Text>
         <View style={{ backgroundColor: theme.bgSecondarySoft, borderRadius: 15, paddingHorizontal: 16, borderWidth: 1, borderColor: theme.borderDefault, marginBottom: 25 }}>
           <DetailRow label="Nombre" value={userData.name} />
           <DetailRow label="Email" value={userData.email} />
-          <DetailRow label="Suscripción" value={userData.role} isBrand />
+          <DetailRow label="Suscripción" value={userData.role === 'GLOBAL_PREMIUM' ? 'GLOBAL PREMIUM' : userData.role} isBrand />
           <DetailRow label="ID" value={`#${userData.id || '---'}`} last />
         </View>
 

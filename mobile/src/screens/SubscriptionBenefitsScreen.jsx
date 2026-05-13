@@ -36,6 +36,79 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
     }
   };
 
+  const confirmGlobalPremium = async () => {
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      await fetch(`${API_URL}/confirm-premium`, {
+        method: 'POST',
+        headers: { 'X-User-Id': userId || '' },
+      });
+      await AsyncStorage.setItem('userRole', 'GLOBAL_PREMIUM');
+      Alert.alert("¡Eres Premium Global!", "Ahora tienes acceso total a todos los entrenadores.");
+      navigation.goBack();
+    } catch (error) {
+      console.error("Error al confirmar premium global:", error);
+    }
+  };
+
+  const handleSubscribeGlobal = async () => {
+    setProcesando(true);
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      
+      if (isWeb) {
+        // --- FLUJO WEB: Stripe Checkout (PC) ---
+        const response = await fetch(`${API_URL}/create-global-subscription-session`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-User-Id': userId || '' 
+          },
+          body: JSON.stringify({ 
+            webReturnUrl: window.location.origin
+          })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Error');
+        if (data.url) {
+          window.location.href = data.url;
+        }
+      } else {
+        // --- FLUJO NATIVO: Stripe PaymentSheet (Móvil) ---
+        const response = await fetch(`${API_URL}/subscriptions/global/intent`, {
+          method: 'POST',
+          headers: { 'X-User-Id': userId || '' }
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Error');
+
+        const { error: initError } = await initPaymentSheet({
+          paymentIntentClientSecret: data.clientSecret,
+          merchantDisplayName: 'FitHub Connect',
+          appearance: {
+            colors: {
+              primary: '#FFD700',
+              background: '#121212',
+              componentBackground: '#1e1e1e',
+              text: '#ffffff',
+            },
+            shapes: { borderRadius: 12 }
+          }
+        });
+        if (initError) throw new Error(initError.message);
+
+        const { error: paymentError } = await presentPaymentSheet();
+        if (!paymentError) {
+          await confirmGlobalPremium();
+        }
+      }
+    } catch (error) {
+      Alert.alert('Error', error.message);
+    } finally {
+      setProcesando(false);
+    }
+  };
+
   React.useEffect(() => {
     const checkStatus = async () => {
       try {
@@ -47,17 +120,22 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
           const params = new URLSearchParams(window.location.search);
           const payStatus = params.get('payment');
           const mIdParam = params.get('monitorId');
+          const typeParam = params.get('type');
           
-          if (payStatus === 'success' && mIdParam === monitorId.toString()) {
-            console.log("Detectado pago exitoso en Web. Confirmando...");
-            await confirmSubscription();
+          if (payStatus === 'success') {
+            if (mIdParam && mIdParam === monitorId?.toString()) {
+              console.log("Detectado pago exitoso de monitor en Web. Confirmando...");
+              await confirmSubscription();
+              Alert.alert(
+                `Suscripcion activa con ${trainerName}`,
+                `Ahora tienes clases ilimitadas con ${trainerName} durante 1 mes.`,
+                [{ text: 'Genial', onPress: () => navigation.goBack() }]
+              );
+            } else if (typeParam === 'global') {
+              console.log("Detectado pago exitoso Global en Web. Confirmando...");
+              await confirmGlobalPremium();
+            }
             
-            Alert.alert(
-              `Suscripcion activa con ${trainerName}`,
-              `Ahora tienes clases ilimitadas con ${trainerName} durante 1 mes.`,
-              [{ text: 'Genial', onPress: () => navigation.goBack() }]
-            );
-
             // Limpiar la URL para evitar confirmaciones infinitas
             window.history.replaceState({}, document.title, window.location.pathname);
           }
@@ -201,7 +279,8 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
 
               <TouchableOpacity
                 style={styles.subscribeBtn}
-                onPress={() => navigation.replace('MonitorList')}
+                onPress={handleSubscribeGlobal}
+                disabled={procesando}
                 activeOpacity={0.8}
               >
                 <LinearGradient
@@ -210,11 +289,22 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                 >
-                  <MaterialCommunityIcons name="magnify" size={20} color="#000" style={{ marginRight: 8 }} />
-                  <Text style={styles.subscribeText}>Buscar Entrenadores</Text>
+                  {procesando ? <ActivityIndicator color="#000" /> : (
+                    <>
+                      <MaterialCommunityIcons name="crown" size={20} color="#000" style={{ marginRight: 8 }} />
+                      <Text style={styles.subscribeText}>Hazte Premium Global (49.99€)</Text>
+                    </>
+                  )}
                 </LinearGradient>
               </TouchableOpacity>
-              <Text style={styles.cancelText}>Elige un monitor en su perfil para empezar.</Text>
+              <Text style={styles.cancelText}>Acceso ilimitado a TODOS los entrenadores y contenido.</Text>
+
+              <TouchableOpacity 
+                onPress={() => navigation.replace('MonitorList')}
+                style={{ marginTop: 25 }}
+              >
+                <Text style={{ color: '#FFD700', fontWeight: '700' }}>O prefiere buscar un entrenador específico</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             // --- PANTALLA DE PAGO PARA UN ENTRENADOR ESPECÍFICO ---

@@ -257,26 +257,42 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                         onPress={() => { setNotificationsVisible(false); setProfileMenuVisible(true); }}
                         style={{ position: 'relative' }}
                     >
-                        <View style={{
-                            padding: 2,
-                            borderRadius: 20,
-                            backgroundColor: userData.role === 'PREMIUM' ? '#FFD700' : (userData.role === 'TRAINER' ? theme.brand : 'transparent'),
-                        }}>
+                        <LinearGradient
+                            colors={
+                                (userData.role === 'PREMIUM' || userData.role === 'GLOBAL_PREMIUM') ? ['#FFD700', '#B8860B'] :
+                                (userData.role === 'TRAINER' ? [theme.brand, '#15803d'] : ['transparent', 'transparent'])
+                            }
+                            style={{
+                                padding: 2,
+                                borderRadius: 19,
+                                shadowColor: (userData.role === 'PREMIUM' || userData.role === 'GLOBAL_PREMIUM') ? '#FFD700' : theme.brand,
+                                shadowOffset: { width: 0, height: 0 },
+                                shadowOpacity: (userData.role === 'PREMIUM' || userData.role === 'GLOBAL_PREMIUM' || userData.role === 'TRAINER') ? 0.5 : 0,
+                                shadowRadius: 8,
+                                elevation: (userData.role === 'PREMIUM' || userData.role === 'GLOBAL_PREMIUM' || userData.role === 'TRAINER') ? 5 : 0,
+                            }}
+                        >
                             <Image
                                 source={{ uri: 'https://flowbite.com/docs/images/people/profile-picture-5.jpg' }}
-                                style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: theme.bgPrimarySoft }}
+                                style={{
+                                    width: 34,
+                                    height: 34,
+                                    borderRadius: 17,
+                                    borderWidth: 1.5,
+                                    borderColor: theme.bgPrimarySoft
+                                }}
                             />
-                        </View>
-                        {(userData.role === 'PREMIUM' || userData.role === 'TRAINER') && (
+                        </LinearGradient>
+                        {(userData.role === 'PREMIUM' || userData.role === 'GLOBAL_PREMIUM' || userData.role === 'TRAINER') && (
                             <View style={{
                                 position: 'absolute', bottom: -1, right: -1,
-                                backgroundColor: userData.role === 'PREMIUM' ? '#FFD700' : theme.brand,
+                                backgroundColor: (userData.role === 'PREMIUM' || userData.role === 'GLOBAL_PREMIUM') ? '#FFD700' : theme.brand,
                                 borderRadius: 10, width: 14, height: 14,
                                 justifyContent: 'center', alignItems: 'center',
                                 borderWidth: 1.5, borderColor: theme.bgPrimarySoft
                             }}>
                                 <MaterialCommunityIcons
-                                    name={userData.role === 'PREMIUM' ? "star" : "dumbbell"}
+                                    name={(userData.role === 'PREMIUM' || userData.role === 'GLOBAL_PREMIUM') ? "star" : "dumbbell"}
                                     size={8} color="#000"
                                 />
                             </View>
@@ -384,7 +400,7 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                                 </View>
                                 <View style={{ paddingHorizontal: 4, paddingBottom: 8 }}>
                                     <DropdownLink icon="account-outline" label="Mi cuenta" onPress={() => { setProfileMenuVisible(false); navigation.navigate('Account'); }} />
-                                    {userData.role !== 'PREMIUM' && userData.role !== 'TRAINER' && (
+                                    {userData.role !== 'PREMIUM' && userData.role !== 'GLOBAL_PREMIUM' && userData.role !== 'TRAINER' && (
                                         <DropdownLink icon="rocket-launch-outline" label="Hazte Premium" color={theme.brand} onPress={() => { setProfileMenuVisible(false); navigation.navigate('SubscriptionBenefits'); }} />
                                     )}
                                     <View style={{ height: 1, backgroundColor: theme.borderDefault, marginVertical: 4 }} />

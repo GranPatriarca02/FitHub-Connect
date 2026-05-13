@@ -71,6 +71,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
   const [cargandoSuscripcion, setCargandoSuscripcion] = useState(true);
   const [showSuccess, setShowSuccess] = useState(false);
   const [precioPagado, setPrecioPagado] = useState(0);
+  const [userRole, setUserRole] = useState(null);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -81,8 +82,11 @@ export default function MonitorDetailScreen({ route, navigation }) {
           const res = await fetch(
             `${API_URL}/subscriptions/check?userId=${userId}&monitorId=${initialMonitor.id}`
           );
-          const data = await res.json();
-          setIsSubscribed(data.isSubscribed === true);
+          if (res.ok) {
+            const data = await res.json();
+            setIsSubscribed(data.isSubscribed === true);
+            if (data.userRole) setUserRole(data.userRole);
+          }
         } catch (e) {
           console.error("Error check subscription", e);
         } finally {
@@ -220,7 +224,10 @@ export default function MonitorDetailScreen({ route, navigation }) {
             startTime: `${startTime}:00`,
             endTime: `${endTime}:00`,
           }]);
-          setShowSuccess(true);
+          setConfigVisible(false);
+          setTimeout(() => {
+            setShowSuccess(true);
+          }, 400);
         }
       } else {
         const response = await fetch(`${API_URL}/bookings`, {
@@ -235,17 +242,29 @@ export default function MonitorDetailScreen({ route, navigation }) {
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Error al crear la reserva');
-        if (!data.clientSecret || isSubscribed) {
+        
+        const esPremium = isSubscribed || userRole === 'GLOBAL_PREMIUM';
+
+        if (!data.clientSecret || esPremium) {
           setPrecioPagado(0);
           setOccupiedSlots(prev => [...prev, {
             date: fechaSeleccionada.dateString,
             startTime: `${startTime}:00`,
             endTime: `${endTime}:00`,
           }]);
-          setShowSuccess(true);
+          
+          // Cerramos el modal de configuración primero
           setConfigVisible(false);
+          // Pequeño delay para que no choquen los dos modales en el renderizado
+          setTimeout(() => {
+            setShowSuccess(true);
+          }, 400);
           return;
         }
+
+        // Si llegamos aquí, hay que pagar. Guardamos el bookingId para poder borrarlo si cancela.
+        const pendingBookingId = data.bookingId;
+
         const { error: initError } = await initPaymentSheet({
           paymentIntentClientSecret: data.clientSecret,
           merchantDisplayName: 'FitHub Connect',
@@ -257,7 +276,19 @@ export default function MonitorDetailScreen({ route, navigation }) {
         if (initError) throw new Error(initError.message);
         const { error: paymentError } = await presentPaymentSheet();
         if (paymentError) {
-          if (paymentError.code !== 'Canceled') Alert.alert('Error en el pago', paymentError.message);
+          if (paymentError.code !== 'Canceled') {
+            Alert.alert('Error en el pago', paymentError.message);
+          } else {
+             // CANCELACIÓN: Borramos la reserva pendiente en el backend
+             try {
+               await fetch(`${API_URL}/bookings/${pendingBookingId}`, {
+                 method: 'DELETE',
+                 headers: { 'X-User-Id': userId }
+               });
+             } catch (e) {
+               console.error("Error cleaning up cancelled booking", e);
+             }
+          }
         } else {
           setPrecioPagado(precioReserva);
           setOccupiedSlots(prev => [...prev, {
@@ -265,8 +296,11 @@ export default function MonitorDetailScreen({ route, navigation }) {
             startTime: `${startTime}:00`,
             endTime: `${endTime}:00`,
           }]);
-          setShowSuccess(true);
+          
           setConfigVisible(false);
+          setTimeout(() => {
+            setShowSuccess(true);
+          }, 400);
         }
       }
     } catch (error) {
@@ -366,18 +400,40 @@ export default function MonitorDetailScreen({ route, navigation }) {
                         onPress={() => !isOccupied && abrirConfiguracion(slot)}
                         disabled={isOccupied}
                       >
-                        <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
-                          <View style={styles.slotIconWrap}>
-                            <MaterialCommunityIcons name="clock-outline" size={18} color={isOccupied ? '#444' : theme.brand} />
+                        <View style={styles.slotCardTop}>
+                          <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
+                            <View style={styles.slotIconWrap}>
+                              <MaterialCommunityIcons name="clock-outline" size={18} color={isOccupied ? '#444' : theme.brand} />
+                            </View>
+                            <Text style={[styles.slotTimeText, isOccupied && {color: '#444'}]}>
+                              {slot.startTime.substring(0,5)} – {slot.endTime.substring(0,5)}
+                            </Text>
                           </View>
-                          <Text style={[styles.slotTimeText, isOccupied && {color: '#444'}]}>
-                            {slot.startTime.substring(0,5)} – {slot.endTime.substring(0,5)}
-                          </Text>
+                          <View style={[styles.statusBadge, isOccupied && styles.statusBadgeOccupied]}>
+                             <Text style={[styles.statusBadgeText, isOccupied && {color: '#666'}]}>
+                               {isOccupied ? 'Sin hueco' : 'Disponible'}
+                             </Text>
+                          </View>
                         </View>
-                        <View style={[styles.statusBadge, isOccupied && styles.statusBadgeOccupied]}>
-                           <Text style={[styles.statusBadgeText, isOccupied && {color: '#666'}]}>
-                             {isOccupied ? 'Sin hueco' : 'Disponible'}
-                           </Text>
+                        
+                        {/* Timeline de ocupación visual */}
+                        <View style={styles.occupancyTimeline}>
+                          {(() => {
+                            const segments = [];
+                            for (let t = fStart; t < fEnd; t += 30) {
+                              const busy = overlapConReserva(t, t + 30);
+                              segments.push(
+                                <View 
+                                  key={t} 
+                                  style={[
+                                    styles.timelineSegment, 
+                                    busy ? styles.segmentBusy : styles.segmentFree,
+                                  ]} 
+                                />
+                              );
+                            }
+                            return segments;
+                          })()}
                         </View>
                       </TouchableOpacity>
                     );
@@ -392,7 +448,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
 
               {/* Botones Acción */}
               <View style={styles.footerActions}>
-                {!isSubscribed && !cargandoSuscripcion && (
+                {!isSubscribed && userRole !== 'GLOBAL_PREMIUM' && !cargandoSuscripcion && (
                   <TouchableOpacity
                     style={styles.subscribeBtn}
                     onPress={() => navigation.navigate('SubscriptionBenefits', {
@@ -439,8 +495,9 @@ export default function MonitorDetailScreen({ route, navigation }) {
                 reserveEnd={reserveEnd}
                 hourlyRate={monitorDetail.hourlyRate || 0}
                 precio={precioReserva}
-                isSubscribed={isSubscribed}
+                isSubscribed={isSubscribed || userRole === 'GLOBAL_PREMIUM'}
                 cargandoPago={cargandoPago}
+                overlapConReserva={overlapConReserva}
                 onConfirmar={handleContratar}
               />
             </>
@@ -464,7 +521,8 @@ function ReserveConfigModal({
   visible, onClose, franja, duracionesValidas,
   reserveMinutes, setReserveMinutes,
   reserveStart, setReserveStart, inicioOpciones, reserveEnd,
-  hourlyRate, precio, isSubscribed, cargandoPago, onConfirmar,
+  hourlyRate, precio, isSubscribed, cargandoPago,
+  overlapConReserva, onConfirmar,
 }) {
   if (!franja) return null;
   const ancho = aMin(franja.endTime.substring(0,5)) - aMin(franja.startTime.substring(0,5));
@@ -505,6 +563,37 @@ function ReserveConfigModal({
                 })}
               </View>
 
+              {/* Timeline de selección visual dentro del modal */}
+              <View style={[styles.occupancyTimeline, { height: 12, marginVertical: 10, borderRadius: 6 }]}>
+                {(() => {
+                  const segments = [];
+                  const fStart = aMin(franja.startTime.substring(0,5));
+                  const fEnd   = aMin(franja.endTime.substring(0,5));
+                  const startSel = reserveStart ? aMin(reserveStart) : -1;
+                  const endSel   = startSel + reserveMinutes;
+
+                  for (let t = fStart; t < fEnd; t += 30) {
+                    const isBusy = overlapConReserva(t, t + 30);
+                    const isSelected = startSel !== -1 && t >= startSel && t < endSel;
+                    segments.push(
+                      <View 
+                        key={t} 
+                        style={[
+                          styles.timelineSegment, 
+                          isBusy ? styles.segmentBusy : (isSelected ? { backgroundColor: theme.brand } : { backgroundColor: 'rgba(255,255,255,0.1)' }),
+                          isSelected && { borderTopWidth: 0, borderBottomWidth: 0 }
+                        ]} 
+                      />
+                    );
+                  }
+                  return segments;
+                })()}
+              </View>
+
+              <Text style={styles.stepperHint}>
+                El bloque verde indica tu selección actual dentro de la franja.
+              </Text>
+
               {/* Hora de inicio - stepper en bloques de 30 min,
                   saltando las horas ya reservadas */}
               <Text style={styles.configLabel}>Hora de inicio</Text>
@@ -542,7 +631,7 @@ function ReserveConfigModal({
                 );
               })()}
               <Text style={styles.stepperHint}>
-                Saltos de 30 min dentro de la franja, excluyendo horas ya reservadas
+                Ajusta la hora de inicio en saltos de 30 min.
               </Text>
 
               {/* Resumen */}
@@ -656,10 +745,11 @@ const styles = StyleSheet.create({
 
   slotsContainer: { gap: 12, marginBottom: 24 },
   slotCard: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     backgroundColor: theme.bgSecondarySoft, borderRadius: 16,
     padding: 16, borderWidth: 1, borderColor: theme.borderDefault,
+    gap: 12,
   },
+  slotCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   slotCardSelected: { borderColor: theme.brand, backgroundColor: theme.brandSofter },
   slotCardOccupied: { opacity: 0.5, backgroundColor: theme.bgPrimary },
   slotIconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center' },
@@ -667,6 +757,10 @@ const styles = StyleSheet.create({
   statusBadge: { backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
   statusBadgeOccupied: { backgroundColor: 'rgba(255,0,0,0.1)' },
   statusBadgeText: { color: theme.textBody, fontSize: 12, fontWeight: '700' },
+  occupancyTimeline: { flexDirection: 'row', height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.05)', gap: 1 },
+  timelineSegment: { flex: 1, height: '100%' },
+  segmentFree: { backgroundColor: theme.brand },
+  segmentBusy: { backgroundColor: '#333' },
 
   footerActions: { gap: 12 },
   subscribeBtn: { borderRadius: 16, overflow: 'hidden' },
