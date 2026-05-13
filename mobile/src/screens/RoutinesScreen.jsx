@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, TextInput, Modal, Switch, Platform
+  ActivityIndicator, Alert, TextInput, Modal, Platform
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -37,8 +37,7 @@ export default function RoutinesScreen({ navigation }) {
   const [nuevaDesc, setNuevaDesc] = useState('');
   const [nuevaDificultad, setNuevaDificultad] = useState('Beginner');
   const [nuevoObjetivo, setNuevoObjetivo] = useState('Hipertrofia');
-  const [nuevaPublica, setNuevaPublica] = useState(false);
-  const [nuevaPremium, setNuevaPremium] = useState(false);
+  const [nuevaPremium, setNuevaPremium] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
@@ -72,8 +71,7 @@ export default function RoutinesScreen({ navigation }) {
     setNuevaDesc('');
     setNuevaDificultad('Beginner');
     setNuevoObjetivo('Hipertrofia');
-    setNuevaPublica(false);
-    setNuevaPremium(false);
+    setNuevaPremium(true);
   };
 
   const handleCrear = async () => {
@@ -90,7 +88,9 @@ export default function RoutinesScreen({ navigation }) {
         description: nuevaDesc.trim() || null,
         difficulty: nuevaDificultad,
         goal: nuevoObjetivo,
-        isPublic: isTrainer ? nuevaPublica : false,
+        // Las rutinas del entrenador siempre son públicas (igual que sus vídeos).
+        // El único interruptor que ve el entrenador decide si son Premium o Gratis.
+        isPublic: isTrainer ? true : false,
         isPremium: isTrainer ? nuevaPremium : false,
       });
       setModalVisible(false);
@@ -235,8 +235,6 @@ export default function RoutinesScreen({ navigation }) {
         setDificultad={setNuevaDificultad}
         objetivo={nuevoObjetivo}
         setObjetivo={setNuevoObjetivo}
-        publica={nuevaPublica}
-        setPublica={setNuevaPublica}
         premium={nuevaPremium}
         setPremium={setNuevaPremium}
         isTrainer={isTrainer}
@@ -372,7 +370,7 @@ function RoutineCard({ routine, isOwner = false, onPress, onDelete }) {
 function CreateRoutineModal({
   visible, onClose, titulo, setTitulo, desc, setDesc,
   dificultad, setDificultad, objetivo, setObjetivo,
-  publica, setPublica, premium, setPremium, isTrainer, onCrear, guardando,
+  premium, setPremium, isTrainer, onCrear, guardando,
 }) {
   return (
     <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -386,6 +384,26 @@ function CreateRoutineModal({
               </TouchableOpacity>
             </View>
             <Text style={styles.modalSub}>Define el título y añade luego tus ejercicios</Text>
+
+            {/* Único interruptor (estilo Videos) - en la parte SUPERIOR */}
+            {isTrainer && (
+              <View style={styles.visibilityContainer}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.visibilityTitle}>¿Contenido Premium?</Text>
+                  <Text style={styles.visibilityDesc}>
+                    {premium
+                      ? 'Solo usuarios suscritos podrán verla.'
+                      : 'Todos los usuarios podrán verla (Promoción).'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setPremium(!premium)}
+                  style={[styles.toggleBtn, premium ? styles.toggleBtnOn : styles.toggleBtnOff]}
+                >
+                  <View style={[styles.toggleCircle, premium ? styles.toggleCircleOn : styles.toggleCircleOff]} />
+                </TouchableOpacity>
+              </View>
+            )}
 
             <Text style={styles.fieldLabel}>Título *</Text>
             <TextInput
@@ -434,36 +452,6 @@ function CreateRoutineModal({
                 </TouchableOpacity>
               ))}
             </View>
-
-            {isTrainer && (
-              <>
-                <View style={styles.toggleRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.toggleLabel}>Hacer pública</Text>
-                    <Text style={styles.toggleHint}>Toda la comunidad podrá verla</Text>
-                  </View>
-                  <Switch
-                    value={publica}
-                    onValueChange={setPublica}
-                    trackColor={{ false: '#2a2a2a', true: '#2E7D32' }}
-                    thumbColor={publica ? '#4CAF50' : '#666'}
-                  />
-                </View>
-
-                <View style={styles.toggleRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.toggleLabel}>Contenido Premium</Text>
-                    <Text style={styles.toggleHint}>Solo tus suscriptores activos podrán verla</Text>
-                  </View>
-                  <Switch
-                    value={premium}
-                    onValueChange={setPremium}
-                    trackColor={{ false: '#2a2a2a', true: '#FFD700' }}
-                    thumbColor={premium ? '#FFD700' : '#666'}
-                  />
-                </View>
-              </>
-            )}
 
             <View style={styles.modalBtns}>
               <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={guardando}>
@@ -654,6 +642,32 @@ const styles = StyleSheet.create({
   },
   toggleLabel: { color: '#fff', fontSize: 14, fontWeight: '600', marginBottom: 2 },
   toggleHint: { color: '#666', fontSize: 11 },
+
+  // Estilos del único interruptor (estilo Videos)
+  visibilityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.bgPrimary,
+    padding: 15,
+    borderRadius: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: theme.borderDefault,
+  },
+  visibilityTitle: { color: '#fff', fontSize: 14, fontWeight: '700', marginBottom: 2 },
+  visibilityDesc: { color: '#666', fontSize: 11 },
+  toggleBtn: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    padding: 4,
+    justifyContent: 'center',
+  },
+  toggleBtnOn: { backgroundColor: theme.brand },
+  toggleBtnOff: { backgroundColor: '#444' },
+  toggleCircle: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff' },
+  toggleCircleOn: { alignSelf: 'flex-end' },
+  toggleCircleOff: { alignSelf: 'flex-start' },
 
   modalBtns: { flexDirection: 'row', gap: 10, marginTop: 8 },
   cancelBtn: {

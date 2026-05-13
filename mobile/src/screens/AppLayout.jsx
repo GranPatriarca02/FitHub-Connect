@@ -262,7 +262,7 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                     </View>
                 )}
 
-                <TouchableWithoutFeedback onPress={closeAllMenus}>
+                <View style={{ flex: 1 }}>
                     <LinearGradient colors={backgroundColors} style={{ flex: 1 }} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}>
                         {useHeroPattern ? (
                             <ImageBackground
@@ -299,7 +299,24 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                             </>
                         )}
                     </LinearGradient>
-                </TouchableWithoutFeedback>
+
+                    {/* Overlay sólo activo cuando hay un menú abierto. Evita
+                        que un TouchableWithoutFeedback envuelva los ScrollView
+                        y bloquee el scroll vertical en móvil. */}
+                    {(notificationsVisible || profileMenuVisible) && (
+                        <TouchableWithoutFeedback onPress={closeAllMenus}>
+                            <View
+                                style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                }}
+                            />
+                        </TouchableWithoutFeedback>
+                    )}
+                </View>
             </View>
 
             {/* --- MODAL NAVEGACIÓN MÓVIL --- */}

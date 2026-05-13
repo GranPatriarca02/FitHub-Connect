@@ -9,7 +9,29 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppLayout, { theme } from './AppLayout';
 
-const ESPECIALIDADES = ['Todos', 'Musculacion', 'Yoga', 'CrossFit', 'Pilates', 'Funcional'];
+// Opciones fijas - deben coincidir con las que el entrenador puede elegir
+// en TrainerProfileScreen.jsx (SPECIALTIES).
+const ESPECIALIDADES = [
+  'Todos',
+  'Musculación',
+  'Crossfit',
+  'Yoga',
+  'Pilates',
+  'Nutrición',
+  'Funcional',
+  'HIIT',
+  'Fisioterapia',
+  'Calistenia',
+];
+
+// Normaliza texto: minúsculas y elimina acentos para que el filtro
+// "Musculacion" siga coincidiendo con "Musculación" guardado en BBDD.
+const normalizar = (str) =>
+  (str || '')
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
 
 export default function MonitorListScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -34,9 +56,14 @@ export default function MonitorListScreen({ navigation }) {
   }, []);
 
   const monitorsFiltrados = monitores.filter((m) => {
-    const coincideBusqueda = m.name.toLowerCase().includes(busqueda.toLowerCase()) ||
-      (m.specialty && m.specialty.toLowerCase().includes(busqueda.toLowerCase()));
-    const coincideFiltro = filtro === 'Todos' || (m.specialty && m.specialty.toLowerCase().includes(filtro.toLowerCase()));
+    const nombreN = normalizar(m.name);
+    const especialidadN = normalizar(m.specialty);
+    const busquedaN = normalizar(busqueda);
+    const filtroN = normalizar(filtro);
+
+    const coincideBusqueda =
+      nombreN.includes(busquedaN) || especialidadN.includes(busquedaN);
+    const coincideFiltro = filtro === 'Todos' || especialidadN === filtroN;
     return coincideBusqueda && coincideFiltro;
   });
 
