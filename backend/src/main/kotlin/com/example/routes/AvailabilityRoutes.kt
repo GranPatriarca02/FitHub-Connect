@@ -98,41 +98,49 @@ fun Application.availabilityRoutes() {
                     return@post
                 }
 
-                val result = transaction {
-                    val monitor = Monitor.findById(monitorId) ?: return@transaction "NOT_FOUND"
+                val result = try {
+                    transaction {
+                        val monitor = Monitor.findById(monitorId) ?: return@transaction "NOT_FOUND"
 
-                    val existentesDia = Availability.find {
-                        (Availabilities.monitorId eq monitorId) and
-                        (Availabilities.dayOfWeek eq day) and
-                        (Availabilities.isAvailable eq true)
-                    }.toList()
+                        val existentesDia = Availability.find {
+                            (Availabilities.monitorId eq monitorId) and
+                            (Availabilities.dayOfWeek eq day) and
+                            (Availabilities.isAvailable eq true)
+                        }.toList()
 
-                    if (!req.isAvailable) {
-                        // Compatibilidad con el flujo antiguo de borrado por rango exacto.
-                        existentesDia.filter { it.startTime == start && it.endTime == end }
-                            .forEach { it.delete() }
-                        return@transaction "OK"
+                        if (!req.isAvailable) {
+                            existentesDia.filter { it.startTime == start && it.endTime == end }
+                                .forEach { it.delete() }
+                            return@transaction "OK"
+                        }
+
+                        val solapa = existentesDia.any { f ->
+                            start.isBefore(f.endTime) && end.isAfter(f.startTime)
+                        }
+                        if (solapa) {
+                            println("DEBUG: Solapamiento detectado para monitor $monitorId el dia $day ($start - $end)")
+                            return@transaction "OVERLAP"
+                        }
+
+                        Availability.new {
+                            this.monitor = monitor
+                            this.dayOfWeek = day
+                            this.startTime = start
+                            this.endTime = end
+                            this.isAvailable = true
+                        }
+                        "OK"
                     }
-
-                    // Validar solapamiento con franjas existentes del mismo dia.
-                    val solapa = existentesDia.any { f ->
-                        start.isBefore(f.endTime) && end.isAfter(f.startTime)
-                    }
-                    if (solapa) return@transaction "OVERLAP"
-
-                    Availability.new {
-                        this.monitor = monitor
-                        this.dayOfWeek = day
-                        this.startTime = start
-                        this.endTime = end
-                        this.isAvailable = true
-                    }
-                    "OK"
+                } catch (e: Exception) {
+                    println("ERROR en /availability/update: ${e.message}")
+                    e.printStackTrace()
+                    "ERROR"
                 }
 
                 when (result) {
                     "NOT_FOUND" -> call.respond(HttpStatusCode.NotFound, mapOf("error" to "Monitor no encontrado"))
                     "OVERLAP"   -> call.respond(HttpStatusCode.Conflict, mapOf("error" to "La franja se solapa con otra ya existente"))
+                    "ERROR"     -> call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Error interno del servidor"))
                     else        -> call.respond(HttpStatusCode.OK, mapOf("message" to "Disponibilidad actualizada correctamente"))
                 }
             }

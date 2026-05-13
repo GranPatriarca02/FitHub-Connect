@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, Modal
+  ActivityIndicator, Alert, Modal, Pressable
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -49,6 +49,10 @@ export default function TrainerAvailabilityScreen({ navigation }) {
   const [modalVisible, setModalVisible] = useState(false);
   const [horaInicio, setHoraInicio] = useState('09:00');
   const [horaFin, setHoraFin] = useState('10:00');
+
+  // Modal confirmación borrado
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [franjaParaBorrar, setFranjaParaBorrar] = useState(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -106,37 +110,51 @@ export default function TrainerAvailabilityScreen({ navigation }) {
           isAvailable: true,
         }),
       });
+      
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Error al guardar la franja');
-      setModalVisible(false);
+      
+      if (!res.ok) {
+        // Error específico de solapamiento o genérico
+        const msg = res.status === 409 
+          ? 'Este horario se solapa con uno que ya tienes configurado.' 
+          : (data.error || 'No se pudo guardar el horario');
+        throw new Error(msg);
+      }
+
       await cargarDisponibilidad(monitorId);
+      setModalVisible(false); // CERRAR SOLO SI OK
+      
+      if (Platform.OS === 'web') alert('¡Horario añadido correctamente!');
+      else Alert.alert('¡Éxito!', 'Horario añadido correctamente a tu agenda.');
+      
     } catch (e) {
-      Alert.alert('Error', e.message);
+      console.log("Error al añadir franja:", e.message);
+      if (Platform.OS === 'web') alert(e.message);
+      else Alert.alert('Aviso', e.message);
     } finally {
       setGuardando(false);
     }
   };
 
   const handleEliminarFranja = (franja) => {
-    Alert.alert(
-      'Eliminar franja',
-      `¿Quieres eliminar el horario ${franja.startTime.substring(0, 5)} – ${franja.endTime.substring(0, 5)} del ${diaSeleccionado.es}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteAvailability(franja.id);
-              await cargarDisponibilidad(monitorId);
-            } catch (e) {
-              Alert.alert('Error', e.message);
-            }
-          },
-        },
-      ]
-    );
+    setFranjaParaBorrar(franja);
+    setDeleteModalVisible(true);
+  };
+
+  const confirmarBorradoReal = async () => {
+    if (!franjaParaBorrar) return;
+    setGuardando(true);
+    try {
+      await deleteAvailability(franjaParaBorrar.id);
+      await cargarDisponibilidad(monitorId);
+      setDeleteModalVisible(false);
+      setFranjaParaBorrar(null);
+    } catch (e) {
+      if (Platform.OS === 'web') alert(e.message || 'No se pudo eliminar la franja');
+      else Alert.alert('Error', e.message || 'No se pudo eliminar la franja');
+    } finally {
+      setGuardando(false);
+    }
   };
 
   if (cargando) {
@@ -224,12 +242,16 @@ export default function TrainerAvailabilityScreen({ navigation }) {
                   <Text style={styles.franjaLabel}>Sesión de entrenamiento</Text>
                 </View>
               </View>
-              <TouchableOpacity
-                style={styles.deleteBtn}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.deleteBtn,
+                  pressed && { opacity: 0.7, scale: 0.95 }
+                ]}
                 onPress={() => handleEliminarFranja(franja)}
+                hitSlop={15}
               >
-                <Ionicons name="trash-outline" size={18} color={theme.danger} />
-              </TouchableOpacity>
+                <Ionicons name="trash-outline" size={20} color={theme.danger} />
+              </Pressable>
             </View>
           ))
         )}
@@ -334,7 +356,56 @@ export default function TrainerAvailabilityScreen({ navigation }) {
         </View>
       </Modal>
 
+      <DeleteConfirmModal
+        visible={deleteModalVisible}
+        onClose={() => setDeleteModalVisible(false)}
+        onConfirm={confirmarBorradoReal}
+        itemName={franjaParaBorrar ? `${franjaParaBorrar.startTime.substring(0, 5)} - ${franjaParaBorrar.endTime.substring(0, 5)}` : ''}
+        loading={guardando}
+      />
+
     </AppLayout>
+  );
+}
+
+// -------- MODAL CONFIRMACION BORRADO --------
+function DeleteConfirmModal({ visible, onClose, onConfirm, itemName, loading }) {
+  return (
+    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlayCenter}>
+        <View style={styles.deleteCard}>
+          <View style={styles.deleteIconCircle}>
+            <Ionicons name="trash-outline" size={28} color={theme.danger} />
+          </View>
+          <Text style={styles.deleteTitle}>¿Eliminar horario?</Text>
+          <Text style={styles.deleteDesc}>
+            Estás a punto de eliminar la franja <Text style={{fontWeight: '700', color: '#fff'}}>{itemName}</Text>.
+          </Text>
+          
+          <View style={styles.deleteModalBtns}>
+            <TouchableOpacity 
+              style={styles.modalCancelBtn} 
+              onPress={onClose} 
+              disabled={loading}
+            >
+              <Text style={styles.modalCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.modalDeleteBtn} 
+              onPress={onConfirm}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.modalDeleteText}>Eliminar</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -409,8 +480,8 @@ const styles = StyleSheet.create({
   franjaTime: { fontSize: 17, fontWeight: '800', color: '#fff' },
   franjaLabel: { fontSize: 12, color: theme.textBody, marginTop: 2 },
   deleteBtn: {
-    width: 38, height: 38, borderRadius: 10,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
     justifyContent: 'center', alignItems: 'center',
   },
 
@@ -461,4 +532,76 @@ const styles = StyleSheet.create({
   modalCancel: { flex: 1, paddingVertical: 14, alignItems: 'center', borderRadius: 12, backgroundColor: theme.bgPrimary },
   modalSave: { flex: 2, borderRadius: 12, overflow: 'hidden' },
   modalSaveGradient: { paddingVertical: 14, alignItems: 'center' },
+
+  // Estilos Modal Borrado
+  modalOverlayCenter: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  deleteCard: {
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: theme.bgSecondarySoft,
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.borderDefault,
+  },
+  deleteIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  deleteTitle: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  deleteDesc: {
+    fontSize: 13,
+    color: theme.textBody,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 24,
+  },
+  deleteModalBtns: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: theme.bgPrimary,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.borderDefault,
+  },
+  modalCancelText: {
+    color: theme.textBody,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  modalDeleteBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: theme.danger,
+    alignItems: 'center',
+  },
+  modalDeleteText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
 });

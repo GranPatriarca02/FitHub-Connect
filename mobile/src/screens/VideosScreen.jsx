@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, TextInput, Modal, Linking, Platform
+  ActivityIndicator, Alert, TextInput, Modal, Linking, Platform, Pressable
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -34,6 +34,10 @@ export default function VideosScreen({ navigation }) {
   const [nuevaDesc, setNuevaDesc] = useState('');
   const [nuevaUrl, setNuevaUrl] = useState('');
   const [esPremium, setEsPremium] = useState(true);
+
+  // Modal confirmación borrado
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [videoParaBorrar, setVideoParaBorrar] = useState(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -120,71 +124,82 @@ export default function VideosScreen({ navigation }) {
   };
 
   const handleEliminar = (video) => {
-    Alert.alert(
-      'Eliminar video',
-      `¿Quieres eliminar "${video.title}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await fetch(`${API_URL}/videos/${video.id}`, {
-                method: 'DELETE',
-                headers: { 'X-User-Id': userId },
-              });
-              setVideos((prev) => prev.filter((v) => v.id !== video.id));
-            } catch (e) {
-              Alert.alert('Error', 'No se pudo eliminar el video');
-            }
-          },
-        },
-      ]
-    );
+    setVideoParaBorrar(video);
+    setDeleteModalVisible(true);
+  };
+
+  const confirmarBorradoReal = async () => {
+    if (!videoParaBorrar) return;
+    const videoId = videoParaBorrar.id;
+    setGuardando(true);
+    try {
+      const res = await fetch(`${API_URL}/videos/${videoId}`, {
+        method: 'DELETE',
+        headers: { 'X-User-Id': userId || '' },
+      });
+      
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'No tienes permiso o el video no existe');
+      }
+
+      setVideos((prev) => prev.filter((v) => v.id !== videoId));
+      setDeleteModalVisible(false);
+      setVideoParaBorrar(null);
+      // Opcional: toast o alerta de éxito
+    } catch (e) {
+      if (Platform.OS === 'web') alert(e.message || 'No se pudo eliminar el video');
+      else Alert.alert('Error', e.message || 'No se pudo eliminar el video');
+    } finally {
+      setGuardando(false);
+    }
   };
 
   // -------- RENDER TARJETA DE VIDEO --------
   const VideoCard = ({ video, showDelete = false }) => {
     const thumb = video.thumbnailUrl || getYoutubeThumbnail(video.videoUrl);
     return (
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => handleAbrirVideo(video.videoUrl)}
-        activeOpacity={0.85}
-      >
-        {/* Miniatura */}
-        <View style={styles.thumbnailContainer}>
-          {thumb ? (
-            <View style={styles.thumbnailPlaceholder}>
-              {/* En web usaríamos <Image>, en native igual; aquí usamos color + icono para evitar dependencias extras */}
+      <View style={styles.card}>
+        <TouchableOpacity
+          onPress={() => handleAbrirVideo(video.videoUrl)}
+          activeOpacity={0.85}
+        >
+          {/* Miniatura */}
+          <View style={styles.thumbnailContainer}>
+            {thumb ? (
+              <View style={styles.thumbnailPlaceholder}>
+                <LinearGradient
+                  colors={[theme.brandSofter, theme.bgSecondarySoft]}
+                  style={styles.thumbGradient}
+                >
+                  <MaterialCommunityIcons name="play-circle" size={44} color="rgba(255,255,255,0.8)" />
+                </LinearGradient>
+              </View>
+            ) : (
               <LinearGradient
-                colors={[theme.brandSofter, theme.bgSecondarySoft]}
+                colors={[theme.bgSecondarySoft, theme.bgPrimary]}
                 style={styles.thumbGradient}
               >
                 <MaterialCommunityIcons name="play-circle" size={44} color="rgba(255,255,255,0.8)" />
               </LinearGradient>
+            )}
+            {/* Badge GRATIS / PREMIUM */}
+            <View style={[styles.badge, video.isPremium ? styles.badgePremium : styles.badgeFree]}>
+              <Text style={styles.badgeText}>{video.isPremium ? 'PREMIUM' : 'GRATIS'}</Text>
             </View>
-          ) : (
-            <LinearGradient
-              colors={[theme.bgSecondarySoft, theme.bgPrimary]}
-              style={styles.thumbGradient}
-            >
-              <MaterialCommunityIcons name="play-circle" size={44} color="rgba(255,255,255,0.8)" />
-            </LinearGradient>
-          )}
-          {/* Badge GRATIS / PREMIUM */}
-          <View style={[styles.badge, video.isPremium ? styles.badgePremium : styles.badgeFree]}>
-            <Text style={styles.badgeText}>{video.isPremium ? 'PREMIUM' : 'GRATIS'}</Text>
           </View>
-        </View>
 
-        {/* Info */}
-        <View style={styles.cardBody}>
-          <Text style={styles.cardTitle} numberOfLines={2}>{video.title}</Text>
-          {video.description ? (
-            <Text style={styles.cardDesc} numberOfLines={2}>{video.description}</Text>
-          ) : null}
+          {/* Info */}
+          <View style={styles.cardBody}>
+            <Text style={styles.cardTitle} numberOfLines={2}>{video.title}</Text>
+            {video.description ? (
+              <Text style={styles.cardDesc} numberOfLines={2}>{video.description}</Text>
+            ) : null}
+          </View>
+        </TouchableOpacity>
+
+        {/* Footer con acciones (Fuera del touchable principal) */}
+        <View style={[styles.cardBody, { paddingTop: 0 }]}>
           <View style={styles.cardFooter}>
             <View style={styles.trainerTag}>
               <MaterialCommunityIcons
@@ -197,17 +212,27 @@ export default function VideosScreen({ navigation }) {
               </Text>
             </View>
             {showDelete && (
-              <TouchableOpacity onPress={() => handleEliminar(video)} style={styles.deleteBtn}>
-                <Ionicons name="trash-outline" size={16} color="#FF5252" />
-              </TouchableOpacity>
+              <Pressable 
+                onPress={() => handleEliminar(video)} 
+                style={({ pressed }) => [
+                  styles.deleteBtn,
+                  pressed && { opacity: 0.7, scale: 0.95 }
+                ]}
+                hitSlop={15}
+              >
+                <Ionicons name="trash-outline" size={20} color="#FF5252" />
+              </Pressable>
             )}
-            <View style={styles.playHint}>
+            <TouchableOpacity 
+              onPress={() => handleAbrirVideo(video.videoUrl)}
+              style={styles.playHint}
+            >
               <Ionicons name="play" size={13} color="#4CAF50" />
               <Text style={styles.playHintText}>Ver</Text>
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
-      </TouchableOpacity>
+      </View>
     );
   };
 
@@ -334,7 +359,56 @@ export default function VideosScreen({ navigation }) {
         onPublish={handlePublicar}
         guardando={guardando}
       />
+
+      <DeleteConfirmModal
+        visible={deleteModalVisible}
+        onClose={() => setDeleteModalVisible(false)}
+        onConfirm={confirmarBorradoReal}
+        itemName={videoParaBorrar?.title}
+        loading={guardando}
+      />
     </AppLayout>
+  );
+}
+
+// -------- MODAL CONFIRMACION BORRADO --------
+function DeleteConfirmModal({ visible, onClose, onConfirm, itemName, loading }) {
+  return (
+    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlayCenter}>
+        <View style={styles.deleteCard}>
+          <View style={styles.deleteIconCircle}>
+            <Ionicons name="trash-outline" size={28} color={theme.danger} />
+          </View>
+          <Text style={styles.deleteTitle}>¿Eliminar video?</Text>
+          <Text style={styles.deleteDesc}>
+            Estás a punto de eliminar <Text style={{fontWeight: '700', color: '#fff'}}>{itemName}</Text>. Esta acción no se puede deshacer.
+          </Text>
+          
+          <View style={styles.deleteModalBtns}>
+            <TouchableOpacity 
+              style={styles.modalCancelBtn} 
+              onPress={onClose} 
+              disabled={loading}
+            >
+              <Text style={styles.modalCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.modalDeleteBtn} 
+              onPress={onConfirm}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.modalDeleteText}>Eliminar</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -527,10 +601,10 @@ const styles = StyleSheet.create({
   },
   trainerName: { fontSize: 11, color: '#4FC3F7', fontWeight: '600' },
   deleteBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    backgroundColor: '#2a1a1a',
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 82, 82, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -666,4 +740,76 @@ const styles = StyleSheet.create({
   toggleCircleOn: { alignSelf: 'flex-end' },
   toggleCircleOff: { alignSelf: 'flex-start' },
   separatorModal: { height: 1, backgroundColor: theme.borderDefault, marginBottom: 20 },
+  
+  // Estilos Modal Borrado
+  modalOverlayCenter: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  deleteCard: {
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: theme.bgSecondarySoft,
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.borderDefault,
+  },
+  deleteIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  deleteTitle: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  deleteDesc: {
+    fontSize: 13,
+    color: theme.textBody,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 24,
+  },
+  deleteModalBtns: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: theme.bgPrimary,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.borderDefault,
+  },
+  modalCancelText: {
+    color: theme.textBody,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  modalDeleteBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: theme.danger,
+    alignItems: 'center',
+  },
+  modalDeleteText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
 });

@@ -61,7 +61,8 @@ export async function deleteAvailability(availabilityId) {
     const text = await res.text().catch(() => '');
     throw new Error(text || `Error eliminando franja: ${res.status}`);
   }
-  return res.json();
+  // Devolver json si hay contenido, si no un objeto vacio
+  return res.json().catch(() => ({ message: 'Eliminado' }));
 }
 
 export async function healthCheck() {
