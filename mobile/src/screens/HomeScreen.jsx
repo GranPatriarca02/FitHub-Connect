@@ -21,6 +21,7 @@ export default function HomeScreen({ navigation }) {
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [menuVisible, setMenuVisible] = useState(false);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
 
   // __ FUNCIONES __
   const handleLogout = async () => {
@@ -81,6 +82,18 @@ export default function HomeScreen({ navigation }) {
         await AsyncStorage.setItem('userName', data.name);
         await AsyncStorage.setItem('userEmail', data.email);
 
+        // Comprobamos si tiene suscripciones activas
+        const token = await AsyncStorage.getItem('userToken');
+        if (token) {
+          const subsRes = await fetch(`${API_URL}/subscriptions/my`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (subsRes.ok) {
+            const subsData = await subsRes.json();
+            setHasActiveSubscription(Array.isArray(subsData) && subsData.length > 0);
+          }
+        }
+
       } else if (response.status === 404 || response.status === 401) {
         handleLogout();
       }
@@ -103,36 +116,9 @@ export default function HomeScreen({ navigation }) {
       const paymentStatus = urlParams.get('payment');
       const monitorId = urlParams.get('monitorId');
 
-      if (paymentStatus === 'success') {
-        const syncPremium = async () => {
-          try {
-            const userId = await AsyncStorage.getItem('userId');
-            const endpoint = monitorId ? '/subscriptions/confirm' : '/confirm-premium';
-            const body = monitorId ? JSON.stringify({ monitorId: parseInt(monitorId) }) : JSON.stringify({});
-
-            const response = await fetch(`${API_URL}${endpoint}`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-User-Id': userId
-              },
-              body: body
-            });
-
-            if (response.ok) {
-              await AsyncStorage.setItem('userRole', 'PREMIUM');
-              setRole('PREMIUM');
-              Alert.alert("Éxito", "Tu suscripción se ha activado correctamente. Ya eres PREMIUM");
-
-              if (monitorId) {
-                navigation.navigate('MonitorDetail', { monitor: { id: parseInt(monitorId) } });
-              }
-            }
-          } catch (error) {
-            console.error("Error sincronizando premium:", error);
-          }
-        };
-        syncPremium();
+      if (paymentStatus === 'success' && monitorId) {
+        Alert.alert("Éxito", "Tu suscripción al entrenador se ha activado correctamente.");
+        navigation.navigate('MonitorDetail', { monitor: { id: parseInt(monitorId) } });
       }
 
       if (paymentStatus) {
@@ -141,7 +127,6 @@ export default function HomeScreen({ navigation }) {
     }
   }, []);
 
-  const isPremium = role === 'PREMIUM';
   const isTrainer = role === 'TRAINER';
 
   return (
@@ -173,7 +158,7 @@ export default function HomeScreen({ navigation }) {
               <Ionicons name={isTrainer ? 'calendar' : 'people'} size={18} color="white" style={{ marginLeft: 8 }} />
             </TouchableOpacity>
 
-            {!isPremium && !isTrainer && (
+            {!isTrainer && !hasActiveSubscription && (
               <TouchableOpacity
                 style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', paddingVertical: 14, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }}
                 onPress={() => navigation.navigate('SubscriptionBenefits')}
