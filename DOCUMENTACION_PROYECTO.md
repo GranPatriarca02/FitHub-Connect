@@ -156,7 +156,7 @@ La aplicación está dividida en varias funciones principales:
 3. **Agenda y Citas**: Donde los monitores ponen cuándo están libres y los alumnos reservan sus clases.
 4. **Entrenamientos**: Aquí es donde se crean las rutinas de ejercicios.
 5. **Muro Social**: Un pequeño feed donde los usuarios pueden subir fotos de sus progresos, dar likes y comentar.
-6. **Pagos y Premium**: La parte que conecta con Stripe para pagar sesiones sueltas o hacerse Premium.
+6. **Pagos y Suscripciones**: Conexión con Stripe para pagos de sesiones sueltas, suscripciones a entrenadores específicos o el plan Premium Global para acceso total.
 
 #### 6.2.2 Diseño de la Base de Datos (E-R)
 
@@ -171,7 +171,7 @@ Se ha diseñado un esquema relacional normalizado para asegurar la integridad de
 | **Routines**          | Planes de entrenamiento creados.             | `id`, `title`, `creator_id` (FK), `is_public`, `is_premium`         |
 | **Exercises**         | Catálogo maestro de ejercicios físicos.      | `id`, `name`, `muscle_group`, `equipment`, `video_url`              |
 | **Routine_Exercises** | Detalle de ejercicios dentro de una rutina.  | `id`, `routine_id` (FK), `exercise_id` (FK), `sets`, `reps`, `rest` |
-| **Subscriptions**     | Registro de suscripciones premium.           | `id`, `user_id` (FK), `monitor_id` (FK), `status`, `expires_at`     |
+| **Subscriptions**     | Registro de suscripciones premium.           | `id`, `user_id` (FK), `type` ('MONITOR'/'GLOBAL'), `target_id`, `expires_at` |
 | **Posts**             | Publicaciones en el feed social.             | `id`, `user_id` (FK), `content`, `image_url`, `created_at`          |
 
 #### 6.2.3 Documentación de la API (Endpoints)
@@ -193,6 +193,14 @@ La comunicación entre el frontend y el backend se realiza mediante una API REST
   - `POST /bookings`: Creación de una nueva reserva (flujo nativo).
   - `POST /create-checkout-session`: Inicia el flujo de pago en web.
   - `GET /bookings/user/{userId}`: Historial de reservas del usuario.
+
+- **Suscripciones (`/subscriptions`)**:
+  - `GET /subscriptions/check`: Comprueba si el usuario tiene acceso gratuito (por suscripción o Premium Global).
+  - `POST /subscriptions/intent`: Intento de pago para suscripción a entrenador (móvil).
+  - `POST /subscriptions/global/intent`: Intento de pago para Premium Global (móvil).
+  - `POST /create-subscription-session`: Sesión Stripe para suscripción a entrenador (web).
+  - `POST /create-global-subscription-session`: Sesión Stripe para Premium Global (web).
+  - `GET /subscriptions/user/{userId}`: Lista las suscripciones activas del usuario.
 
 - **Rutinas y Ejercicios (`/routines`, `/exercises`)**:
   - `GET /routines`: Lista rutinas accesibles para el usuario.
@@ -362,9 +370,9 @@ El desarrollo de este proyecto ha permitido consolidar los conocimientos adquiri
 
 ### 7.2 Logros
 
-- La integración con Stripe funciona y permite hacer pagos reales (en modo prueba).
-- Los tres tipos de usuarios (Gratis, Premium y Entrenador) están bien diferenciados y cada uno tiene sus funciones.
-- La app funciona tanto en Android como en iPhone sin tener que haber hecho dos códigos distintos, lo que nos ha ahorrado muchísimo trabajo.
+- La integración con Stripe funciona y permite hacer pagos reales (en modo prueba) tanto en móvil (PaymentSheet) como en PC (Checkout Sessions).
+- Los niveles de usuario están bien diferenciados: **Gratis** (pago por uso), **Suscrito a Entrenador** (acceso libre a un monitor) y **Premium Global** (acceso total a toda la plataforma).
+- La app funciona tanto en Android como en iPhone y Navegador Web, con flujos de pago adaptados a cada plataforma.
 
 ### 7.3 Futuro
 
@@ -398,7 +406,10 @@ Durante el desarrollo han surgido diversos desafíos técnicos que han requerido
 1. **Registro**: Introduce tus datos y confirma el email. Sin la confirmación, no podrás acceder a las funciones de reserva.
 2. **Búsqueda**: Utiliza los filtros superiores para encontrar un entrenador especializado en lo que necesitas.
 3. **Reserva**: Elige una hora verde (disponible). Las rojas ya están ocupadas por otros usuarios.
-4. **Pago**: Introduce los datos de tu tarjeta de prueba de Stripe. Una vez confirmado, verás tu cita en el calendario.
+4. **Pago y Planes**: Puedes pagar sesiones sueltas o elegir entre dos planes premium:
+   - **Suscripción a Monitor**: Acceso ilimitado a un entrenador específico.
+   - **Premium Global**: Acceso total a todos los monitores y contenido de la app.
+   Una vez confirmado el pago, las horas de reserva te aparecerán como gratuitas.
 
 ### 8.2 Para Entrenadores (Trainer)
 
