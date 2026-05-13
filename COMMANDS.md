@@ -50,6 +50,10 @@ cd backend
 | GET    | `/monitors/{id}`                   | Devuelve el detalle de un monitor con su disponibilidad semanal.                                                        |
 | GET    | `/availability/{monitorId}`        | Devuelve los horarios disponibles de un monitor.                                                                        |
 | POST   | `/availability/{monitorId}/update` | Actualiza la disponibilidad de un monitor. Recibe un JSON con el dia, hora de inicio, hora de fin y si esta disponible. |
+| GET    | `/subscriptions/check`             | Comprueba si el usuario esta suscrito a un monitor especifico.                                                         |
+| POST   | `/subscriptions/intent`            | Inicia el proceso de pago para suscribirse a un monitor (Móvil).                                                        |
+| POST   | `/create-subscription-session`     | Inicia el proceso de pago para suscribirse a un monitor (Web).                                                          |
+| GET    | `/subscriptions/user/{userId}`     | Lista todas las suscripciones activas de un usuario.                                                                   |
 
 Ejemplo de body para el POST de disponibilidad:
 
