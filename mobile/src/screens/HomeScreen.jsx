@@ -83,11 +83,8 @@ export default function HomeScreen({ navigation }) {
         await AsyncStorage.setItem('userEmail', data.email);
 
         // Comprobamos si tiene suscripciones activas
-        const token = await AsyncStorage.getItem('userToken');
-        if (token) {
-          const subsRes = await fetch(`${API_URL}/subscriptions/my`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
+        if (userId) {
+          const subsRes = await fetch(`${API_URL}/subscriptions/user/${userId}`);
           if (subsRes.ok) {
             const subsData = await subsRes.json();
             setHasActiveSubscription(Array.isArray(subsData) && subsData.length > 0);

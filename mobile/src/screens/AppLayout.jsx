@@ -94,11 +94,8 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                     }
 
                     // --- OBTENER SUSCRIPCIONES ACTIVAS ---
-                    const token = await AsyncStorage.getItem('userToken');
-                    if (token) {
-                        const subsRes = await fetch(`${API_URL}/subscriptions/my`, {
-                            headers: { 'Authorization': `Bearer ${token}` }
-                        });
+                    if (userId) {
+                        const subsRes = await fetch(`${API_URL}/subscriptions/user/${userId}`);
                         if (subsRes.ok) {
                             const subsData = await subsRes.json();
                             setHasActiveSubscription(Array.isArray(subsData) && subsData.length > 0);
