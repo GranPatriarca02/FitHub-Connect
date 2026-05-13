@@ -243,7 +243,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Error al crear la reserva');
         
-        const esPremium = isSubscribed || userRole === 'GLOBAL_PREMIUM';
+        const esPremium = isSubscribed;
 
         if (!data.clientSecret || esPremium) {
           setPrecioPagado(0);
@@ -448,7 +448,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
 
               {/* Botones Acción */}
               <View style={styles.footerActions}>
-                {!isSubscribed && userRole !== 'GLOBAL_PREMIUM' && !cargandoSuscripcion && (
+                {!isSubscribed && !cargandoSuscripcion && (
                   <TouchableOpacity
                     style={styles.subscribeBtn}
                     onPress={() => navigation.navigate('SubscriptionBenefits', {
@@ -495,7 +495,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
                 reserveEnd={reserveEnd}
                 hourlyRate={monitorDetail.hourlyRate || 0}
                 precio={precioReserva}
-                isSubscribed={isSubscribed || userRole === 'GLOBAL_PREMIUM'}
+                isSubscribed={isSubscribed}
                 cargandoPago={cargandoPago}
                 overlapConReserva={overlapConReserva}
                 onConfirmar={handleContratar}

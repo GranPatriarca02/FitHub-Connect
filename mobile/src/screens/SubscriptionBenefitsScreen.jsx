@@ -36,79 +36,6 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
     }
   };
 
-  const confirmGlobalPremium = async () => {
-    try {
-      const userId = await AsyncStorage.getItem('userId');
-      await fetch(`${API_URL}/confirm-premium`, {
-        method: 'POST',
-        headers: { 'X-User-Id': userId || '' },
-      });
-      await AsyncStorage.setItem('userRole', 'GLOBAL_PREMIUM');
-      Alert.alert("¡Eres Premium Global!", "Ahora tienes acceso total a todos los entrenadores.");
-      navigation.goBack();
-    } catch (error) {
-      console.error("Error al confirmar premium global:", error);
-    }
-  };
-
-  const handleSubscribeGlobal = async () => {
-    setProcesando(true);
-    try {
-      const userId = await AsyncStorage.getItem('userId');
-      
-      if (isWeb) {
-        // --- FLUJO WEB: Stripe Checkout (PC) ---
-        const response = await fetch(`${API_URL}/create-global-subscription-session`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'X-User-Id': userId || '' 
-          },
-          body: JSON.stringify({ 
-            webReturnUrl: window.location.origin
-          })
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Error');
-        if (data.url) {
-          window.location.href = data.url;
-        }
-      } else {
-        // --- FLUJO NATIVO: Stripe PaymentSheet (Móvil) ---
-        const response = await fetch(`${API_URL}/subscriptions/global/intent`, {
-          method: 'POST',
-          headers: { 'X-User-Id': userId || '' }
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Error');
-
-        const { error: initError } = await initPaymentSheet({
-          paymentIntentClientSecret: data.clientSecret,
-          merchantDisplayName: 'FitHub Connect',
-          appearance: {
-            colors: {
-              primary: '#FFD700',
-              background: '#121212',
-              componentBackground: '#1e1e1e',
-              text: '#ffffff',
-            },
-            shapes: { borderRadius: 12 }
-          }
-        });
-        if (initError) throw new Error(initError.message);
-
-        const { error: paymentError } = await presentPaymentSheet();
-        if (!paymentError) {
-          await confirmGlobalPremium();
-        }
-      }
-    } catch (error) {
-      Alert.alert('Error', error.message);
-    } finally {
-      setProcesando(false);
-    }
-  };
-
   React.useEffect(() => {
     const checkStatus = async () => {
       try {
@@ -120,7 +47,6 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
           const params = new URLSearchParams(window.location.search);
           const payStatus = params.get('payment');
           const mIdParam = params.get('monitorId');
-          const typeParam = params.get('type');
           
           if (payStatus === 'success') {
             if (mIdParam && mIdParam === monitorId?.toString()) {
@@ -131,12 +57,9 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
                 `Ahora tienes clases ilimitadas con ${trainerName} durante 1 mes.`,
                 [{ text: 'Genial', onPress: () => navigation.goBack() }]
               );
-            } else if (typeParam === 'global') {
-              console.log("Detectado pago exitoso Global en Web. Confirmando...");
-              await confirmGlobalPremium();
             }
             
-            // Limpiar la URL para evitar confirmaciones infinitas
+            // Limpiar la URL
             window.history.replaceState({}, document.title, window.location.pathname);
           }
         }
@@ -161,7 +84,6 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
       const userId = await AsyncStorage.getItem('userId');
 
       if (isWeb) {
-        // --- FLUJO WEB: Stripe Checkout Session (redirección) ---
         const response = await fetch(`${API_URL}/create-subscription-session`, {
           method: 'POST',
           headers: {
@@ -186,9 +108,6 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
         }
 
       } else {
-        // --- FLUJO NATIVO: Stripe PaymentSheet ---
-
-        // 1. Pedir al backend un clientSecret vinculado a este entrenador
         const response = await fetch(`${API_URL}/subscriptions/intent`, {
           method: 'POST',
           headers: {
@@ -199,12 +118,8 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
         });
 
         const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'No se pudo iniciar el proceso de pago');
 
-        if (!response.ok) {
-          throw new Error(data.error || 'No se pudo iniciar el proceso de pago');
-        }
-
-        // 2. Inicializar el PaymentSheet nativo
         const { error: initError } = await initPaymentSheet({
           paymentIntentClientSecret: data.clientSecret,
           merchantDisplayName: 'FitHub Connect',
@@ -221,29 +136,18 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
 
         if (initError) throw new Error(initError.message);
 
-        // 3. Mostrar la pasarela de pago nativa
         const { error: paymentError } = await presentPaymentSheet();
-
-        if (paymentError) {
-          if (paymentError.code !== 'Canceled') {
-            Alert.alert('Error en el pago', paymentError.message);
-          }
-        } else {
-          // 4. ÉXITO: confirmar la suscripción
+        if (!paymentError) {
           await confirmSubscription();
-
           Alert.alert(
-            `Suscripcion activa con ${trainerName}`,
-            `Ahora tienes clases ilimitadas con ${trainerName} durante 1 mes.`,
-            [{
-              text: 'Ver perfil del entrenador',
-              onPress: () => navigation.goBack()
-            }]
+            `Suscripción activa con ${trainerName}`,
+            `Ahora tienes acceso total a ${trainerName} durante 1 mes.`,
+            [{ text: 'Genial', onPress: () => navigation.goBack() }]
           );
         }
       }
     } catch (error) {
-      Alert.alert('Error de conexión', error.message || 'No se pudo conectar con el servidor.');
+      Alert.alert('Error', error.message || 'Error en la suscripción');
     } finally {
       setProcesando(false);
     }
@@ -261,49 +165,20 @@ function SubscriptionBenefitsContent({ navigation, monitorId, monitorName }) {
           </TouchableOpacity>
 
           {!monitorId ? (
-            // --- PANTALLA GENÉRICA (SIN ENTRENADOR) ---
-            <View style={{ alignItems: 'center' }}>
+            <View style={{ alignItems: 'center', marginTop: 40 }}>
               <LinearGradient colors={['#FFD700', '#B8860B']} style={styles.iconCircle}>
-                <MaterialCommunityIcons name="account-group" size={40} color="#000" />
+                <MaterialCommunityIcons name="account-search" size={40} color="#000" />
               </LinearGradient>
-              <Text style={styles.title}>Suscripciones Premium</Text>
+              <Text style={styles.title}>Busca a tu Entrenador</Text>
               <Text style={styles.subtitle}>
-                Ahora puedes suscribirte directamente a tus entrenadores favoritos para disfrutar de ventajas exclusivas.
+                Para disfrutar de ventajas premium, suscríbete directamente al perfil de tu entrenador favorito.
               </Text>
               
-              <View style={[styles.benefitsList, { width: '100%', marginTop: 30 }]}>
-                <BenefitItem icon="infinity" title="Clases Ilimitadas" desc="Reserva sin costes adicionales." />
-                <BenefitItem icon="video" title="Vídeos Exclusivos" desc="Acceso total al contenido premium del monitor." />
-                <BenefitItem icon="star-circle" title="Apoyo Directo" desc="Forma parte de su comunidad exclusiva." />
-              </View>
-
-              <TouchableOpacity
-                style={styles.subscribeBtn}
-                onPress={handleSubscribeGlobal}
-                disabled={procesando}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={['#FFD700', '#B8860B']}
-                  style={styles.btnGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                >
-                  {procesando ? <ActivityIndicator color="#000" /> : (
-                    <>
-                      <MaterialCommunityIcons name="crown" size={20} color="#000" style={{ marginRight: 8 }} />
-                      <Text style={styles.subscribeText}>Hazte Premium Global (49.99€)</Text>
-                    </>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-              <Text style={styles.cancelText}>Acceso ilimitado a TODOS los entrenadores y contenido.</Text>
-
               <TouchableOpacity 
                 onPress={() => navigation.replace('MonitorList')}
-                style={{ marginTop: 25 }}
+                style={styles.browseTrainersBtn}
               >
-                <Text style={{ color: '#FFD700', fontWeight: '700' }}>O prefiere buscar un entrenador específico</Text>
+                <Text style={styles.browseTrainersText}>Explorar Entrenadores</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -524,5 +399,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#444',
     textAlign: 'center',
+  },
+  browseTrainersBtn: {
+    marginTop: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFD700',
+  },
+  browseTrainersText: {
+    color: '#FFD700',
+    fontWeight: '700',
+    fontSize: 15,
   },
 });

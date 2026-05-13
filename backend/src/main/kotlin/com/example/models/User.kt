@@ -14,7 +14,6 @@ import java.time.LocalDateTime
 enum class UserRole {
     FREE,
     PREMIUM,
-    GLOBAL_PREMIUM,
     TRAINER
 }
 

@@ -144,8 +144,7 @@ fun Application.bookingRoutes() {
 
                     // Un usuario tiene reserva gratis si:
                     // 1. Está suscrito a ESTE monitor específico
-                    // 2. Es GLOBAL_PREMIUM (acceso total)
-                    val isFree = isSubscribedToMonitor(userId, body.monitorId) || user.role == UserRole.GLOBAL_PREMIUM
+                    val isFree = isSubscribedToMonitor(userId, body.monitorId)
                     
                     val hourlyRate = monitor.hourlyRate?.toDouble() ?: 0.0
                     // Precio = horas * tarifa/h (1h30 = 1.5x, 2h30 = 2.5x, etc.)
@@ -236,7 +235,7 @@ fun Application.bookingRoutes() {
                 val hourlyRate = monitor.hourlyRate?.toDouble() ?: 0.0
                 val price = horas * hourlyRate
 
-                val isFree = isSubscribedToMonitor(userId, monitorId) || user.role == UserRole.GLOBAL_PREMIUM
+                val isFree = isSubscribedToMonitor(userId, monitorId)
 
                 if (isFree) {
                     val bDateTime = LocalDateTime.parse("${dateStr}T${hourStr}:00")
@@ -362,11 +361,6 @@ fun Application.bookingRoutes() {
                                 }
                             }
 
-                            // 2. Si es una suscripción global, activarla
-                            if (type == "GLOBAL_PREMIUM" && uId != null) {
-                                User.findById(uId)?.let { it.role = UserRole.GLOBAL_PREMIUM }
-                            }
-
                             // NOTA: pagar una reserva normal NO cambia el rol del usuario a PREMIUM
                         }
                     }
@@ -383,11 +377,6 @@ fun Application.bookingRoutes() {
                     transaction {
                         // Confirmamos la reserva si existe
                         bId?.let { id -> Booking.findById(id)?.let { it.status = BookingStatus.CONFIRMED } }
-
-                        // Activamos Premium si es una suscripción global
-                        if (type == "GLOBAL_PREMIUM") {
-                            uId?.let { id -> User.findById(id)?.let { it.role = UserRole.GLOBAL_PREMIUM } }
-                        }
 
                         // Si es una suscripción a entrenador desde la WEB, activarla
                         if (type == "TRAINER_SUBSCRIPTION" && uId != null && mId != null) {
@@ -540,79 +529,5 @@ fun Application.bookingRoutes() {
             }
         }
 
-        post("/create-global-subscription-session") {
-            try {
-                val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
-                    ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Falta ID de usuario"))
-
-                val price = 49.99
-
-                val rawBody = call.receiveText()
-                val webReturnUrl = try {
-                    val request = io.ktor.serialization.kotlinx.json.DefaultJson.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(rawBody)
-                    request["webReturnUrl"]?.toString()?.replace("\"", "") ?: ""
-                } catch (_: Exception) { "" }
-
-                val backendUrl = env["BACKEND_URL"] ?: "http://localhost:8080"
-                val successUrl = if (webReturnUrl.isNotEmpty()) {
-                    "${webReturnUrl}/?payment=success&type=global"
-                } else {
-                    "${backendUrl}/payment-success"
-                }
-                val cancelUrl = if (webReturnUrl.isNotEmpty()) {
-                    "${webReturnUrl}/?payment=cancelled"
-                } else {
-                    "${backendUrl}/payment-cancel"
-                }
-
-                val params = SessionCreateParams.builder()
-                    .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
-                    .setMode(SessionCreateParams.Mode.PAYMENT)
-                    .setSuccessUrl(successUrl)
-                    .setCancelUrl(cancelUrl)
-                    .putMetadata("userId", userId.toString())
-                    .putMetadata("type", "GLOBAL_PREMIUM")
-                    .addLineItem(
-                        SessionCreateParams.LineItem.builder()
-                            .setQuantity(1L)
-                            .setPriceData(
-                                SessionCreateParams.LineItem.PriceData.builder()
-                                    .setCurrency("eur")
-                                    .setUnitAmount((price * 100).toLong())
-                                    .setProductData(
-                                        SessionCreateParams.LineItem.PriceData.ProductData.builder()
-                                            .setName("FitHub Premium Global")
-                                            .setDescription("Acceso ilimitado a todos los entrenadores y contenido de la plataforma")
-                                            .build()
-                                    )
-                                    .build()
-                            )
-                            .build()
-                    )
-                    .build()
-
-                val session = Session.create(params)
-                call.respond(HttpStatusCode.OK, mapOf("url" to session.url))
-            } catch (e: Exception) {
-                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (e.message ?: "Error al crear sesión de suscripción global")))
-            }
-        }
-        // --- 4. CONFIRMAR SUSCRIPCIÓN PREMIUM ---
-        post("/confirm-premium") {
-            try {
-                val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
-                    ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Falta ID de usuario"))
-
-                transaction {
-                    val user = User.findById(userId)
-                    if (user != null) {
-                        user.role = UserRole.GLOBAL_PREMIUM
-                    }
-                }
-                call.respond(HttpStatusCode.OK, mapOf("message" to "Usuario actualizado a PREMIUM"))
-            } catch (e: Exception) {
-                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (e.message ?: "Error al confirmar premium")))
-            }
-        }
     }
 }

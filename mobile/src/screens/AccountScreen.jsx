@@ -108,13 +108,13 @@ export default function AccountScreen({ navigation }) {
             </View>
             <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 12 }}>¡Hola, {userData.name}!</Text>
             <Text style={{ color: theme.textBody, textAlign: 'center', fontSize: 13, marginTop: 5 }}>
-              {(userData.role === 'PREMIUM' || userData.role === 'GLOBAL_PREMIUM')
-                ? 'Nivel de cuenta Premium.'
-                : `Te faltan ${pointsToPremium - (userData.points || 0)} puntos para el nivel Premium.`}
+              {subscriptions.length > 0 
+                ? `Tienes ${subscriptions.length} suscripciones activas.`
+                : 'Suscríbete a un entrenador para desbloquear contenido exclusivo.'}
             </Text>
           </View>
 
-          {userData.role !== 'PREMIUM' && userData.role !== 'GLOBAL_PREMIUM' && (
+          {subscriptions.length === 0 && (
             <View style={{ marginTop: 5 }}>
               <View style={{ height: 6, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
                 <View style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: theme.brand }} />
@@ -167,7 +167,7 @@ export default function AccountScreen({ navigation }) {
         <View style={{ backgroundColor: theme.bgSecondarySoft, borderRadius: 15, paddingHorizontal: 16, borderWidth: 1, borderColor: theme.borderDefault, marginBottom: 25 }}>
           <DetailRow label="Nombre" value={userData.name} />
           <DetailRow label="Email" value={userData.email} />
-          <DetailRow label="Suscripción" value={userData.role === 'GLOBAL_PREMIUM' ? 'GLOBAL PREMIUM' : userData.role} isBrand />
+          <DetailRow label="Suscripción" value={userData.role} isBrand />
           <DetailRow label="ID" value={`#${userData.id || '---'}`} last />
         </View>
 

@@ -19,12 +19,12 @@ fun Application.videoRoutes() {
                 val userRole = call.request.headers["X-User-Role"]?.uppercase() ?: "FREE"
                 val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
 
-                val videos = transaction {
-                    val query = if (userRole == "FREE") {
-                        Video.find { Videos.isPremium eq false }.toList()
-                    } else if (userRole == "TRAINER") {
+                val videosList = transaction {
+                    val query = if (userRole == "TRAINER") {
                         Video.all().toList()
                     } else {
+                        // Todos los demás usuarios (FREE, PREMIUM, etc.) 
+                        // El acceso a premium depende de las suscripciones por monitor
                         val activeSubMonitorIds = if (userId != null) {
                             Subscription.find {
                                 (Subscriptions.userId eq userId) and (Subscriptions.status eq SubscriptionStatus.ACTIVE)
@@ -53,7 +53,7 @@ fun Application.videoRoutes() {
                     }
                 }
 
-                call.respond(HttpStatusCode.OK, videos)
+                call.respond(HttpStatusCode.OK, videosList)
             }
 
             // GET /videos/my — videos del entrenador autenticado
@@ -138,10 +138,14 @@ fun Application.videoRoutes() {
             delete("/{id}") {
                 val videoId = call.parameters["id"]?.toIntOrNull()
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, "ID de video no valido")
-
+                
                 val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
-                    ?: return@delete call.respond(HttpStatusCode.BadRequest, "Header X-User-Id requerido")
-
+                println("DEBUG: Intentando borrar video $videoId por usuario $userId")
+                
+                if (userId == null) {
+                    call.respond(HttpStatusCode.Unauthorized, "No autenticado")
+                    return@delete
+                }
                 val deleted = transaction {
                     val monitor = Monitor.find { Monitors.userId eq userId }.firstOrNull()
                         ?: return@transaction false

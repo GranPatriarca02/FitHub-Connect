@@ -28,8 +28,8 @@ fun Application.routineRoutes() {
                 val userRole = call.request.headers["X-User-Role"]?.uppercase() ?: "FREE"
 
                 val list = transaction {
-                    // 1. Obtener IDs de monitores a los que está suscrito (si es Premium)
-                    val activeSubMonitorIds = if (userRole == "PREMIUM") {
+                    // 1. Obtener IDs de monitores a los que está suscrito (excepto si es TRAINER que ve todo)
+                    val activeSubMonitorIds = if (userRole != "TRAINER" && userId != null) {
                         Subscription.find {
                             (Subscriptions.userId eq userId) and (Subscriptions.status eq SubscriptionStatus.ACTIVE)
                         }.map { it.monitor.id.value }

@@ -193,33 +193,5 @@ fun Application.subscriptionRoutes() {
             }
             call.respond(subs)
         }
-        // --- 5. CREAR INTENTO PARA PREMIUM GLOBAL ---
-        post("/subscriptions/global/intent") {
-            try {
-                val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
-                    ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Falta ID de usuario"))
-
-                val price = 49.99 // Ejemplo: Premium Global más caro
-                
-                val intent = com.stripe.model.PaymentIntent.create(
-                    com.stripe.param.PaymentIntentCreateParams.builder()
-                        .setAmount((price * 100).toLong())
-                        .setCurrency("eur")
-                        .setDescription("Suscripción Global Premium — FitHub Connect")
-                        .putMetadata("userId", userId.toString())
-                        .putMetadata("type", "GLOBAL_PREMIUM")
-                        .setAutomaticPaymentMethods(
-                            com.stripe.param.PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
-                                .setEnabled(true)
-                                .build()
-                        )
-                        .build()
-                )
-
-                call.respond(HttpStatusCode.OK, mapOf("clientSecret" to intent.clientSecret, "price" to price))
-            } catch (e: Exception) {
-                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (e.message ?: "Error")))
-            }
-        }
     }
 }
