@@ -127,9 +127,12 @@ fun Application.routineRoutes() {
                             }.any()
                             if (!isSubscribed) return@transaction "premium_only"
                         } else {
-                            // Rutina oficial premium? Solo si el usuario tiene rol PREMIUM
-                            val user = User.findById(userId!!)
-                            if (user?.role != UserRole.PREMIUM) return@transaction "premium_only"
+                            // Rutina oficial premium? Requiere que el usuario apoye a algún entrenador
+                            val hasAnySub = Subscription.find {
+                                (Subscriptions.userId eq userId!!) and 
+                                (Subscriptions.status eq SubscriptionStatus.ACTIVE)
+                            }.any()
+                            if (!hasAnySub) return@transaction "premium_only"
                         }
                     }
 

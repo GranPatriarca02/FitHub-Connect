@@ -291,26 +291,12 @@ fun Application.authRoutes() {
             val user = transaction {
                 val u = User.findById(id)
                 
-                // --- LÓGICA DE EXPIRACIÓN DE PREMIUM ---
-                if (u?.role == UserRole.PREMIUM) {
-                    val activeSubsCount = Subscription.find {
-                        (Subscriptions.userId eq id) and
-                        (Subscriptions.status eq SubscriptionStatus.ACTIVE) and
-                        (Subscriptions.expiresAt greater java.time.LocalDateTime.now())
-                    }.count()
-
-                    if (activeSubsCount == 0L) {
-                        // Si no quedan suscripciones activas y vigentes, vuelve a ser FREE
-                        u.role = UserRole.FREE
-                        
-                        // También marcamos como CANCELLED las que hayan caducado por fecha
-                        Subscription.find {
-                            (Subscriptions.userId eq id) and
-                            (Subscriptions.status eq SubscriptionStatus.ACTIVE) and
-                            (Subscriptions.expiresAt lessEq java.time.LocalDateTime.now())
-                        }.forEach { it.status = SubscriptionStatus.CANCELLED }
-                    }
-                }
+                // --- LÓGICA DE CANCELACIÓN DE SUSCRIPCIONES EXPIRADAS ---
+                Subscription.find {
+                    (Subscriptions.userId eq id) and
+                    (Subscriptions.status eq SubscriptionStatus.ACTIVE) and
+                    (Subscriptions.expiresAt lessEq java.time.LocalDateTime.now())
+                }.forEach { it.status = SubscriptionStatus.CANCELLED }
                 u
             } ?: return@get call.respond(HttpStatusCode.NotFound, mapOf("error" to "Usuario no encontrado."))
 

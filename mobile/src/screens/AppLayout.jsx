@@ -56,7 +56,7 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
     const [notificationsVisible, setNotificationsVisible] = useState(false);
     const [profileMenuVisible, setProfileMenuVisible] = useState(false);
     const [userData, setUserData] = useState({ name: 'Usuario', email: '', role: 'FREE' });
-
+    const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
     // --- LISTA DE NOTIFICACIONES (HISTORIAL REAL DEL BACKEND) ---
     const [notificationsList, setNotificationsList] = useState([]);
 
@@ -91,6 +91,18 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                             location: log.location || "Ubicación desconocida"
                         }));
                         setNotificationsList(formatted);
+                    }
+
+                    // --- OBTENER SUSCRIPCIONES ACTIVAS ---
+                    const token = await AsyncStorage.getItem('userToken');
+                    if (token) {
+                        const subsRes = await fetch(`${API_URL}/subscriptions/my`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        if (subsRes.ok) {
+                            const subsData = await subsRes.json();
+                            setHasActiveSubscription(Array.isArray(subsData) && subsData.length > 0);
+                        }
                     }
                 }
             } catch (e) {
@@ -259,17 +271,17 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                     >
                         <LinearGradient
                             colors={
-                                (userData.role === 'PREMIUM' || userData.role === 'GLOBAL_PREMIUM') ? ['#FFD700', '#B8860B'] :
+                                hasActiveSubscription ? ['#FFD700', '#B8860B'] :
                                 (userData.role === 'TRAINER' ? [theme.brand, '#15803d'] : ['transparent', 'transparent'])
                             }
                             style={{
                                 padding: 2,
                                 borderRadius: 19,
-                                shadowColor: (userData.role === 'PREMIUM' || userData.role === 'GLOBAL_PREMIUM') ? '#FFD700' : theme.brand,
+                                shadowColor: hasActiveSubscription ? '#FFD700' : theme.brand,
                                 shadowOffset: { width: 0, height: 0 },
-                                shadowOpacity: (userData.role === 'PREMIUM' || userData.role === 'GLOBAL_PREMIUM' || userData.role === 'TRAINER') ? 0.5 : 0,
+                                shadowOpacity: (hasActiveSubscription || userData.role === 'TRAINER') ? 0.5 : 0,
                                 shadowRadius: 8,
-                                elevation: (userData.role === 'PREMIUM' || userData.role === 'GLOBAL_PREMIUM' || userData.role === 'TRAINER') ? 5 : 0,
+                                elevation: (hasActiveSubscription || userData.role === 'TRAINER') ? 5 : 0,
                             }}
                         >
                             <Image
@@ -283,16 +295,16 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                                 }}
                             />
                         </LinearGradient>
-                        {(userData.role === 'PREMIUM' || userData.role === 'GLOBAL_PREMIUM' || userData.role === 'TRAINER') && (
+                        {(hasActiveSubscription || userData.role === 'TRAINER') && (
                             <View style={{
                                 position: 'absolute', bottom: -1, right: -1,
-                                backgroundColor: (userData.role === 'PREMIUM' || userData.role === 'GLOBAL_PREMIUM') ? '#FFD700' : theme.brand,
+                                backgroundColor: hasActiveSubscription ? '#FFD700' : theme.brand,
                                 borderRadius: 10, width: 14, height: 14,
                                 justifyContent: 'center', alignItems: 'center',
                                 borderWidth: 1.5, borderColor: theme.bgPrimarySoft
                             }}>
                                 <MaterialCommunityIcons
-                                    name={(userData.role === 'PREMIUM' || userData.role === 'GLOBAL_PREMIUM') ? "star" : "dumbbell"}
+                                    name={hasActiveSubscription ? "star" : "dumbbell"}
                                     size={8} color="#000"
                                 />
                             </View>
@@ -400,7 +412,7 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                                 </View>
                                 <View style={{ paddingHorizontal: 4, paddingBottom: 8 }}>
                                     <DropdownLink icon="account-outline" label="Mi cuenta" onPress={() => { setProfileMenuVisible(false); navigation.navigate('Account'); }} />
-                                    {userData.role !== 'PREMIUM' && userData.role !== 'GLOBAL_PREMIUM' && userData.role !== 'TRAINER' && (
+                                    {userData.role !== 'TRAINER' && !hasActiveSubscription && (
                                         <DropdownLink icon="rocket-launch-outline" label="Hazte Premium" color={theme.brand} onPress={() => { setProfileMenuVisible(false); navigation.navigate('SubscriptionBenefits'); }} />
                                     )}
                                     <View style={{ height: 1, backgroundColor: theme.borderDefault, marginVertical: 4 }} />

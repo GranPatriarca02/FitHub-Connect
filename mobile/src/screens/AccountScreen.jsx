@@ -167,7 +167,7 @@ export default function AccountScreen({ navigation }) {
         <View style={{ backgroundColor: theme.bgSecondarySoft, borderRadius: 15, paddingHorizontal: 16, borderWidth: 1, borderColor: theme.borderDefault, marginBottom: 25 }}>
           <DetailRow label="Nombre" value={userData.name} />
           <DetailRow label="Email" value={userData.email} />
-          <DetailRow label="Suscripción" value={userData.role} isBrand />
+          <DetailRow label="Suscripción" value={subscriptions.length > 0 ? `ACTIVA (${subscriptions.length})` : userData.role} isBrand />
           <DetailRow label="ID" value={`#${userData.id || '---'}`} last />
         </View>
 

@@ -13,7 +13,6 @@ import java.time.LocalDateTime
 // TRAINER: Modo entrenador
 enum class UserRole {
     FREE,
-    PREMIUM,
     TRAINER
 }
 

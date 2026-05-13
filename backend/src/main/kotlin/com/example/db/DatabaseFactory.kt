@@ -169,7 +169,7 @@ object DatabaseFactory {
             name = "Usuario Prueba"
             email = "usuario@example.com"
             passwordHash = "hash_seed"
-            role = UserRole.PREMIUM
+            role = UserRole.FREE
         }
 
         Booking.new {
