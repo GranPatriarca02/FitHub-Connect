@@ -20,6 +20,12 @@ object PaymentService {
             .setCurrency("eur")
             .putMetadata("bookingId", bookingId.toString())
             .putMetadata("userId", userId.toString())
+            .putMetadata("type", "BOOKING")
+            .setAutomaticPaymentMethods(
+                PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
+                    .setEnabled(true)
+                    .build()
+            )
             .build()
 
         return PaymentIntent.create(params)
