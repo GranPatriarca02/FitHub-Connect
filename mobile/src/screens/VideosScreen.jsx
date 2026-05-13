@@ -39,6 +39,8 @@ export default function VideosScreen({ navigation }) {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [videoParaBorrar, setVideoParaBorrar] = useState(null);
 
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+
   useFocusEffect(
     useCallback(() => {
       const cargar = async () => {
@@ -58,6 +60,14 @@ export default function VideosScreen({ navigation }) {
             const data = await res.json();
             setVideos(data);
           }
+
+          if (uid && role !== 'TRAINER') {
+            const subsRes = await fetch(`${API_URL}/subscriptions/user/${uid}`);
+            if (subsRes.ok) {
+              const subsData = await subsRes.json();
+              setHasActiveSubscription(Array.isArray(subsData) && subsData.length > 0);
+            }
+          }
         } catch (e) {
           Alert.alert('Error', 'No se pudieron cargar los videos');
         } finally {
@@ -69,7 +79,6 @@ export default function VideosScreen({ navigation }) {
   );
 
   const isTrainer = userRole === 'TRAINER';
-  const isPremium = userRole === 'PREMIUM';
 
   const handleAbrirVideo = (url) => {
     Linking.openURL(url).catch(() =>
@@ -258,7 +267,7 @@ export default function VideosScreen({ navigation }) {
           <View style={{ flex: 1 }}>
             <Text style={styles.pageTitle}>{isTrainer ? 'Panel de Videos' : 'Videos'}</Text>
             <Text style={styles.pageSub}>
-              {isTrainer ? 'Gestiona tu contenido y mira la galería' : (isPremium ? 'Acceso completo a todo el contenido' : 'Contenido gratuito de FitHub')}
+              {isTrainer ? 'Gestiona tu contenido y mira la galería' : (hasActiveSubscription ? 'Tus vídeos de entrenadores y contenido gratuito' : 'Contenido gratuito de FitHub')}
             </Text>
           </View>
           {isTrainer && (
@@ -303,23 +312,21 @@ export default function VideosScreen({ navigation }) {
 
                 {/* Sección PREMIUM */}
                 <View style={styles.premiumSectionHeader}>
-                  <Text style={styles.sectionLabel}>Contenido Premium</Text>
-                  {isPremium && (
+                  <Text style={styles.sectionLabel}>Videos de tus entrenadores</Text>
+                  {hasActiveSubscription && (
                     <View style={styles.unlockedBadge}>
                       <Ionicons name="checkmark-circle" size={14} color={theme.brand} />
-                      <Text style={styles.unlockedText}>Desbloqueado</Text>
+                      <Text style={styles.unlockedText}>Suscrito</Text>
                     </View>
                   )}
                 </View>
 
-                {isPremium ? (
-                  videosPremium.length === 0 ? (
-                    <Text style={styles.noContent}>No hay videos premium disponibles en este momento.</Text>
-                  ) : (
-                    videosPremium.map((v) => <VideoCard key={v.id} video={v} />)
-                  )
+                {videosPremium.length > 0 ? (
+                  videosPremium.map((v) => <VideoCard key={v.id} video={v} />)
+                ) : hasActiveSubscription ? (
+                  <Text style={styles.noContent}>Tus entrenadores aún no han publicado videos premium.</Text>
                 ) : (
-                  /* Sección bloqueada para FREE */
+                  /* Sección bloqueada para FREE sin suscripciones */
                   <TouchableOpacity
                     style={styles.lockedSection}
                     onPress={() => navigation.navigate('SubscriptionBenefits')}
@@ -329,12 +336,12 @@ export default function VideosScreen({ navigation }) {
                       <View style={styles.lockIconWrap}>
                         <Ionicons name="lock-closed" size={32} color="#FFD700" />
                       </View>
-                      <Text style={styles.lockedTitle}>Contenido exclusivo para Premium</Text>
+                      <Text style={styles.lockedTitle}>Apoya a un entrenador</Text>
                       <Text style={styles.lockedDesc}>
-                        Accede a todos los videos de nuestros entrenadores certificados con una suscripción Premium.
+                        Suscríbete a uno de nuestros entrenadores para desbloquear todos sus videos y rutinas exclusivas.
                       </Text>
                       <View style={styles.lockedBtn}>
-                        <Text style={styles.lockedBtnText}>Hazte Premium — Ver planes</Text>
+                        <Text style={styles.lockedBtnText}>Ver entrenadores</Text>
                       </View>
                     </LinearGradient>
                   </TouchableOpacity>
