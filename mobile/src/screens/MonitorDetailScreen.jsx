@@ -33,6 +33,10 @@ const deMin = (mins) => {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
 
+// Formatea un Date como "YYYY-MM-DD" usando la hora LOCAL (evita el desfase UTC de toISOString)
+const toLocalDateStr = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
 const getNext14Days = () => {
   const days = [];
   const start = new Date();
@@ -40,10 +44,11 @@ const getNext14Days = () => {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
     days.push({
-      dateString: d.toISOString().split('T')[0],
+      dateString: toLocalDateStr(d),
       dayOfWeekEn: DIES_SEMANA_EN[d.getDay()],
       shortDayEs: NOMBRES_DIAS_ES[d.getDay()],
-      dayNum: d.getDate()
+      dayNum: d.getDate(),
+      _offset: i,  // guardamos el offset para poder recalcular
     });
   }
   return days;
@@ -198,6 +203,12 @@ export default function MonitorDetailScreen({ route, navigation }) {
     const startTime = reserveStart;
     const endTime = deMin(endMin);
 
+    // Recalculamos la fecha LOCAL desde cero para evitar cualquier
+    // desfase por cache/state preservado entre hot-reloads o timezone.
+    const freshDate = new Date();
+    freshDate.setDate(freshDate.getDate() + (fechaSeleccionada._offset ?? 0));
+    const bookingDate = toLocalDateStr(freshDate);
+
     setCargandoPago(true);
     try {
       const userId = await AsyncStorage.getItem('userId');
@@ -208,7 +219,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
           body: JSON.stringify({
             monitorId: monitorDetail.id,
             monitorName: monitorDetail.name,
-            date: fechaSeleccionada.dateString,
+            date: bookingDate,
             startTime,
             endTime,
             webReturnUrl: window.location.origin,
@@ -235,7 +246,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
           headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
           body: JSON.stringify({
             monitorId: monitorDetail.id,
-            date: fechaSeleccionada.dateString,
+            date: bookingDate,
             startTime,
             endTime,
           }),
