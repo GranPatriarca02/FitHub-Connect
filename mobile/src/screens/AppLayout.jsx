@@ -409,6 +409,9 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                                 </View>
                                 <View style={{ paddingHorizontal: 4, paddingBottom: 8 }}>
                                     <DropdownLink icon="account-outline" label="Mi cuenta" onPress={() => { setProfileMenuVisible(false); navigation.navigate('Account'); }} />
+                                    {userData.role === 'TRAINER' && (
+                                        <DropdownLink icon="card-account-details-outline" label="Perfil Profesional" onPress={() => { setProfileMenuVisible(false); navigation.navigate('TrainerProfile'); }} />
+                                    )}
                                     {userData.role !== 'TRAINER' && !hasActiveSubscription && (
                                         <DropdownLink icon="rocket-launch-outline" label="Hazte Premium" color={theme.brand} onPress={() => { setProfileMenuVisible(false); navigation.navigate('SubscriptionBenefits'); }} />
                                     )}

@@ -168,7 +168,16 @@ export default function AccountScreen({ navigation }) {
           <DetailRow label="Nombre" value={userData.name} />
           <DetailRow label="Email" value={userData.email} />
           <DetailRow label="Suscripción" value={subscriptions.length > 0 ? `ACTIVA (${subscriptions.length})` : userData.role} isBrand />
-          <DetailRow label="ID" value={`#${userData.id || '---'}`} last />
+          <DetailRow label="ID" value={`#${userData.id || '---'}`} last={userData.role !== 'TRAINER'} />
+          {userData.role === 'TRAINER' && (
+             <TouchableOpacity 
+                style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderTopWidth: 1, borderColor: theme.borderDefault, alignItems: 'center' }}
+                onPress={() => navigation.navigate('TrainerProfile')}
+             >
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>Configurar Perfil Profesional</Text>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={theme.textBody} />
+             </TouchableOpacity>
+          )}
         </View>
 
         {/* 4. NOTIFICACIONES CON FECHA Y HORA */}
