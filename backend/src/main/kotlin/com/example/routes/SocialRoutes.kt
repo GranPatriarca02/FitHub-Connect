@@ -51,7 +51,9 @@ data class PostResponse(
 
 // Helper function to calculate a simple "time ago" string
 fun calculateTimeAgo(postTime: java.time.LocalDateTime): String {
-    val now = java.time.LocalDateTime.now()
+    // createdAt viene de CURRENT_TIMESTAMP (UTC en la DB),
+    // así que comparamos contra UTC para que no haya desfase.
+    val now = java.time.LocalDateTime.now(java.time.ZoneOffset.UTC)
     val duration = java.time.Duration.between(postTime, now)
     
     return when {
