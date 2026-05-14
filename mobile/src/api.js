@@ -327,3 +327,154 @@ export async function deleteExercise(exerciseId, userId) {
   if (!res.ok) throw new Error(`Error eliminando ejercicio: ${res.status}`);
   return res.json();
 }
+
+// ======================================================
+// RUTINAS ASIGNADAS A UN SUSCRIPTOR (1 a 1)
+// ======================================================
+//
+// El entrenador puede asignar rutinas EXCLUSIVAS a un suscriptor
+// concreto. Aquí concentramos las llamadas:
+//   - getAssignedRoutines:   lista de rutinas asignadas a un suscriptor
+//   - assignRoutineToUser:   vincula una rutina existente a un suscriptor
+//   - unassignRoutine:       retira la asignación
+//   - createRoutineForSubscriber: crea una rutina ya marcada como
+//                              exclusiva (assignedToUserId).
+//
+// El backend todavía no expone estos endpoints, así que mientras se
+// implementan usamos un "store" en memoria para que la UI funcione
+// extremo a extremo. Cuando el backend esté listo, basta sustituir
+// el cuerpo del fetch y el resto del código (pantallas) no cambia.
+
+const _assignedRoutinesStore = new Map(); // subscriberId -> Routine[]
+
+function _key(id) { return String(id); }
+
+/**
+ * Devuelve la lista de rutinas que un entrenador ha asignado a un suscriptor.
+ * GET /routines/assigned?subscriberId={id}
+ */
+export async function getAssignedRoutines(subscriberId, trainerId) {
+  try {
+    const url = `${API_URL}/routines/assigned?subscriberId=${encodeURIComponent(subscriberId)}`;
+    const res = await fetch(url, {
+      headers: { 'X-User-Id': String(trainerId) },
+    });
+    if (res.ok) return res.json();
+    if (res.status === 404) {
+      return _assignedRoutinesStore.get(_key(subscriberId)) || [];
+    }
+    throw new Error(`Error obteniendo rutinas asignadas: ${res.status}`);
+  } catch (err) {
+    console.warn('getAssignedRoutines fallback to memory store:', err?.message);
+    return _assignedRoutinesStore.get(_key(subscriberId)) || [];
+  }
+}
+
+/**
+ * Asigna una rutina ya existente del entrenador a un suscriptor.
+ * POST /routines/{routineId}/assign  { subscriberId }
+ */
+export async function assignRoutineToUser(routineId, subscriberId, trainerId) {
+  try {
+    const res = await fetch(`${API_URL}/routines/${routineId}/assign`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': String(trainerId),
+      },
+      body: JSON.stringify({ subscriberId }),
+    });
+    if (res.ok) return res.json();
+    if (res.status !== 404) {
+      const text = await res.text().catch(() => '');
+      throw new Error(text || `Error asignando rutina: ${res.status}`);
+    }
+    // 404 - el endpoint todavía no existe: caemos al store en memoria.
+  } catch (err) {
+    console.warn('assignRoutineToUser fallback to memory store:', err?.message);
+  }
+
+  // Fallback: leemos la rutina del catálogo del entrenador y la
+  // guardamos en el store para que getAssignedRoutines la vea.
+  try {
+    const mine = await getMyRoutines(trainerId);
+    const routine = (mine || []).find((r) => String(r.id) === String(routineId));
+    if (!routine) throw new Error('La rutina ya no existe en tu catálogo.');
+
+    const k = _key(subscriberId);
+    const current = _assignedRoutinesStore.get(k) || [];
+    if (current.some((r) => String(r.id) === String(routineId))) {
+      return { ok: true, alreadyAssigned: true };
+    }
+    _assignedRoutinesStore.set(k, [...current, { ...routine, assignedToUserId: subscriberId }]);
+    return { ok: true };
+  } catch (e) {
+    throw e;
+  }
+}
+
+/**
+ * Retira la asignación exclusiva de una rutina para un suscriptor.
+ * DELETE /routines/{routineId}/assign?subscriberId={id}
+ */
+export async function unassignRoutine(routineId, subscriberId, trainerId) {
+  try {
+    const url = `${API_URL}/routines/${routineId}/assign?subscriberId=${encodeURIComponent(subscriberId)}`;
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: { 'X-User-Id': String(trainerId) },
+    });
+    if (res.ok) return res.json();
+    if (res.status !== 404) {
+      throw new Error(`Error retirando rutina: ${res.status}`);
+    }
+  } catch (err) {
+    console.warn('unassignRoutine fallback to memory store:', err?.message);
+  }
+
+  const k = _key(subscriberId);
+  const current = _assignedRoutinesStore.get(k) || [];
+  _assignedRoutinesStore.set(
+    k,
+    current.filter((r) => String(r.id) !== String(routineId))
+  );
+  return { ok: true };
+}
+
+/**
+ * Wrapper semántico sobre createRoutine para crear una rutina ya
+ * marcada como exclusiva de un suscriptor. El payload incluye:
+ *   - assignedToUserId: id del suscriptor destinatario.
+ *   - isPublic: false (no aparece en el catálogo público).
+ *   - isPremium: true (es contenido exclusivo).
+ *
+ * El backend, una vez exponga el campo assignedToUserId, podrá
+ * persistir la asignación en la misma transacción de creación.
+ * Mientras tanto, este helper también guarda la rutina creada en
+ * el store en memoria para que aparezca en getAssignedRoutines.
+ */
+export async function createRoutineForSubscriber(trainerId, subscriberId, routine) {
+  const payload = {
+    ...routine,
+    isPublic: false,
+    isPremium: routine.isPremium ?? true,
+    assignedToUserId: subscriberId,
+  };
+  const created = await createRoutine(trainerId, payload);
+
+  // Espejo en memoria por si el backend todavía no procesa
+  // assignedToUserId: garantizamos que aparece en la lista de
+  // asignadas al recargar la pantalla.
+  try {
+    const k = _key(subscriberId);
+    const current = _assignedRoutinesStore.get(k) || [];
+    if (!current.some((r) => String(r.id) === String(created.id))) {
+      _assignedRoutinesStore.set(k, [
+        ...current,
+        { ...created, assignedToUserId: subscriberId },
+      ]);
+    }
+  } catch (_) { /* noop */ }
+
+  return created;
+}

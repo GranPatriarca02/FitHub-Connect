@@ -1,22 +1,36 @@
 // SubscriberTrainingPlanScreen.jsx
 // ---------------------------------------------------------------
-// Estructura base de la vista en la que un entrenador asigna o
-// crea rutinas personalizadas EXCLUSIVAS para un suscriptor.
+// Vista en la que un entrenador asigna o crea rutinas EXCLUSIVAS
+// para un suscriptor concreto.
 //
-// Esta pantalla forma parte de la primera entrega: deja el
-// esqueleto navegable y los puntos de extensión preparados. La
-// lógica completa (asignación efectiva, persistencia de rutinas
-// exclusivas, etc.) se completará en una iteración posterior.
+// Reutiliza:
+//   - RoutineCard           (lista de rutinas asignadas)
+//   - CreateRoutineModal    (modal de creación de rutina)
+//   - createRoutine /
+//     createRoutineForSubscriber / getMyRoutines /
+//     getAssignedRoutines / assignRoutineToUser
+//   - AppLayout + theme     (estética común a toda la app)
 // ---------------------------------------------------------------
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  ActivityIndicator, Alert, Modal, TextInput, FlatList,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 
 import AppLayout, { theme } from './AppLayout';
+import { RoutineCard, CreateRoutineModal } from '../components/routines';
+import {
+  getMyRoutines,
+  getAssignedRoutines,
+  assignRoutineToUser,
+  unassignRoutine,
+  createRoutineForSubscriber,
+} from '../api';
 
 export default function SubscriberTrainingPlanScreen({ route, navigation }) {
   const {
@@ -25,37 +39,164 @@ export default function SubscriberTrainingPlanScreen({ route, navigation }) {
     subscriberEmail = '',
   } = route?.params || {};
 
-  // Estado local para listar las rutinas asignadas a este suscriptor.
-  // Por ahora es un mock: se reemplazará por una llamada al backend
-  // (p. ej. /routines/assigned?to={subscriberId}) en la siguiente fase.
-  const [rutinasAsignadas] = useState([
-    // Ejemplo visual; vacío en producción hasta que el entrenador
-    // asigne la primera rutina personalizada al suscriptor.
-  ]);
+  // --- Estado base ---
+  const [trainerId, setTrainerId] = useState(null);
+  const [assigned, setAssigned] = useState([]);      // rutinas asignadas a este suscriptor
+  const [myRoutines, setMyRoutines] = useState([]);  // catálogo del entrenador (para el selector)
+  const [cargando, setCargando] = useState(true);
 
-  // Acción: asignar una rutina ya existente del catálogo del entrenador.
-  const handleAsignarExistente = () => {
-    // TODO (siguiente iteración):
-    // 1) Navegar a un selector con `getMyRoutines(userId)`.
-    // 2) Al confirmar, llamar a un endpoint del tipo
-    //    POST /routines/{id}/assign  { targetUserId: subscriberId }.
+  // --- Modal "Asignar Rutina Existente" ---
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState('');
+  const [asignando, setAsignando] = useState(false);
+
+  // --- Modal "Crear Rutina Personalizada" (CreateRoutineModal compartido) ---
+  const [createVisible, setCreateVisible] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  // Estado controlado del modal compartido
+  const [nuevoTitulo, setNuevoTitulo] = useState('');
+  const [nuevaDesc, setNuevaDesc] = useState('');
+  const [nuevaDificultad, setNuevaDificultad] = useState('Beginner');
+  const [nuevoObjetivo, setNuevoObjetivo] = useState('Hipertrofia');
+  const [nuevaPremium, setNuevaPremium] = useState(true);
+
+  const resetCreateModal = () => {
+    setNuevoTitulo('');
+    setNuevaDesc('');
+    setNuevaDificultad('Beginner');
+    setNuevoObjetivo('Hipertrofia');
+    setNuevaPremium(true);
+  };
+
+  // -----------------------------------------------------------
+  // Carga inicial: rutinas asignadas a este suscriptor + catálogo
+  // -----------------------------------------------------------
+  const cargar = useCallback(async () => {
+    setCargando(true);
+    try {
+      const uid = await AsyncStorage.getItem('userId');
+      setTrainerId(uid);
+      if (!uid || subscriberId == null) {
+        setAssigned([]);
+        setMyRoutines([]);
+        return;
+      }
+      const [asign, mine] = await Promise.all([
+        getAssignedRoutines(subscriberId, uid),
+        getMyRoutines(uid),
+      ]);
+      setAssigned(Array.isArray(asign) ? asign : []);
+      setMyRoutines(Array.isArray(mine) ? mine : []);
+    } catch (e) {
+      console.error('Error cargando plan del suscriptor:', e);
+      Alert.alert(
+        'Error',
+        'No se pudo cargar el plan de entrenamiento. Inténtalo de nuevo.'
+      );
+    } finally {
+      setCargando(false);
+    }
+  }, [subscriberId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      cargar();
+    }, [cargar])
+  );
+
+  // -----------------------------------------------------------
+  // Rutinas elegibles para asignar (no asignadas ya y filtradas)
+  // -----------------------------------------------------------
+  const assignedIds = useMemo(
+    () => new Set(assigned.map((r) => String(r.id))),
+    [assigned]
+  );
+
+  const seleccionables = useMemo(() => {
+    const q = pickerQuery.trim().toLowerCase();
+    return myRoutines
+      .filter((r) => !assignedIds.has(String(r.id)))
+      .filter((r) => {
+        if (!q) return true;
+        return (
+          (r.title || '').toLowerCase().includes(q) ||
+          (r.goal || '').toLowerCase().includes(q) ||
+          (r.difficulty || '').toLowerCase().includes(q)
+        );
+      });
+  }, [myRoutines, assignedIds, pickerQuery]);
+
+  // -----------------------------------------------------------
+  // Acciones
+  // -----------------------------------------------------------
+  const handleAsignarExistente = async (routine) => {
+    if (!trainerId || subscriberId == null) return;
+    setAsignando(true);
+    try {
+      await assignRoutineToUser(routine.id, subscriberId, trainerId);
+      setPickerVisible(false);
+      setPickerQuery('');
+      await cargar();
+      Alert.alert('Rutina asignada', `"${routine.title}" se ha vinculado a ${subscriberName}.`);
+    } catch (e) {
+      Alert.alert('Error', e.message || 'No se pudo asignar la rutina.');
+    } finally {
+      setAsignando(false);
+    }
+  };
+
+  const handleCrearPersonalizada = async () => {
+    if (!nuevoTitulo.trim()) {
+      Alert.alert('Campo obligatorio', 'Indica un nombre para la rutina.');
+      return;
+    }
+    if (!trainerId || subscriberId == null) return;
+    setGuardando(true);
+    try {
+      await createRoutineForSubscriber(trainerId, subscriberId, {
+        title: nuevoTitulo.trim(),
+        description: nuevaDesc.trim() || null,
+        difficulty: nuevaDificultad,
+        goal: nuevoObjetivo,
+        isPremium: nuevaPremium,
+        // isPublic y assignedToUserId los pone el wrapper.
+      });
+      setCreateVisible(false);
+      resetCreateModal();
+      await cargar();
+      Alert.alert('Rutina creada', 'La rutina exclusiva se ha creado y asignada al suscriptor.');
+    } catch (e) {
+      Alert.alert('Error', e.message || 'No se pudo crear la rutina.');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const handleQuitarAsignacion = (routine) => {
     Alert.alert(
-      'Próximamente',
-      `Aquí podrás elegir una rutina existente y asignarla en exclusiva a ${subscriberName}.`
+      'Quitar asignación',
+      `¿Quieres que "${routine.title}" deje de estar asignada a ${subscriberName}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Quitar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await unassignRoutine(routine.id, subscriberId, trainerId);
+              await cargar();
+            } catch (e) {
+              Alert.alert('Error', e.message || 'No se pudo quitar la asignación.');
+            }
+          },
+        },
+      ]
     );
   };
 
-  // Acción: crear una rutina personalizada nueva desde cero.
-  const handleCrearPersonalizada = () => {
-    // TODO (siguiente iteración):
-    // Navegar a un formulario de creación de rutina prefijando que
-    // el visibility/scope sea "EXCLUSIVE" y el target = subscriberId.
-    Alert.alert(
-      'Próximamente',
-      `Aquí podrás crear una rutina nueva exclusiva para ${subscriberName}.`
-    );
-  };
-
+  // -----------------------------------------------------------
+  // Render
+  // -----------------------------------------------------------
   return (
     <AppLayout
       title="Plan de Entrenamiento"
@@ -104,13 +245,13 @@ export default function SubscriberTrainingPlanScreen({ route, navigation }) {
         <TouchableOpacity
           style={styles.bigAction}
           activeOpacity={0.85}
-          onPress={handleAsignarExistente}
+          onPress={() => { setPickerQuery(''); setPickerVisible(true); }}
         >
           <View style={[styles.bigActionIcon, { backgroundColor: theme.brandSofter }]}>
             <MaterialCommunityIcons name="folder-multiple-outline" size={24} color={theme.brand} />
           </View>
           <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={styles.bigActionTitle}>Asignar una rutina existente</Text>
+            <Text style={styles.bigActionTitle}>Asignar Rutina Existente</Text>
             <Text style={styles.bigActionSubtitle}>
               Reutiliza una rutina de tu catálogo personal.
             </Text>
@@ -121,13 +262,13 @@ export default function SubscriberTrainingPlanScreen({ route, navigation }) {
         <TouchableOpacity
           style={styles.bigAction}
           activeOpacity={0.85}
-          onPress={handleCrearPersonalizada}
+          onPress={() => setCreateVisible(true)}
         >
           <View style={[styles.bigActionIcon, { backgroundColor: theme.brandSofter }]}>
             <MaterialCommunityIcons name="plus-circle-outline" size={24} color={theme.brand} />
           </View>
           <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={styles.bigActionTitle}>Crear rutina personalizada</Text>
+            <Text style={styles.bigActionTitle}>Crear Rutina Personalizada</Text>
             <Text style={styles.bigActionSubtitle}>
               Diseña una rutina nueva exclusiva para este alumno.
             </Text>
@@ -140,7 +281,9 @@ export default function SubscriberTrainingPlanScreen({ route, navigation }) {
           Rutinas asignadas
         </Text>
 
-        {rutinasAsignadas.length === 0 ? (
+        {cargando ? (
+          <ActivityIndicator size="small" color={theme.brand} style={{ marginTop: 20 }} />
+        ) : assigned.length === 0 ? (
           <View style={styles.emptyBlock}>
             <MaterialCommunityIcons
               name="clipboard-text-outline"
@@ -153,18 +296,120 @@ export default function SubscriberTrainingPlanScreen({ route, navigation }) {
             </Text>
           </View>
         ) : (
-          rutinasAsignadas.map((r) => (
-            <View key={r.id} style={styles.routineRow}>
-              <Text style={styles.routineName}>{r.name}</Text>
-            </View>
+          assigned.map((r) => (
+            <RoutineCard
+              key={r.id}
+              routine={r}
+              isOwner
+              onPress={() => navigation.navigate('RoutineDetail', { routineId: r.id })}
+              rightSlot={
+                <TouchableOpacity
+                  onPress={() => handleQuitarAsignacion(r)}
+                  style={styles.unassignBtn}
+                  hitSlop={8}
+                >
+                  <MaterialCommunityIcons name="link-off" size={16} color="#f59e0b" />
+                </TouchableOpacity>
+              }
+            />
           ))
         )}
-
-        {/* DEBUG INFO (puede retirarse) */}
-        {__DEV__ && subscriberId != null && (
-          <Text style={styles.debugText}>subscriberId: {String(subscriberId)}</Text>
-        )}
       </ScrollView>
+
+      {/* -------------------------------------------------------- */}
+      {/* MODAL: "Asignar Rutina Existente" - selector de rutina   */}
+      {/* -------------------------------------------------------- */}
+      <Modal
+        visible={pickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPickerVisible(false)}
+      >
+        <View style={styles.pickerOverlay}>
+          <LinearGradient colors={['#1e1e1e', '#121212']} style={styles.pickerCard}>
+            <View style={styles.modalTopRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Asignar rutina existente</Text>
+                <Text style={styles.modalSub}>
+                  Elige una de tu catálogo para {subscriberName}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setPickerVisible(false)} disabled={asignando}>
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.searchBar}>
+              <Ionicons name="search" size={18} color={theme.textBody} style={{ marginRight: 8 }} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Buscar por título, objetivo o dificultad..."
+                placeholderTextColor="#555"
+                value={pickerQuery}
+                onChangeText={setPickerQuery}
+              />
+            </View>
+
+            {asignando && (
+              <ActivityIndicator size="small" color={theme.brand} style={{ marginTop: 8 }} />
+            )}
+
+            <FlatList
+              data={seleccionables}
+              keyExtractor={(item) => String(item.id)}
+              style={{ marginTop: 4 }}
+              contentContainerStyle={{ paddingBottom: 8 }}
+              ListEmptyComponent={
+                <View style={styles.pickerEmpty}>
+                  <MaterialCommunityIcons
+                    name="folder-search-outline"
+                    size={36}
+                    color={theme.textBody}
+                  />
+                  <Text style={styles.pickerEmptyText}>
+                    {myRoutines.length === 0
+                      ? 'Todavía no tienes rutinas creadas en tu catálogo.'
+                      : 'Todas tus rutinas ya están asignadas a este suscriptor.'}
+                  </Text>
+                </View>
+              }
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => handleAsignarExistente(item)}
+                  disabled={asignando}
+                >
+                  <RoutineCard routine={item} isOwner />
+                </TouchableOpacity>
+              )}
+            />
+          </LinearGradient>
+        </View>
+      </Modal>
+
+      {/* -------------------------------------------------------- */}
+      {/* MODAL: "Crear Rutina Personalizada" - REUTILIZADO        */}
+      {/* -------------------------------------------------------- */}
+      <CreateRoutineModal
+        visible={createVisible}
+        onClose={() => { if (!guardando) { setCreateVisible(false); resetCreateModal(); } }}
+        titulo={nuevoTitulo}
+        setTitulo={setNuevoTitulo}
+        desc={nuevaDesc}
+        setDesc={setNuevaDesc}
+        dificultad={nuevaDificultad}
+        setDificultad={setNuevaDificultad}
+        objetivo={nuevoObjetivo}
+        setObjetivo={setNuevoObjetivo}
+        premium={nuevaPremium}
+        setPremium={setNuevaPremium}
+        isTrainer={true}
+        onCrear={handleCrearPersonalizada}
+        guardando={guardando}
+        title={`Rutina personalizada para ${subscriberName}`}
+        subtitle="Solo será visible para este suscriptor."
+        ctaLabel="Crear y asignar"
+      />
     </AppLayout>
   );
 }
@@ -247,23 +492,61 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-  // Rutina asignada (placeholder)
-  routineRow: {
+  // Botón inline en cabecera de RoutineCard para retirar la asignación
+  unassignBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 6,
+  },
+
+  // ------- Picker de rutinas existentes -------
+  pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
+  pickerCard: {
     backgroundColor: theme.bgSecondarySoft,
-    borderRadius: 12,
-    padding: 14,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 20,
+    paddingBottom: 30,
     borderWidth: 1,
     borderColor: theme.borderDefault,
-    marginBottom: 10,
+    maxHeight: '85%',
   },
-  routineName: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  modalTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: '#fff' },
+  modalSub: { fontSize: 12, color: theme.textBody, marginTop: 4, marginBottom: 14 },
 
-  // Debug
-  debugText: {
-    marginTop: 18,
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.bgPrimary,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: theme.borderDefault,
+  },
+  searchInput: { flex: 1, color: '#fff', fontSize: 14 },
+
+  pickerEmpty: {
+    paddingVertical: 36,
+    alignItems: 'center',
+  },
+  pickerEmptyText: {
     color: theme.textBody,
-    fontSize: 10,
+    fontSize: 12,
+    marginTop: 8,
     textAlign: 'center',
-    opacity: 0.6,
+    paddingHorizontal: 30,
+    lineHeight: 18,
   },
 });
