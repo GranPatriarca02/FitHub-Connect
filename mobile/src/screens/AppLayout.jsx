@@ -156,6 +156,30 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                     navigation.navigate(userData.role === 'TRAINER' ? 'TrainerAvailability' : 'MonitorList');
                 }}
             />
+            {userData.role === 'TRAINER' && (
+                <NavItem
+                    icon="person-add-outline"
+                    label="Mis Suscriptores"
+                    subLabel="Gestiona a tus alumnos"
+                    active={title === 'Mis Suscriptores'}
+                    onPress={() => {
+                        setIsMenuOpen(false);
+                        navigation.navigate('SubscribersList');
+                    }}
+                />
+            )}
+            {userData.role !== 'TRAINER' && (
+                <NavItem
+                    icon="star-outline"
+                    label="Mis Entrenadores"
+                    subLabel="Tus suscripciones activas"
+                    active={title === 'Mis Entrenadores'}
+                    onPress={() => {
+                        setIsMenuOpen(false);
+                        navigation.navigate('SubscribedTrainers');
+                    }}
+                />
+            )}
             <NavItem
                 icon="barbell-outline"
                 label="Rutinas"
@@ -411,6 +435,12 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                                     <DropdownLink icon="account-outline" label="Mi cuenta" onPress={() => { setProfileMenuVisible(false); navigation.navigate('Account'); }} />
                                     {userData.role === 'TRAINER' && (
                                         <DropdownLink icon="card-account-details-outline" label="Perfil Profesional" onPress={() => { setProfileMenuVisible(false); navigation.navigate('TrainerProfile'); }} />
+                                    )}
+                                    {userData.role === 'TRAINER' && (
+                                        <DropdownLink icon="account-group-outline" label="Mis Suscriptores" onPress={() => { setProfileMenuVisible(false); navigation.navigate('SubscribersList'); }} />
+                                    )}
+                                    {userData.role !== 'TRAINER' && (
+                                        <DropdownLink icon="star-outline" label="Mis Entrenadores" onPress={() => { setProfileMenuVisible(false); navigation.navigate('SubscribedTrainers'); }} />
                                     )}
                                     {userData.role !== 'TRAINER' && !hasActiveSubscription && (
                                         <DropdownLink icon="rocket-launch-outline" label="Hazte Premium" color={theme.brand} onPress={() => { setProfileMenuVisible(false); navigation.navigate('SubscriptionBenefits'); }} />

@@ -65,6 +65,87 @@ export async function deleteAvailability(availabilityId) {
   return res.json().catch(() => ({ message: 'Eliminado' }));
 }
 
+// ======================================================
+// SUSCRIPCIONES (lado usuario suscriptor)
+// ======================================================
+
+/**
+ * Devuelve la lista de entrenadores a los que el usuario está suscrito.
+ * GET /subscriptions/user/{userId}
+ *
+ * Respuesta esperada (cada item):
+ *   { monitorId, monitorName, specialty, expiresAt, status }
+ */
+export async function getUserSubscriptions(userId) {
+  try {
+    const res = await fetch(`${API_URL}/subscriptions/user/${userId}`);
+    if (!res.ok) {
+      throw new Error(`Error al obtener suscripciones: ${res.status}`);
+    }
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    // Fallback con datos simulados para no bloquear la UI durante el desarrollo.
+    console.warn('getUserSubscriptions fallback to mock:', err?.message);
+    return _mockUserSubscriptions();
+  }
+}
+
+function _mockUserSubscriptions() {
+  const future = (n) => new Date(Date.now() + n * 24 * 60 * 60 * 1000).toISOString();
+  return [
+    { monitorId: '1', monitorName: 'Alex Pérez',     specialty: 'Musculación', expiresAt: future(20), status: 'ACTIVE' },
+    { monitorId: '2', monitorName: 'Sofía Martínez', specialty: 'Yoga',        expiresAt: future(8),  status: 'ACTIVE' },
+    { monitorId: '3', monitorName: 'Diego Herrera',  specialty: 'HIIT',        expiresAt: future(45), status: 'ACTIVE' },
+  ];
+}
+
+// ======================================================
+// SUSCRIPTORES (lado entrenador)
+// ======================================================
+
+/**
+ * Devuelve la lista de usuarios suscritos al entrenador autenticado.
+ * GET /subscriptions/trainer/{trainerUserId}
+ *
+ * Nota: si el backend todavía no expone este endpoint, el método
+ * cae a un mock para que la UI pueda renderizar mientras se integra.
+ * El otro desarrollador del equipo podrá conectar la lógica real
+ * sin tocar la capa de presentación.
+ */
+export async function getTrainerSubscribers(trainerUserId) {
+  try {
+    const res = await fetch(
+      `${API_URL}/subscriptions/trainer/${trainerUserId}`,
+      { headers: { 'X-User-Id': String(trainerUserId) } }
+    );
+    if (res.ok) {
+      return res.json();
+    }
+    // Si el endpoint aún no existe (404) usamos datos simulados.
+    if (res.status === 404) {
+      return _mockSubscribers();
+    }
+    throw new Error(`Error al obtener suscriptores: ${res.status}`);
+  } catch (err) {
+    // Fallback en caso de error de red para no romper la pantalla.
+    console.warn('getTrainerSubscribers fallback to mock:', err?.message);
+    return _mockSubscribers();
+  }
+}
+
+// Datos de muestra mientras se conecta el endpoint real.
+function _mockSubscribers() {
+  const today = new Date();
+  const daysAgo = (n) => new Date(today.getTime() - n * 24 * 60 * 60 * 1000).toISOString();
+  return [
+    { id: 101, name: 'Lucía Romero',  email: 'lucia.romero@example.com',  subscribedAt: daysAgo(3),  status: 'ACTIVE' },
+    { id: 102, name: 'Marcos Vidal',  email: 'marcos.vidal@example.com',  subscribedAt: daysAgo(12), status: 'ACTIVE' },
+    { id: 103, name: 'Elena Castro',  email: 'elena.castro@example.com',  subscribedAt: daysAgo(28), status: 'ACTIVE' },
+    { id: 104, name: 'Pablo Núñez',   email: 'pablo.nunez@example.com',   subscribedAt: daysAgo(60), status: 'ACTIVE' },
+  ];
+}
+
 export async function healthCheck() {
   try {
     const response = await fetch(`${API_URL}/`);

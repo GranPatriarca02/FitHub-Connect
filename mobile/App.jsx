@@ -31,6 +31,10 @@ import RoutinesScreen from './src/screens/RoutinesScreen.jsx';
 import RoutineDetailScreen from './src/screens/RoutineDetailScreen.jsx';
 import ExercisesScreen from './src/screens/ExercisesScreen.jsx';
 import SocialScreen from './src/screens/SocialScreen.jsx';
+import SubscribersListScreen from './src/screens/SubscribersListScreen.jsx';
+import SubscriberTrainingPlanScreen from './src/screens/SubscriberTrainingPlanScreen.jsx';
+import SubscribedTrainersScreen from './src/screens/SubscribedTrainersScreen.jsx';
+import TrainerExclusiveContentScreen from './src/screens/TrainerExclusiveContentScreen.jsx';
 
 
 const Stack = createNativeStackNavigator();
@@ -178,6 +182,26 @@ export default function App() {
         <Stack.Screen
           name="Social"
           component={SocialScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="SubscribersList"
+          component={SubscribersListScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="SubscriberTrainingPlan"
+          component={SubscriberTrainingPlanScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="SubscribedTrainers"
+          component={SubscribedTrainersScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="TrainerExclusiveContent"
+          component={TrainerExclusiveContentScreen}
           options={{ headerShown: false }}
         />
 
