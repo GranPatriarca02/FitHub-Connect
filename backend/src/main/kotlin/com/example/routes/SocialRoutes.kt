@@ -6,26 +6,27 @@ import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.server.websocket.*
+import io.ktor.websocket.*
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.*
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.update
+import java.util.concurrent.ConcurrentHashMap
+import java.time.ZoneOffset
+import java.time.Duration
 
-@Serializable
-data class CreatePostRequest(
-    val content: String
-)
+// --- DATOS DE ENTRADA (REQUESTS) ---
+@Serializable data class CreatePostRequest(val content: String)
+@Serializable data class EditPostRequest(val content: String)
+@Serializable data class CreateCommentRequest(val content: String)
+@Serializable data class ChatMessageRequest(val receiverId: Int, val content: String)
 
-@Serializable
-data class EditPostRequest(
-    val content: String
-)
-
-@Serializable
-data class CreateCommentRequest(
-    val content: String
-)
-
+// --- DATOS DE SALIDA (RESPONSES) ---
 @Serializable
 data class CommentResponse(
     val id: Int,
@@ -44,18 +45,50 @@ data class PostResponse(
     val userRole: String,
     val content: String,
     val likesCount: Int,
-    val commentsCount: Int, // Placeholder for MVP
+    val commentsCount: Int,
     val timeAgo: String,
     val isLikedByMe: Boolean
 )
 
-// Helper function to calculate a simple "time ago" string
-fun calculateTimeAgo(postTime: java.time.LocalDateTime): String {
-    // createdAt viene de CURRENT_TIMESTAMP (UTC en la DB),
-    // así que comparamos contra UTC para que no haya desfase.
-    val now = java.time.LocalDateTime.now(java.time.ZoneOffset.UTC)
-    val duration = java.time.Duration.between(postTime, now)
+@Serializable
+data class ChatMessageResponse(
+    val id: Int,
+    val senderId: Int,
+    val receiverId: Int,
+    val content: String,
+    val createdAt: Long,
+    val isRead: Boolean
+)
+
+@Serializable
+data class ContactResponse(
+    val id: Int, 
+    val name: String, 
+    val role: String,
+    val unreadCount: Int = 0,
+    val isOnline: Boolean
+)
+
+// --- LÓGICA DE APOYO ---
+val sessions = ConcurrentHashMap<Int, DefaultWebSocketServerSession>()
+
+suspend fun broadcastStatusChange(userId: Int, isOnline: Boolean) {
+    val statusPayload = buildJsonObject {
+        put("type", "USER_STATUS_CHANGE")
+        put("userId", userId)
+        put("isOnline", isOnline)
+    }.toString()
     
+    sessions.values.forEach { session ->
+        try {
+            session.send(Frame.Text(statusPayload))
+        } catch (_: Exception) { }
+    }
+}
+
+fun calculateTimeAgo(postTime: java.time.LocalDateTime): String {
+    val now = java.time.LocalDateTime.now(ZoneOffset.UTC)
+    val duration = java.time.Duration.between(postTime, now)
     return when {
         duration.toMinutes() < 1 -> "Ahora mismo"
         duration.toHours() < 1 -> "${duration.toMinutes()}m"
@@ -68,16 +101,35 @@ fun calculateTimeAgo(postTime: java.time.LocalDateTime): String {
 fun Application.socialRoutes() {
     routing {
         
-        // --- 1. OBTENER EL FEED SOCIAL ---
+        // 0. ENDPOINT DE LOGOUT SEGURO
+        post("/social/auth/logout") {
+            val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
+                ?: return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Falta ID de usuario"))
+
+            sessions[userId]?.let { session ->
+                try {
+                    session.close(CloseReason(CloseReason.Codes.NORMAL, "Logout solicitado"))
+                } catch (_: Exception) {}
+                sessions.remove(userId)
+            }
+
+            transaction {
+                val user = User.findById(userId)
+                user?.isOnline = false
+            }
+
+            broadcastStatusChange(userId, isOnline = false)
+            call.respond(HttpStatusCode.OK, mapOf("status" to "Logged out exitosamente"))
+        }
+
+        // 1. FEED SOCIAL
         get("/social/posts") {
             val currentUserId = call.request.headers["X-User-Id"]?.toIntOrNull()
-
             val postsList = transaction {
                 Post.all().orderBy(Pair(Posts.createdAt, SortOrder.DESC)).limit(50).map { post ->
                     val isLiked = currentUserId != null && PostLike.find {
                         (PostLikes.postId eq post.id) and (PostLikes.userId eq currentUserId)
                     }.count() > 0
-
                     val commentsCount = Comment.find { Comments.postId eq post.id }.count().toInt()
 
                     PostResponse(
@@ -93,191 +145,294 @@ fun Application.socialRoutes() {
                     )
                 }
             }
-
             call.respond(HttpStatusCode.OK, postsList)
         }
 
-        // --- 2. CREAR UN NUEVO POST ---
+        // 2. CREAR POST
         post("/social/posts") {
-            val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
-                ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No autenticado"))
-
+            val userId = call.request.headers["X-User-Id"]?.toIntOrNull() 
+                ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No autorizado"))
             val body = call.receive<CreatePostRequest>()
-
-            if (body.content.isBlank()) {
-                return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "El contenido no puede estar vacío"))
-            }
-
-            val newPost = transaction {
+            
+            val newPostId = transaction {
                 val user = User.findById(userId) ?: return@transaction null
-                
                 Post.new {
                     this.user = user
                     this.content = body.content
                     this.likesCount = 0
-                }
+                }.id.value
             }
-
-            if (newPost == null) {
-                call.respond(HttpStatusCode.NotFound, mapOf("error" to "Usuario no encontrado"))
+            
+            if (newPostId == null) {
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "No se pudo crear el post"))
             } else {
-                call.respond(HttpStatusCode.Created, mapOf(
-                    "message" to "Post creado exitosamente", 
-                    "id" to newPost.id.value.toString()
-                ))
+                call.respond(HttpStatusCode.Created, mapOf("id" to newPostId))
             }
         }
 
-        // --- 3. DAR O QUITAR LIKE A UN POST ---
+        // 3. LIKE/UNLIKE
         post("/social/posts/{id}/like") {
-            val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
-                ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No autenticado"))
-                
-            val postId = call.parameters["id"]?.toIntOrNull()
-                ?: return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID de post inválido"))
+            val userId = call.request.headers["X-User-Id"]?.toIntOrNull() 
+                ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No autorizado"))
+            val postId = call.parameters["id"]?.toIntOrNull() 
+                ?: return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID inválido"))
 
-            val isLikedNow = transaction {
+            val result = transaction {
                 val post = Post.findById(postId) ?: return@transaction null
                 val user = User.findById(userId) ?: return@transaction null
-
-                val existingLike = PostLike.find {
-                    (PostLikes.postId eq postId) and (PostLikes.userId eq userId)
-                }.firstOrNull()
+                val existingLike = PostLike.find { (PostLikes.postId eq postId) and (PostLikes.userId eq userId) }.firstOrNull()
 
                 if (existingLike != null) {
-                    // Si ya le dio like, lo quitamos (Unlike)
                     existingLike.delete()
                     post.likesCount = maxOf(0, post.likesCount - 1)
-                    false // Ya no está liked
+                    false
                 } else {
-                    // Si no le ha dado like, lo creamos (Like)
-                    PostLike.new {
-                        this.post = post
-                        this.user = user
-                    }
+                    PostLike.new { this.post = post; this.user = user }
                     post.likesCount += 1
-                    true // Ahora está liked
+                    true
                 }
             }
-
-            if (isLikedNow == null) {
-                call.respond(HttpStatusCode.NotFound, mapOf("error" to "Post o usuario no encontrado"))
-            } else {
-                call.respond(HttpStatusCode.OK, mapOf("isLiked" to isLikedNow.toString()))
-            }
+            if (result == null) call.respond(HttpStatusCode.NotFound, mapOf("error" to "No encontrado"))
+            else call.respond(HttpStatusCode.OK, mapOf("isLiked" to result))
         }
-        // --- 4. EDITAR UN POST ---
-        put("/social/posts/{id}") {
-            val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
-                ?: return@put call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No autenticado"))
-                
-            val postId = call.parameters["id"]?.toIntOrNull()
-                ?: return@put call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID de post inválido"))
 
+        // 4. EDITAR POST
+        put("/social/posts/{id}") {
+            val userId = call.request.headers["X-User-Id"]?.toIntOrNull() ?: return@put call.respond(HttpStatusCode.Unauthorized)
             val body = call.receive<EditPostRequest>()
 
-            if (body.content.isBlank()) {
-                return@put call.respond(HttpStatusCode.BadRequest, mapOf("error" to "El contenido no puede estar vacío"))
-            }
-
             val success = transaction {
-                val post = Post.findById(postId) ?: return@transaction false
-                if (post.user.id.value != userId) return@transaction false // Solo el autor puede editar
-
+                val post = Post.findById(call.parameters["id"]?.toInt() ?: 0) ?: return@transaction false
+                if (post.user.id.value != userId) return@transaction false
                 post.content = body.content
                 true
             }
-
-            if (success) {
-                call.respond(HttpStatusCode.OK, mapOf("message" to "Post actualizado"))
-            } else {
-                call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No se pudo editar el post"))
-            }
+            call.respond(if (success) HttpStatusCode.OK else HttpStatusCode.Forbidden, mapOf("success" to success))
         }
 
-        // --- 5. ELIMINAR UN POST ---
+        // 5. ELIMINAR POST
         delete("/social/posts/{id}") {
-            val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
-                ?: return@delete call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No autenticado"))
-                
-            val postId = call.parameters["id"]?.toIntOrNull()
-                ?: return@delete call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID de post inválido"))
-
+            val userId = call.request.headers["X-User-Id"]?.toIntOrNull() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
             val success = transaction {
-                val post = Post.findById(postId) ?: return@transaction false
-                if (post.user.id.value != userId) {
-                    println("DELETE FAILED: User $userId is not author of post $postId")
-                    return@transaction false
-                }
-
-                try {
-                    post.delete()
-                    true
-                } catch (e: Exception) {
-                    println("DELETE FAILED: DB error deleting post $postId: ${e.message}")
-                    false
-                }
+                val post = Post.findById(call.parameters["id"]?.toInt() ?: 0) ?: return@transaction false
+                if (post.user.id.value != userId) return@transaction false
+                post.delete()
+                true
             }
-
-            if (success) {
-                call.respond(HttpStatusCode.OK, mapOf("message" to "Post eliminado"))
-            } else {
-                call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No se pudo eliminar el post"))
-            }
+            call.respond(if (success) HttpStatusCode.OK else HttpStatusCode.Forbidden, mapOf("success" to success))
         }
 
-        // --- 6. OBTENER COMENTARIOS DE UN POST ---
+        // 6. OBTENER COMENTARIOS
         get("/social/posts/{id}/comments") {
-            val postId = call.parameters["id"]?.toIntOrNull()
-                ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID de post inválido"))
+            val postId = call.parameters["id"]?.toIntOrNull() ?: return@get call.respond(HttpStatusCode.BadRequest)
+            val comments = transaction {
+                Comment.find { Comments.postId eq postId }.orderBy(Pair(Comments.createdAt, SortOrder.ASC)).map {
+                    CommentResponse(it.id.value, it.user.id.value, it.user.name, it.user.role.name, it.content, calculateTimeAgo(it.createdAt))
+                }
+            }
+            call.respond(HttpStatusCode.OK, comments)
+        }
 
-            val commentsList = transaction {
-                Comment.find { Comments.postId eq postId }.orderBy(Pair(Comments.createdAt, SortOrder.ASC)).map { comment ->
-                    CommentResponse(
-                        id = comment.id.value,
-                        userId = comment.user.id.value,
-                        userName = comment.user.name,
-                        userRole = comment.user.role.name,
-                        content = comment.content,
-                        timeAgo = calculateTimeAgo(comment.createdAt)
+        // 7. PUBLICAR COMENTARIO
+        post("/social/posts/{id}/comments") {
+            val userId = call.request.headers["X-User-Id"]?.toIntOrNull() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+            val body = call.receive<CreateCommentRequest>()
+            val ok = transaction {
+                val post = Post.findById(call.parameters["id"]?.toInt() ?: 0) ?: return@transaction false
+                val user = User.findById(userId) ?: return@transaction false
+                Comment.new { this.post = post; this.user = user; this.content = body.content }
+                true
+            }
+            call.respond(if (ok) HttpStatusCode.Created else HttpStatusCode.NotFound, mapOf("success" to ok))
+        }
+
+        // 8. ENVIAR MENSAJE (Mantenido por compatibilidad HTTP si tu app lo usa en fallback)
+        post("/social/chat/send") {
+            val senderId = call.request.headers["X-User-Id"]?.toIntOrNull() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+            val body = call.receive<ChatMessageRequest>()
+
+            val response = transaction {
+                val s = User.findById(senderId)
+                val r = User.findById(body.receiverId)
+                if (s != null && r != null) {
+                    val msg = ChatMessage.new { 
+                        sender = s; receiver = r; content = body.content; isRead = false 
+                    }
+                    commit()
+                    ChatMessageResponse(
+                        msg.id.value, msg.sender.id.value, msg.receiver.id.value, 
+                        msg.content, msg.createdAt.toInstant(ZoneOffset.UTC).toEpochMilli(), msg.isRead
+                    )
+                } else null
+            }
+            
+            if (response != null) {
+                val socketMsg = buildJsonObject {
+                    put("type", "MESSAGE")
+                    put("id", response.id)
+                    put("senderId", response.senderId)
+                    put("receiverId", response.receiverId)
+                    put("content", response.content)
+                    put("createdAt", response.createdAt)
+                    put("isRead", response.isRead)
+                }.toString()
+
+                sessions[response.receiverId]?.let { try { it.send(Frame.Text(socketMsg)) } catch (_: Exception) {} }
+                call.respond(HttpStatusCode.Created, response)
+            } else call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Error al enviar"))
+        }
+
+        // 9. HISTORIAL DE CHAT
+        get("/social/chat/history/{otherUserId}") {
+            val myId = call.request.headers["X-User-Id"]?.toIntOrNull() ?: return@get call.respond(HttpStatusCode.Unauthorized)
+            val otherId = call.parameters["otherUserId"]?.toIntOrNull() ?: 0
+
+            val history = transaction {
+                ChatMessage.find {
+                    ((ChatMessages.senderId eq myId) and (ChatMessages.receiverId eq otherId)) or
+                    ((ChatMessages.senderId eq otherId) and (ChatMessages.receiverId eq myId))
+                }
+                .orderBy(ChatMessages.createdAt to SortOrder.ASC, ChatMessages.id to SortOrder.ASC)
+                .map {
+                    ChatMessageResponse(
+                        it.id.value, it.sender.id.value, it.receiver.id.value, 
+                        it.content, it.createdAt.toInstant(ZoneOffset.UTC).toEpochMilli(), it.isRead
                     )
                 }
             }
-
-            call.respond(HttpStatusCode.OK, commentsList)
+            call.respond(HttpStatusCode.OK, history)
         }
 
-        // --- 7. AÑADIR UN COMENTARIO ---
-        post("/social/posts/{id}/comments") {
-            val userId = call.request.headers["X-User-Id"]?.toIntOrNull()
-                ?: return@post call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No autenticado"))
-                
-            val postId = call.parameters["id"]?.toIntOrNull()
-                ?: return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID de post inválido"))
-
-            val body = call.receive<CreateCommentRequest>()
-
-            if (body.content.isBlank()) {
-                return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "El comentario no puede estar vacío"))
-            }
-
-            val newComment = transaction {
-                val user = User.findById(userId) ?: return@transaction null
-                val post = Post.findById(postId) ?: return@transaction null
-                
-                Comment.new {
-                    this.post = post
-                    this.user = user
-                    this.content = body.content
+        // 10. CONTACTOS
+        get("/social/chat/contacts") {
+            val myId = call.request.headers["X-User-Id"]?.toIntOrNull() ?: return@get call.respond(HttpStatusCode.Unauthorized)
+            val contacts = transaction {
+                val user = User.findById(myId) ?: return@transaction emptyList()
+                if (user.role == UserRole.TRAINER) {
+                    val monitor = Monitor.find { Monitors.userId eq myId }.firstOrNull() ?: return@transaction emptyList()
+                    Subscription.find { Subscriptions.monitorId eq monitor.id }.map { sub ->
+                        val unread = ChatMessage.find { 
+                            (ChatMessages.senderId eq sub.user.id) and 
+                            (ChatMessages.receiverId eq myId) and 
+                            (ChatMessages.isRead eq false) 
+                        }.count().toInt()
+                        ContactResponse(sub.user.id.value, sub.user.name, "Alumno", unread, sub.user.isOnline)
+                    }
+                } else {
+                    Subscription.find { Subscriptions.userId eq myId }.map { sub ->
+                        val unread = ChatMessage.find { 
+                            (ChatMessages.senderId eq sub.monitor.user.id) and 
+                            (ChatMessages.receiverId eq myId) and 
+                            (ChatMessages.isRead eq false) 
+                        }.count().toInt()
+                        ContactResponse(sub.monitor.user.id.value, sub.monitor.user.name, "Entrenador", unread, sub.monitor.user.isOnline)
+                    }
                 }
             }
-
-            if (newComment == null) {
-                call.respond(HttpStatusCode.NotFound, mapOf("error" to "Post o usuario no encontrado"))
-            } else {
-                call.respond(HttpStatusCode.Created, mapOf("message" to "Comentario creado exitosamente"))
-            }
+            call.respond(HttpStatusCode.OK, contacts)
         }
 
+        // 11. MARCAR LEÍDO
+        post("/social/chat/read") {
+            val myId = call.request.headers["X-User-Id"]?.toIntOrNull() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+            val body = call.receive<Map<String, Int>>()
+            val senderId = body["senderId"] ?: return@post call.respond(HttpStatusCode.BadRequest)
+
+            transaction {
+                ChatMessages.update({ (ChatMessages.senderId eq senderId) and (ChatMessages.receiverId eq myId) }) {
+                    it[isRead] = true
+                }
+            }
+            call.respond(HttpStatusCode.OK, mapOf("status" to "success"))
+        }
+
+        // 12. WEBSOCKET
+        webSocket("/chat/{userId}") {
+            val myId = call.parameters["userId"]?.toIntOrNull() ?: return@webSocket
+            
+            // Forzar cierre de sesiones colgadas o duplicadas en caliente
+            sessions[myId]?.let { oldSession ->
+                try { oldSession.close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Nueva conexión detectada")) } catch(_: Exception){}
+            }
+            
+            sessions[myId] = this
+
+            // Cambiar estado a ONLINE en la Base de Datos de forma limpia
+            transaction {
+                val user = User.findById(myId)
+                user?.isOnline = true
+            }
+            broadcastStatusChange(myId, isOnline = true)
+
+            try {
+                for (frame in incoming) {
+                    if (frame is Frame.Text) {
+                        val text = frame.readText()
+                        val json = Json.parseToJsonElement(text).jsonObject
+                        
+                        when (json["type"]?.jsonPrimitive?.content) {
+                            // Mantiene la conexión activa y evita que el socket muera por inactividad
+                            "PING" -> {
+                                try { 
+                                    send(Frame.Text(buildJsonObject { put("type", "PONG") }.toString())) 
+                                } catch (_: Exception) {}
+                            }
+
+                            "SEND_MESSAGE" -> {
+                                val rId = json["receiverId"]?.jsonPrimitive?.int ?: continue
+                                val messageContent = json["content"]?.jsonPrimitive?.content ?: ""
+                                
+                                val savedMsgPayload = transaction {
+                                    val s = User.findById(myId)
+                                    val r = User.findById(rId)
+                                    if (s != null && r != null) {
+                                        val msg = ChatMessage.new { sender = s; receiver = r; content = messageContent; isRead = false }
+                                        commit()
+                                        
+                                        buildJsonObject {
+                                            put("type", "MESSAGE")
+                                            put("id", msg.id.value) // ID REAL DE BD
+                                            put("senderId", myId)
+                                            put("receiverId", rId)
+                                            put("content", messageContent)
+                                            put("createdAt", System.currentTimeMillis())
+                                            put("isRead", false)
+                                        }.toString()
+                                    } else null
+                                }
+
+                                if (savedMsgPayload != null) {
+                                    // 1. Enviar en tiempo real al receptor si está conectado
+                                    sessions[rId]?.let { receiverSession ->
+                                        try { receiverSession.send(Frame.Text(savedMsgPayload)) } catch (_: Exception) {}
+                                    }
+                                    // 2. Enviar de vuelta al emisor para confirmar el guardado real e ID definitivo
+                                    try { this.send(Frame.Text(savedMsgPayload)) } catch (_: Exception) {}
+                                }
+                            }
+
+                            "READ_EVENT" -> {
+                                val sId = json["senderId"]?.jsonPrimitive?.int ?: continue
+                                val confirmation = buildJsonObject {
+                                    put("type", "READ_CONFIRMATION")
+                                    put("readerId", myId)
+                                }.toString()
+                                sessions[sId]?.let { try { it.send(Frame.Text(confirmation)) } catch (_: Exception) {} }
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // Maneja cierres inesperados de conexión de la app móvil
+            } finally {
+                // SÍ O SÍ: Limpieza de sesión y paso a OFFLINE definitivo cuando muere el canal
+                sessions.remove(myId)
+                transaction {
+                    val user = User.findById(myId)
+                    user?.isOnline = false
+                }
+                broadcastStatusChange(myId, isOnline = false)
+            }
+        }
     }
 }

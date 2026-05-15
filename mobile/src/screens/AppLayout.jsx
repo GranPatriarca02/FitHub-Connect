@@ -201,7 +201,18 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                 active={title === 'Vídeos'}
                 onPress={() => { setIsMenuOpen(false); navigation.navigate('Videos'); }}
             />
+            <NavItem
+                icon="chatbubble-ellipses-outline"
+                label="Chat"
+                subLabel={userData.role === 'TRAINER' ? 'Mensajes de tus alumnos' : 'Habla con tu entrenador'}
+                active={title === 'ChatRoom'}
+                onPress={() => {
+                    setIsMenuOpen(false);
+                    navigation.navigate('ChatRoom');
+                }}
+            />
         </View>
+
     );
 
     const insets = useSafeAreaInsets();
@@ -293,7 +304,7 @@ export default function AppLayout({ children, title, navigation, useHeroPattern 
                         <LinearGradient
                             colors={
                                 hasActiveSubscription ? ['#FFD700', '#B8860B'] :
-                                (userData.role === 'TRAINER' ? [theme.brand, '#15803d'] : ['transparent', 'transparent'])
+                                    (userData.role === 'TRAINER' ? [theme.brand, '#15803d'] : ['transparent', 'transparent'])
                             }
                             style={{
                                 padding: 2,

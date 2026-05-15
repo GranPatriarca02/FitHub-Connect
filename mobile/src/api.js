@@ -1,26 +1,9 @@
-// Cliente HTTP
-// URL base
-
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
+// Cliente HTTP - API Gateway
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const getApiUrl = () => {
-  // 1. Prioridad: Variables de entorno
-  if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;
-
-  // 2. WEB
-  if (Platform.OS === 'web') {
-    return 'http://localhost:8080';
-  }
-
-  // 3. ANDROID (Emulador)
-  const isDevice = Constants.expoConfig?.extra?.eas?.projectId || Constants.deviceType === 'REAL';
-
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:8080';
-  }
-
-  return 'http://localhost:8080';
+  // Prioridad absoluta: Variables de entorno del archivo .env
+  return process.env.EXPO_PUBLIC_API_URL;
 };
 
 export const API_URL = getApiUrl();
@@ -61,7 +44,6 @@ export async function deleteAvailability(availabilityId) {
     const text = await res.text().catch(() => '');
     throw new Error(text || `Error eliminando franja: ${res.status}`);
   }
-  // Devolver json si hay contenido, si no un objeto vacio
   return res.json().catch(() => ({ message: 'Eliminado' }));
 }
 
@@ -72,9 +54,6 @@ export async function deleteAvailability(availabilityId) {
 /**
  * Devuelve la lista de entrenadores a los que el usuario está suscrito.
  * GET /subscriptions/user/{userId}
- *
- * Respuesta esperada (cada item):
- *   { monitorId, monitorName, specialty, expiresAt, status }
  */
 export async function getUserSubscriptions(userId) {
   try {
@@ -85,19 +64,9 @@ export async function getUserSubscriptions(userId) {
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   } catch (err) {
-    // Fallback con datos simulados para no bloquear la UI durante el desarrollo.
-    console.warn('getUserSubscriptions fallback to mock:', err?.message);
-    return _mockUserSubscriptions();
+    console.error('Error en getUserSubscriptions:', err?.message);
+    return [];
   }
-}
-
-function _mockUserSubscriptions() {
-  const future = (n) => new Date(Date.now() + n * 24 * 60 * 60 * 1000).toISOString();
-  return [
-    { monitorId: '1', monitorName: 'Alex Pérez',     specialty: 'Musculación', expiresAt: future(20), status: 'ACTIVE' },
-    { monitorId: '2', monitorName: 'Sofía Martínez', specialty: 'Yoga',        expiresAt: future(8),  status: 'ACTIVE' },
-    { monitorId: '3', monitorName: 'Diego Herrera',  specialty: 'HIIT',        expiresAt: future(45), status: 'ACTIVE' },
-  ];
 }
 
 // ======================================================
@@ -107,11 +76,6 @@ function _mockUserSubscriptions() {
 /**
  * Devuelve la lista de usuarios suscritos al entrenador autenticado.
  * GET /subscriptions/trainer/{trainerUserId}
- *
- * El endpoint del backend localiza el Monitor asociado al userId del
- * entrenador y devuelve los usuarios con suscripción ACTIVE a ese monitor.
- * Si el entrenador todavía no tiene suscriptores se devuelve un array vacío
- * (no se inventan datos: la pantalla muestra el estado vacío real).
  */
 export async function getTrainerSubscribers(trainerUserId) {
   const res = await fetch(
@@ -132,7 +96,6 @@ export async function getTrainerSubscribers(trainerUserId) {
 
 /**
  * Devuelve las próximas reservas (PENDING/CONFIRMED) del entrenador
- * indicado por su userId. Cada item incluye el nombre del cliente.
  * GET /bookings/trainer/{trainerUserId}/upcoming
  */
 export async function getTrainerUpcomingSessions(trainerUserId) {
@@ -150,7 +113,6 @@ export async function getTrainerUpcomingSessions(trainerUserId) {
 
 /**
  * Devuelve las próximas reservas (PENDING/CONFIRMED) del usuario
- * (lado cliente). Cada item incluye el nombre del monitor.
  * GET /bookings/user/{userId}/upcoming
  */
 export async function getUserUpcomingSessions(userId) {
@@ -178,8 +140,6 @@ export async function healthCheck() {
 // ======================================================
 // RUTINAS Y EJERCICIOS
 // ======================================================
-
-// ---- RUTINAS ----
 
 /**
  * Lista rutinas visibles para el usuario (propias + públicas).
@@ -351,15 +311,6 @@ export async function deleteExercise(exerciseId, userId) {
 // ======================================================
 // RUTINAS ASIGNADAS A UN SUSCRIPTOR (1 a 1)
 // ======================================================
-//
-// El entrenador puede asignar rutinas EXCLUSIVAS a un suscriptor
-// concreto. Toda la persistencia está en el backend (columna
-// assigned_to_user_id de la tabla routines):
-//   - getAssignedRoutines:           lista (vista entrenador)
-//   - getAssignedRoutinesByMonitor:  lista (vista suscriptor)
-//   - assignRoutineToUser:           vincula una rutina existente
-//   - unassignRoutine:               retira la asignación
-//   - createRoutineForSubscriber:    crea ya marcada como exclusiva
 
 /**
  * Devuelve la lista de rutinas que un entrenador ha asignado a un suscriptor.
@@ -380,11 +331,7 @@ export async function getAssignedRoutines(subscriberId, trainerId) {
 
 /**
  * Devuelve las rutinas asignadas al usuario actual por un monitor concreto.
- * Pensada para la pantalla "Contenido Exclusivo" del suscriptor.
  * GET /routines/assigned?byMonitorId={monitorId}
- *
- * @param userId       id del usuario actual (suscriptor)
- * @param monitorId    id del Monitor (no del User entrenador)
  */
 export async function getAssignedRoutinesByMonitor(userId, monitorId) {
   const url = `${API_URL}/routines/assigned?byMonitorId=${encodeURIComponent(monitorId)}`;
@@ -401,7 +348,7 @@ export async function getAssignedRoutinesByMonitor(userId, monitorId) {
 
 /**
  * Asigna una rutina ya existente del entrenador a un suscriptor.
- * POST /routines/{routineId}/assign  { subscriberId }
+ * POST /routines/{routineId}/assign
  */
 export async function assignRoutineToUser(routineId, subscriberId, trainerId) {
   const res = await fetch(`${API_URL}/routines/${routineId}/assign`, {
@@ -437,12 +384,7 @@ export async function unassignRoutine(routineId, subscriberId, trainerId) {
 }
 
 /**
- * Wrapper semántico sobre createRoutine para crear una rutina ya
- * marcada como exclusiva de un suscriptor. El payload incluye:
- *   - assignedToUserId: id del suscriptor destinatario (lo procesa
- *                       el backend en la propia creación).
- *   - isPublic: false (no aparece en el catálogo público).
- *   - isPremium: true por defecto (es contenido exclusivo).
+ * Crea una rutina asignada directamente a un suscriptor.
  */
 export async function createRoutineForSubscriber(trainerId, subscriberId, routine) {
   const payload = {
@@ -452,4 +394,121 @@ export async function createRoutineForSubscriber(trainerId, subscriberId, routin
     assignedToUserId: Number(subscriberId),
   };
   return createRoutine(trainerId, payload);
+}
+
+// ======================================================
+// SISTEMA DE CHAT (ChatMessage)
+// ======================================================
+
+/**
+ * Envía un mensaje de chat a otro usuario.
+ * MODIFICADO: Utiliza WebSockets atómicos directamente mediante wsInstance para mitigar errores 404 en Ktor.
+ */
+export function sendChatMessage(wsInstance, receiverId, content) {
+  if (!wsInstance || wsInstance.readyState !== WebSocket.OPEN) {
+    console.error("El WebSocket no está listo o está desconectado. No se envió el mensaje.");
+    return false;
+  }
+
+  const payload = {
+    type: "SEND_MESSAGE",
+    receiverId: parseInt(receiverId),
+    content: content
+  };
+
+  wsInstance.send(JSON.stringify(payload));
+  return true;
+}
+
+/**
+ * Obtiene el historial de conversación con otro usuario.
+ */
+export async function getChatHistory(myId, otherUserId) {
+  try {
+    const res = await fetch(`${API_URL}/social/chat/history/${otherUserId}`, {
+      headers: { 'X-User-Id': String(myId) },
+    });
+
+    if (res.ok) {
+      return res.json();
+    }
+
+    if (res.status === 404) {
+      return [];
+    }
+    throw new Error(`Error obteniendo historial: ${res.status}`);
+  } catch (err) {
+    console.warn('getChatHistory error:', err?.message);
+    return [];
+  }
+}
+
+/**
+ * Obtiene la lista de contactos.
+ */
+export async function getMyContacts(myId) {
+  try {
+    const res = await fetch(`${API_URL}/social/chat/contacts`, {
+      headers: { 'X-User-Id': String(myId) },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) return data;
+    }
+
+    return await _getSmartFallback(myId);
+  } catch (err) {
+    console.warn('Error en getMyContacts, intentando fallback:', err);
+    return await _getSmartFallback(myId);
+  }
+}
+
+/**
+ * Lógica de emergencia para rellenar la lista de contactos (Alumnos/Entrenadores)
+ */
+async function _getSmartFallback(myId) {
+  try {
+    const userRole = await AsyncStorage.getItem('userRole');
+
+    if (userRole === 'TRAINER') {
+      const subscribers = await getTrainerSubscribers(myId);
+      return Array.isArray(subscribers) ? subscribers.map(s => ({
+        id: s.id,
+        name: s.name,
+        role: 'Alumno'
+      })) : [];
+    } else {
+      const subs = await getUserSubscriptions(myId);
+      return Array.isArray(subs) ? subs.map(s => ({
+        id: parseInt(s.monitorId),
+        name: s.monitorName,
+        role: 'Entrenador'
+      })) : [];
+    }
+  } catch (e) {
+    console.error("Error crítico en el fallback de contactos:", e);
+    return [];
+  }
+}
+
+export async function markChatAsRead(myId, senderId) {
+  try {
+    const res = await fetch(`${API_URL}/social/chat/read`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': String(myId),
+      },
+      body: JSON.stringify({
+        senderId: parseInt(senderId),
+      }),
+    });
+
+    if (!res.ok) return false;
+    return true;
+  } catch (err) {
+    console.error('Error en markChatAsRead:', err);
+    return false;
+  }
 }

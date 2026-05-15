@@ -3,9 +3,9 @@
 // Pantalla "Mis Entrenadores" - vista del usuario suscriptor.
 // Muestra la lista de entrenadores a los que el usuario está
 // suscrito actualmente. Cada elemento permite:
-//   - Tocar la tarjeta o pulsar "Ver Contenido Exclusivo" para
-//     acceder al contenido / rutinas premium de ese entrenador.
-//   - Pulsar "Mensajes" (placeholder visual, sin lógica detrás).
+//   - Tocar la tarjeta o pulsar "Ver Contenido Exclusivo" para
+//     acceder al contenido / rutinas premium de ese entrenador.
+//   - Pulsar "Mensajes" (placeholder visual, sin lógica detrás).
 // ---------------------------------------------------------------
 
 import React, { useState, useCallback } from 'react';
@@ -184,12 +184,12 @@ export default function SubscribedTrainersScreen({ navigation }) {
   // Handler: chat. Sin lógica - solo placeholder visual.
   // La integración real la implementará otro miembro del equipo.
   const handleOpenChat = (sub) => {
-    // eslint-disable-next-line no-console
-    console.log('[Chat - En desarrollo] Abrir chat con entrenador:', sub);
-    Alert.alert(
-      'Chat en desarrollo',
-      `La mensajería privada con ${sub.monitorName || 'tu entrenador'} estará disponible próximamente.`
-    );
+    // Navegamos a 'ChatRoom' pasando los datos del entrenador
+    navigation.navigate('ChatRoom', {
+      trainerId: sub.monitorId,
+      trainerName: sub.monitorName,
+      // Puedes pasar también el avatar si lo tienes
+    });
   };
 
   return (
@@ -274,9 +274,8 @@ export default function SubscribedTrainersScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  // ... (Tus estilos se mantienen exactamente iguales)
   container: { flex: 1, padding: 20 },
-
-  // Buscador
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -289,8 +288,6 @@ const styles = StyleSheet.create({
     borderColor: theme.borderDefault,
   },
   searchInput: { flex: 1, color: '#fff', fontSize: 15 },
-
-  // Cabecera de la lista
   headerInfo: { marginBottom: 18 },
   resultCount: {
     fontSize: 15,
@@ -299,8 +296,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   headerSubText: { fontSize: 13, color: theme.textBody },
-
-  // Tarjeta
   card: {
     backgroundColor: theme.bgSecondarySoft,
     borderRadius: 16,
@@ -342,8 +337,6 @@ const styles = StyleSheet.create({
   cardSpecialty: { fontSize: 12, color: theme.textBrand, fontWeight: '500' },
   metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
   metaText: { fontSize: 11, marginLeft: 4, fontWeight: '500' },
-
-  // Badge premium (estado)
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -360,8 +353,6 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   statusText: { fontSize: 11, fontWeight: '700', color: '#FFD700' },
-
-  // Botones de acción
   actionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -399,8 +390,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginLeft: 6,
   },
-
-  // Estado vacío
   emptyContainer: {
     padding: 40,
     alignItems: 'center',

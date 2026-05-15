@@ -35,6 +35,7 @@ import SubscribersListScreen from './src/screens/SubscribersListScreen.jsx';
 import SubscriberTrainingPlanScreen from './src/screens/SubscriberTrainingPlanScreen.jsx';
 import SubscribedTrainersScreen from './src/screens/SubscribedTrainersScreen.jsx';
 import TrainerExclusiveContentScreen from './src/screens/TrainerExclusiveContentScreen.jsx';
+import ChatRoom from './src/screens/ChatRoom';
 
 
 const Stack = createNativeStackNavigator();
@@ -203,6 +204,11 @@ export default function App() {
           name="TrainerExclusiveContent"
           component={TrainerExclusiveContentScreen}
           options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="ChatRoom"
+          component={ChatRoom}
+          options={{ title: 'Chat FitHub', headerShown: false }}
         />
 
       </Stack.Navigator>

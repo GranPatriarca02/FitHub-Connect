@@ -39,4 +39,5 @@ dependencies {
     testImplementation(libs.kotlin.test.junit)
     implementation("org.apache.commons:commons-email:1.5")
     implementation("io.github.cdimascio:dotenv-kotlin:6.4.1")
+    implementation("io.ktor:ktor-server-websockets-jvm:2.3.12")
 }

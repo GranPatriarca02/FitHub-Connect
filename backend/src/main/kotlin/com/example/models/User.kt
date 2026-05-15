@@ -25,6 +25,7 @@ object Users : IntIdTable("users") {
     // Campos de verificación (sistema de email)
     val isVerified = bool("is_verified").default(false)
     val verificationToken = varchar("verification_token", 255).nullable()
+    val isOnline = bool("is_online").default(false)
 }
 
 class User(id: EntityID<Int>) : IntEntity(id) {
@@ -37,4 +38,5 @@ class User(id: EntityID<Int>) : IntEntity(id) {
     var createdAt by Users.createdAt
     var isVerified by Users.isVerified
     var verificationToken by Users.verificationToken
+    var isOnline by Users.isOnline
 }

@@ -1,16 +1,10 @@
 package com.example
 
 import com.example.db.DatabaseFactory
-import com.example.routes.authRoutes
-import com.example.routes.availabilityRoutes
-import com.example.routes.bookingRoutes
-import com.example.routes.exerciseRoutes
-import com.example.routes.monitorRoutes
-import com.example.routes.routineRoutes
-import com.example.routes.subscriptionRoutes
-import com.example.routes.socialRoutes
-import com.example.routes.videoRoutes
+import com.example.routes.*
 import io.ktor.server.application.*
+import io.ktor.server.websocket.*
+import kotlin.time.Duration.Companion.seconds
 
 fun main(args: Array<String>) {
     io.ktor.server.netty.EngineMain.main(args)
@@ -19,8 +13,18 @@ fun main(args: Array<String>) {
 fun Application.module() {
     // 1. Inicializar Base de Datos
     DatabaseFactory.init()
-    configureSerialization()
-    configureRouting()
 
-    // 2. Registrar Rutas de la API (Ya incluidas en configureRouting)
+    // 2. Configurar WebSockets
+    install(WebSockets) {
+        pingPeriod = 15.seconds // Usa la extensión de Kotlin
+        timeout = 15.seconds
+        maxFrameSize = Long.MAX_VALUE
+        masking = false
+    }
+
+    // 3. Configuración de Serialización (JSON)
+    configureSerialization()
+
+    // 4. Registrar Rutas de la API
+    configureRouting()
 }
