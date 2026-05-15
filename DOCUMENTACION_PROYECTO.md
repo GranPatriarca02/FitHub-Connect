@@ -381,6 +381,7 @@ Como el proyecto siempre se puede mejorar y ampliar, hemos pensado en algunas id
 3. **Módulo de Nutrición**: Para que los monitores también puedan subir planes de comidas y seguimiento de macros.
 4. **Foro de Tiendas Fitness**: Un espacio comunitario donde los usuarios puedan debatir sobre productos, equipamiento y recomendar tiendas especializadas.
 5. **Autenticación Extendida**: Integración de **Google Login** y Apple ID para facilitar el acceso rápido y seguro sin necesidad de formularios manuales.
+6. **Compartir Multimedia en el Muro Social**: Permitir que los usuarios puedan subir fotos y vídeos de sus entrenamientos directamente en el Muro Social, para mejorar la interacción y motivar a la comunidad.
 
 ### 7.4 Retos superados
 
@@ -449,6 +450,8 @@ Originalmente, el sistema contemplaba un rol `GLOBAL_PREMIUM` que otorgaba a los
 Por tanto, se llevó a cabo una refactorización estructural completa:
 - **Eliminación del Rol Premium Global:** Se eliminó por completo el rol `GLOBAL_PREMIUM` (y su predecesor genérico `PREMIUM`) de la base de datos y de la lógica de autorización. El sistema ahora opera exclusivamente con los roles `FREE` y `TRAINER` (y roles administrativos).
 - **Control de Acceso Basado en Patrocinios:** El acceso a contenido restringido (vídeos premium, rutinas exclusivas y reservas de sesiones gratuitas) ya no depende del rol del usuario, sino de la existencia de un registro activo en la tabla de `Subscriptions` que vincule al usuario directamente con el creador de dicho contenido.
+- **Límite de Reservas Gratuitas:** Para evitar el abuso de la agenda de los entrenadores por parte de usuarios suscritos, se ha implementado un límite de **4 horas mensuales gratuitas**. El backend calcula dinámicamente las horas consumidas en el ciclo de facturación actual. Si un usuario excede este límite, el sistema calcula automáticamente el precio de las horas extra y redirige al flujo de pago de Stripe.
+- **Limpieza Perezosa (Lazy Cleanup) de Reservas:** Cuando un usuario intenta realizar un pago mediante Stripe, la reserva se bloquea temporalmente en estado `PENDING` para evitar dobles reservas. Para solucionar los carritos abandonados que bloqueaban horas indefinidamente, se ha implementado un mecanismo de "Limpieza Perezosa": el servidor elimina automáticamente las reservas `PENDING` con más de 15 minutos de antigüedad cada vez que alguien consulta la disponibilidad de la agenda, liberando así los huecos abandonados sin necesidad de tareas programadas (cron jobs).
 - **Limpieza de Webhooks e Interfaz:** Se actualizaron los procesadores de pagos de Stripe para gestionar únicamente suscripciones específicas. La interfaz móvil fue rediseñada para ocultar las opciones de "Premium Global", mostrando en su lugar el estado dinámico "ACTIVA" basado en el conteo de suscripciones vigentes del usuario, e incorporando distintivos premium (halo dorado y estrella) de forma reactiva al estado de suscripción.
 
 #### Últimos Commits (Registro de Cambios Recientes)
