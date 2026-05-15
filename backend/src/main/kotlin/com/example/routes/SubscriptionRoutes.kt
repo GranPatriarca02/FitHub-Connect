@@ -35,7 +35,8 @@ data class SubscriptionStatusResponse(
 @Serializable
 data class SubscriptionCheckResponse(
     val isSubscribed: Boolean,
-    val userRole: String
+    val userRole: String,
+    val remainingFreeHours: Double? = null
 )
 
 fun Application.subscriptionRoutes() {
@@ -156,19 +157,22 @@ fun Application.subscriptionRoutes() {
                 return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Faltan parámetros"))
             }
 
-            val (isSubscribed, role) = transaction {
+            val (isSubscribed, role, freeHours) = transaction {
                 val user = User.findById(userId)
                 val hasSub = Subscription.find {
                     (Subscriptions.userId eq userId) and
                     (Subscriptions.monitorId eq monitorId) and
                     (Subscriptions.status eq SubscriptionStatus.ACTIVE)
                 }.any { it.expiresAt == null || it.expiresAt!!.isAfter(LocalDateTime.now()) }
-                Pair(hasSub, user?.role?.name ?: "FREE")
+                
+                val remaining = if (hasSub) getRemainingFreeHours(userId, monitorId) else 0.0
+                Triple(hasSub, user?.role?.name ?: "FREE", remaining)
             }
 
             call.respond(SubscriptionCheckResponse(
                 isSubscribed = isSubscribed,
-                userRole = role
+                userRole = role,
+                remainingFreeHours = freeHours
             ))
         }
 

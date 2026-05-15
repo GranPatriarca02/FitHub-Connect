@@ -63,6 +63,13 @@ private fun validateBookingSlot(
     if (minutes < 60 || minutes > 180)
         throw IllegalArgumentException("La reserva debe ser de entre 1 y 3 horas")
 
+    // Limpieza "lazy": Eliminamos reservas PENDING de más de 15 minutos que hayan sido abandonadas en Stripe
+    val expireTime = LocalDateTime.now().minusMinutes(15)
+    Booking.find {
+        (Bookings.status eq BookingStatus.PENDING) and
+        (Bookings.createdAt less expireTime)
+    }.forEach { it.delete() }
+
     // Encaja en alguna franja del entrenador ese dia?
     val franjas = com.example.models.Availability.find {
         (com.example.models.Availabilities.monitorId eq monitorId) and
@@ -90,18 +97,44 @@ private fun validateBookingSlot(
 }
 
 /**
- * Verifica si el usuario tiene una suscripción activa con este monitor específico.
+ * Calcula las horas gratuitas restantes que tiene un usuario con su suscripción actual.
+ * Por defecto, se asume un límite de 4 horas gratuitas por ciclo de facturación.
  */
-private fun isSubscribedToMonitor(userId: Int, monitorId: Int): Boolean {
-    return transaction {
-        Subscription.find {
-            (Subscriptions.userId eq userId) and
-            (Subscriptions.monitorId eq monitorId) and
-            (Subscriptions.status eq SubscriptionStatus.ACTIVE)
-        }.any { sub ->
-            sub.expiresAt == null || sub.expiresAt!!.isAfter(LocalDateTime.now())
-        }
+fun getRemainingFreeHours(userId: Int, monitorId: Int): Double {
+    // 1. Encontrar la suscripción activa
+    val sub = Subscription.find {
+        (Subscriptions.userId eq userId) and
+        (Subscriptions.monitorId eq monitorId) and
+        (Subscriptions.status eq SubscriptionStatus.ACTIVE)
+    }.firstOrNull { it.expiresAt == null || it.expiresAt!!.isAfter(LocalDateTime.now()) }
+    
+    if (sub == null) return 0.0
+    
+    val cycleStart = sub.createdAt
+    val cycleEnd = sub.expiresAt ?: LocalDateTime.now().plusYears(1)
+    
+    // 2. Obtener todas las reservas gratuitas en este ciclo
+    val freeBookings = Booking.find {
+        (Bookings.userId eq userId) and
+        (Bookings.monitorId eq monitorId) and
+        (Bookings.amount eq 0.0.toBigDecimal()) and
+        (Bookings.status neq BookingStatus.CANCELLED)
+    }.filter {
+        !it.date.isBefore(cycleStart) && !it.date.isAfter(cycleEnd)
     }
+    
+    // 3. Sumar las horas consumidas
+    val usedMinutes = freeBookings.sumOf { b ->
+        val start = LocalTime.parse(b.startTime)
+        val end = LocalTime.parse(b.endTime)
+        Duration.between(start, end).toMinutes()
+    }
+    
+    val usedHours = usedMinutes / 60.0
+    val maxFreeHours = 4.0 // Límite de 4 horas al mes por defecto
+    
+    val remaining = maxFreeHours - usedHours
+    return if (remaining > 0) remaining else 0.0
 }
 
 fun Application.bookingRoutes() {
@@ -143,13 +176,16 @@ fun Application.bookingRoutes() {
                         endStr = body.endTime
                     )
 
-                    // Un usuario tiene reserva gratis si:
-                    // 1. Está suscrito a ESTE monitor específico
-                    val isFree = isSubscribedToMonitor(userId, body.monitorId)
+                    // Calculamos las horas gratuitas restantes
+                    val remainingFreeHours = getRemainingFreeHours(userId, body.monitorId)
+                    
+                    // Solo cobramos las horas que excedan el límite gratuito
+                    val billableHours = (horas - remainingFreeHours).coerceAtLeast(0.0)
+                    val isCompletelyFree = billableHours == 0.0
                     
                     val hourlyRate = monitor.hourlyRate?.toDouble() ?: 0.0
-                    // Precio = horas * tarifa/h (1h30 = 1.5x, 2h30 = 2.5x, etc.)
-                    val precioTotal = (horas * hourlyRate).toBigDecimal()
+                    // Precio = horas facturables * tarifa/h
+                    val precioTotal = (billableHours * hourlyRate).toBigDecimal()
 
                     val booking = Booking.new {
                         this.user = user
@@ -157,12 +193,13 @@ fun Application.bookingRoutes() {
                         this.date = bookingDateTime
                         this.startTime = body.startTime
                         this.endTime = body.endTime
-                        this.status = if (isFree) BookingStatus.CONFIRMED else BookingStatus.PENDING
+                        // Si el coste total es 0 (completamente gratis), se confirma directamente
+                        this.status = if (isCompletelyFree) BookingStatus.CONFIRMED else BookingStatus.PENDING
                         this.notes = body.notes
-                        this.amount = if (isFree) 0.0.toBigDecimal() else precioTotal
+                        this.amount = precioTotal
                     }
 
-                    if (isFree) {
+                    if (isCompletelyFree) {
                         CheckoutResponse(
                             bookingId = booking.id.value,
                             clientSecret = null, // No se requiere pago
@@ -233,15 +270,17 @@ fun Application.bookingRoutes() {
                     return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Reserva no valida")))
                 }
 
+                // Calculamos las horas gratuitas restantes y las facturables
+                val remainingFreeHours = transaction { getRemainingFreeHours(userId, monitorId) }
+                val billableHours = (horas - remainingFreeHours).coerceAtLeast(0.0)
+                val isCompletelyFree = billableHours == 0.0
+
                 val hourlyRate = monitor.hourlyRate?.toDouble() ?: 0.0
-                val price = horas * hourlyRate
+                val price = billableHours * hourlyRate
 
-                val isFree = isSubscribedToMonitor(userId, monitorId)
-
-                if (isFree) {
+                if (isCompletelyFree) {
                     val bDateTime = LocalDateTime.parse("${dateStr}T${hourStr}:00")
 
-                    // Si es PREMIUM (global o por monitor), creamos la reserva directamente
                     transaction {
                         Booking.new {
                             this.user = user
