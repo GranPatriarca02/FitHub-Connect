@@ -15,7 +15,9 @@ data class RoutineDto(
     val creatorId: Int,
     val creatorName: String,
     val exerciseCount: Int,
-    val createdAt: String
+    val createdAt: String,
+    // Si la rutina está asignada en exclusiva a un suscriptor concreto, su id de usuario.
+    val assignedToUserId: Int? = null
 )
 
 // Ejercicio ya incorporado a una rutina (incluye series, reps, etc.)
@@ -47,7 +49,8 @@ data class RoutineDetailDto(
     val creatorId: Int,
     val creatorName: String,
     val createdAt: String,
-    val exercises: List<RoutineExerciseDto>
+    val exercises: List<RoutineExerciseDto>,
+    val assignedToUserId: Int? = null
 )
 
 // Alta de una nueva rutina
@@ -58,7 +61,15 @@ data class CreateRoutineRequest(
     val difficulty: String? = null,
     val goal: String? = null,
     val isPublic: Boolean = false,
-    val isPremium: Boolean = false
+    val isPremium: Boolean = false,
+    // Opcional: si se rellena, la rutina nace EXCLUSIVA para ese usuario.
+    val assignedToUserId: Int? = null
+)
+
+// Asignar/desasignar una rutina existente a un suscriptor
+@Serializable
+data class AssignRoutineRequest(
+    val subscriberId: Int
 )
 
 // Añadir un ejercicio existente a una rutina

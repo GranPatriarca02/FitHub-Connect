@@ -108,42 +108,22 @@ function _mockUserSubscriptions() {
  * Devuelve la lista de usuarios suscritos al entrenador autenticado.
  * GET /subscriptions/trainer/{trainerUserId}
  *
- * Nota: si el backend todavía no expone este endpoint, el método
- * cae a un mock para que la UI pueda renderizar mientras se integra.
- * El otro desarrollador del equipo podrá conectar la lógica real
- * sin tocar la capa de presentación.
+ * El endpoint del backend localiza el Monitor asociado al userId del
+ * entrenador y devuelve los usuarios con suscripción ACTIVE a ese monitor.
+ * Si el entrenador todavía no tiene suscriptores se devuelve un array vacío
+ * (no se inventan datos: la pantalla muestra el estado vacío real).
  */
 export async function getTrainerSubscribers(trainerUserId) {
-  try {
-    const res = await fetch(
-      `${API_URL}/subscriptions/trainer/${trainerUserId}`,
-      { headers: { 'X-User-Id': String(trainerUserId) } }
-    );
-    if (res.ok) {
-      return res.json();
-    }
-    // Si el endpoint aún no existe (404) usamos datos simulados.
-    if (res.status === 404) {
-      return _mockSubscribers();
-    }
-    throw new Error(`Error al obtener suscriptores: ${res.status}`);
-  } catch (err) {
-    // Fallback en caso de error de red para no romper la pantalla.
-    console.warn('getTrainerSubscribers fallback to mock:', err?.message);
-    return _mockSubscribers();
+  const res = await fetch(
+    `${API_URL}/subscriptions/trainer/${trainerUserId}`,
+    { headers: { 'X-User-Id': String(trainerUserId) } }
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `Error al obtener suscriptores: ${res.status}`);
   }
-}
-
-// Datos de muestra mientras se conecta el endpoint real.
-function _mockSubscribers() {
-  const today = new Date();
-  const daysAgo = (n) => new Date(today.getTime() - n * 24 * 60 * 60 * 1000).toISOString();
-  return [
-    { id: 101, name: 'Lucía Romero',  email: 'lucia.romero@example.com',  subscribedAt: daysAgo(3),  status: 'ACTIVE' },
-    { id: 102, name: 'Marcos Vidal',  email: 'marcos.vidal@example.com',  subscribedAt: daysAgo(12), status: 'ACTIVE' },
-    { id: 103, name: 'Elena Castro',  email: 'elena.castro@example.com',  subscribedAt: daysAgo(28), status: 'ACTIVE' },
-    { id: 104, name: 'Pablo Núñez',   email: 'pablo.nunez@example.com',   subscribedAt: daysAgo(60), status: 'ACTIVE' },
-  ];
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
 }
 
 export async function healthCheck() {
@@ -333,41 +313,50 @@ export async function deleteExercise(exerciseId, userId) {
 // ======================================================
 //
 // El entrenador puede asignar rutinas EXCLUSIVAS a un suscriptor
-// concreto. Aquí concentramos las llamadas:
-//   - getAssignedRoutines:   lista de rutinas asignadas a un suscriptor
-//   - assignRoutineToUser:   vincula una rutina existente a un suscriptor
-//   - unassignRoutine:       retira la asignación
-//   - createRoutineForSubscriber: crea una rutina ya marcada como
-//                              exclusiva (assignedToUserId).
-//
-// El backend todavía no expone estos endpoints, así que mientras se
-// implementan usamos un "store" en memoria para que la UI funcione
-// extremo a extremo. Cuando el backend esté listo, basta sustituir
-// el cuerpo del fetch y el resto del código (pantallas) no cambia.
-
-const _assignedRoutinesStore = new Map(); // subscriberId -> Routine[]
-
-function _key(id) { return String(id); }
+// concreto. Toda la persistencia está en el backend (columna
+// assigned_to_user_id de la tabla routines):
+//   - getAssignedRoutines:           lista (vista entrenador)
+//   - getAssignedRoutinesByMonitor:  lista (vista suscriptor)
+//   - assignRoutineToUser:           vincula una rutina existente
+//   - unassignRoutine:               retira la asignación
+//   - createRoutineForSubscriber:    crea ya marcada como exclusiva
 
 /**
  * Devuelve la lista de rutinas que un entrenador ha asignado a un suscriptor.
  * GET /routines/assigned?subscriberId={id}
  */
 export async function getAssignedRoutines(subscriberId, trainerId) {
-  try {
-    const url = `${API_URL}/routines/assigned?subscriberId=${encodeURIComponent(subscriberId)}`;
-    const res = await fetch(url, {
-      headers: { 'X-User-Id': String(trainerId) },
-    });
-    if (res.ok) return res.json();
-    if (res.status === 404) {
-      return _assignedRoutinesStore.get(_key(subscriberId)) || [];
-    }
-    throw new Error(`Error obteniendo rutinas asignadas: ${res.status}`);
-  } catch (err) {
-    console.warn('getAssignedRoutines fallback to memory store:', err?.message);
-    return _assignedRoutinesStore.get(_key(subscriberId)) || [];
+  const url = `${API_URL}/routines/assigned?subscriberId=${encodeURIComponent(subscriberId)}`;
+  const res = await fetch(url, {
+    headers: { 'X-User-Id': String(trainerId) },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `Error obteniendo rutinas asignadas: ${res.status}`);
   }
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+/**
+ * Devuelve las rutinas asignadas al usuario actual por un monitor concreto.
+ * Pensada para la pantalla "Contenido Exclusivo" del suscriptor.
+ * GET /routines/assigned?byMonitorId={monitorId}
+ *
+ * @param userId       id del usuario actual (suscriptor)
+ * @param monitorId    id del Monitor (no del User entrenador)
+ */
+export async function getAssignedRoutinesByMonitor(userId, monitorId) {
+  const url = `${API_URL}/routines/assigned?byMonitorId=${encodeURIComponent(monitorId)}`;
+  const res = await fetch(url, {
+    headers: { 'X-User-Id': String(userId) },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `Error obteniendo rutinas asignadas: ${res.status}`);
+  }
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
 }
 
 /**
@@ -375,42 +364,19 @@ export async function getAssignedRoutines(subscriberId, trainerId) {
  * POST /routines/{routineId}/assign  { subscriberId }
  */
 export async function assignRoutineToUser(routineId, subscriberId, trainerId) {
-  try {
-    const res = await fetch(`${API_URL}/routines/${routineId}/assign`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-User-Id': String(trainerId),
-      },
-      body: JSON.stringify({ subscriberId }),
-    });
-    if (res.ok) return res.json();
-    if (res.status !== 404) {
-      const text = await res.text().catch(() => '');
-      throw new Error(text || `Error asignando rutina: ${res.status}`);
-    }
-    // 404 - el endpoint todavía no existe: caemos al store en memoria.
-  } catch (err) {
-    console.warn('assignRoutineToUser fallback to memory store:', err?.message);
+  const res = await fetch(`${API_URL}/routines/${routineId}/assign`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': String(trainerId),
+    },
+    body: JSON.stringify({ subscriberId: Number(subscriberId) }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `Error asignando rutina: ${res.status}`);
   }
-
-  // Fallback: leemos la rutina del catálogo del entrenador y la
-  // guardamos en el store para que getAssignedRoutines la vea.
-  try {
-    const mine = await getMyRoutines(trainerId);
-    const routine = (mine || []).find((r) => String(r.id) === String(routineId));
-    if (!routine) throw new Error('La rutina ya no existe en tu catálogo.');
-
-    const k = _key(subscriberId);
-    const current = _assignedRoutinesStore.get(k) || [];
-    if (current.some((r) => String(r.id) === String(routineId))) {
-      return { ok: true, alreadyAssigned: true };
-    }
-    _assignedRoutinesStore.set(k, [...current, { ...routine, assignedToUserId: subscriberId }]);
-    return { ok: true };
-  } catch (e) {
-    throw e;
-  }
+  return res.json();
 }
 
 /**
@@ -418,73 +384,32 @@ export async function assignRoutineToUser(routineId, subscriberId, trainerId) {
  * DELETE /routines/{routineId}/assign?subscriberId={id}
  */
 export async function unassignRoutine(routineId, subscriberId, trainerId) {
-  try {
-    const url = `${API_URL}/routines/${routineId}/assign?subscriberId=${encodeURIComponent(subscriberId)}`;
-    const res = await fetch(url, {
-      method: 'DELETE',
-      headers: { 'X-User-Id': String(trainerId) },
-    });
-    if (res.ok) return res.json();
-    if (res.status !== 404) {
-      throw new Error(`Error retirando rutina: ${res.status}`);
-    }
-  } catch (err) {
-    console.warn('unassignRoutine fallback to memory store:', err?.message);
+  const url = `${API_URL}/routines/${routineId}/assign?subscriberId=${encodeURIComponent(subscriberId)}`;
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: { 'X-User-Id': String(trainerId) },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `Error retirando rutina: ${res.status}`);
   }
-
-  const k = _key(subscriberId);
-  const current = _assignedRoutinesStore.get(k) || [];
-  _assignedRoutinesStore.set(
-    k,
-    current.filter((r) => String(r.id) !== String(routineId))
-  );
-  return { ok: true };
+  return res.json();
 }
 
 /**
  * Wrapper semántico sobre createRoutine para crear una rutina ya
  * marcada como exclusiva de un suscriptor. El payload incluye:
- *   - assignedToUserId: id del suscriptor destinatario.
+ *   - assignedToUserId: id del suscriptor destinatario (lo procesa
+ *                       el backend en la propia creación).
  *   - isPublic: false (no aparece en el catálogo público).
- *   - isPremium: true (es contenido exclusivo).
- *
- * El backend, una vez exponga el campo assignedToUserId, podrá
- * persistir la asignación en la misma transacción de creación.
- * Mientras tanto, este helper también guarda la rutina creada en
- * el store en memoria para que aparezca en getAssignedRoutines.
+ *   - isPremium: true por defecto (es contenido exclusivo).
  */
 export async function createRoutineForSubscriber(trainerId, subscriberId, routine) {
   const payload = {
     ...routine,
     isPublic: false,
     isPremium: routine.isPremium ?? true,
+    assignedToUserId: Number(subscriberId),
   };
-  const created = await createRoutine(trainerId, payload);
-
-  // Espejo en memoria por si el backend todavía no procesa
-  // assignedToUserId: garantizamos que aparece en la lista de
-  // asignadas al recargar la pantalla.
-  try {
-    const k = _key(subscriberId);
-    const current = _assignedRoutinesStore.get(k) || [];
-    const newId = created.routineId || created.id; // backend devuelve routineId
-    if (!current.some((r) => String(r.id) === String(newId))) {
-      _assignedRoutinesStore.set(k, [
-        ...current,
-        { 
-          id: newId, 
-          title: routine.title,
-          description: routine.description,
-          difficulty: routine.difficulty,
-          goal: routine.goal,
-          isPremium: payload.isPremium,
-          isPublic: payload.isPublic,
-          assignedToUserId: subscriberId,
-          exerciseCount: 0
-        },
-      ]);
-    }
-  } catch (_) { /* noop */ }
-
-  return created;
+  return createRoutine(trainerId, payload);
 }

@@ -19,6 +19,9 @@ object Routines : IntIdTable("routines") {
     // si es TRAINER y la marca pública, cualquiera puede verla/copiarla.
     val isPublic    = bool("is_public").default(false)
     val isPremium   = bool("is_premium").default(false)
+    // Si está rellenado, la rutina es EXCLUSIVA de ese suscriptor:
+    // solo el creador (entrenador) y el suscriptor asignado la verán.
+    val assignedToUserId = reference("assigned_to_user_id", Users, onDelete = ReferenceOption.SET_NULL).nullable()
     val createdAt   = datetime("created_at").defaultExpression(CurrentDateTime)
 }
 
@@ -32,6 +35,7 @@ class Routine(id: EntityID<Int>) : IntEntity(id) {
     var goal        by Routines.goal
     var isPublic    by Routines.isPublic
     var isPremium   by Routines.isPremium
+    var assignedTo  by User optionalReferencedOn Routines.assignedToUserId
     var createdAt   by Routines.createdAt
 }
 

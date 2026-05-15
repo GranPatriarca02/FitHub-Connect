@@ -193,5 +193,34 @@ fun Application.subscriptionRoutes() {
             }
             call.respond(subs)
         }
+
+        // --- 5. LISTA DE SUSCRIPTORES ACTIVOS DEL ENTRENADOR ---
+        // El parámetro de la ruta es el userId del entrenador. Internamente
+        // se localiza su Monitor asociado y se devuelven los usuarios con
+        // suscripción ACTIVE a ese monitor.
+        get("/subscriptions/trainer/{trainerUserId}") {
+            val trainerUserId = call.parameters["trainerUserId"]?.toIntOrNull()
+                ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID inválido"))
+
+            val result = transaction {
+                val monitor = Monitor.find { Monitors.userId eq trainerUserId }.firstOrNull()
+                    ?: return@transaction emptyList<Map<String, String>>()
+
+                Subscription.find {
+                    (Subscriptions.monitorId eq monitor.id) and
+                    (Subscriptions.status eq SubscriptionStatus.ACTIVE)
+                }.map { sub ->
+                    mapOf(
+                        "id"           to sub.user.id.value.toString(),
+                        "name"         to sub.user.name,
+                        "email"        to sub.user.email,
+                        "subscribedAt" to sub.createdAt.toString(),
+                        "expiresAt"    to (sub.expiresAt?.toString() ?: ""),
+                        "status"       to sub.status.name
+                    )
+                }
+            }
+            call.respond(result)
+        }
     }
 }

@@ -17,9 +17,11 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 
 import AppLayout, { theme } from './AppLayout';
+import { getAssignedRoutinesByMonitor } from '../api';
 
 // Formateador básico de fecha.
 const formatDate = (iso) => {
@@ -42,9 +44,8 @@ export default function TrainerExclusiveContentScreen({ route, navigation }) {
   } = route?.params || {};
 
   // Estado: rutinas exclusivas que este entrenador ha asignado
-  // al usuario actual. De momento se inicializa vacío; cuando el
-  // backend exponga el endpoint (p.ej.
-  // GET /routines/assigned?byMonitorId={id}) sustituiremos el mock.
+  // al usuario actual. Se cargan desde el backend mediante
+  // GET /routines/assigned?byMonitorId={monitorId}.
   const [rutinas, setRutinas] = useState([]);
   const [cargando, setCargando] = useState(true);
 
@@ -53,10 +54,13 @@ export default function TrainerExclusiveContentScreen({ route, navigation }) {
       const cargar = async () => {
         setCargando(true);
         try {
-          // TODO (siguiente iteración): integrar endpoint real.
-          // Por ahora un pequeño delay simulado y array vacío.
-          await new Promise((r) => setTimeout(r, 250));
-          setRutinas([]);
+          const userId = await AsyncStorage.getItem('userId');
+          if (!userId || monitorId == null) {
+            setRutinas([]);
+            return;
+          }
+          const data = await getAssignedRoutinesByMonitor(userId, monitorId);
+          setRutinas(Array.isArray(data) ? data : []);
         } catch (e) {
           console.error('Error cargando contenido exclusivo:', e);
           Alert.alert(
@@ -71,7 +75,7 @@ export default function TrainerExclusiveContentScreen({ route, navigation }) {
     }, [monitorId])
   );
 
-  // Handler placeholder para abrir una rutina (cuando exista).
+  // Handler para abrir una rutina asignada.
   const handleOpenRutina = (r) => {
     navigation.navigate('RoutineDetail', { routineId: r.id });
   };
@@ -169,12 +173,25 @@ export default function TrainerExclusiveContentScreen({ route, navigation }) {
                 <Ionicons name="barbell-outline" size={20} color={theme.brand} />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.routineName}>{r.name}</Text>
+                <Text style={styles.routineName}>{r.title || r.name}</Text>
                 {!!r.description && (
                   <Text style={styles.routineDesc} numberOfLines={2}>
                     {r.description}
                   </Text>
                 )}
+                <View style={styles.routineMetaRow}>
+                  {!!r.difficulty && (
+                    <Text style={styles.routineMetaChip}>{r.difficulty}</Text>
+                  )}
+                  {!!r.goal && (
+                    <Text style={styles.routineMetaChip}>{r.goal}</Text>
+                  )}
+                  {typeof r.exerciseCount === 'number' && (
+                    <Text style={styles.routineMetaChip}>
+                      {r.exerciseCount} ejercicio{r.exerciseCount === 1 ? '' : 's'}
+                    </Text>
+                  )}
+                </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={theme.textBody} />
             </TouchableOpacity>
@@ -307,6 +324,22 @@ const styles = StyleSheet.create({
   },
   routineName: { color: '#fff', fontSize: 14, fontWeight: '700' },
   routineDesc: { color: theme.textBody, fontSize: 12, marginTop: 2 },
+  routineMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 6,
+  },
+  routineMetaChip: {
+    color: theme.textBrand,
+    fontSize: 10,
+    fontWeight: '600',
+    backgroundColor: theme.brandSofter,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    marginRight: 6,
+    marginTop: 4,
+  },
 
   // Placeholder de contenido futuro
   placeholderBlock: {
