@@ -450,6 +450,37 @@ fun Application.bookingRoutes() {
             call.respond(result)
         }
 
+        // --- 5b. PRÓXIMAS SESIONES DEL USUARIO (cliente) ---
+        // Devuelve las reservas FUTURAS (date >= ahora) del usuario,
+        // excluyendo las canceladas y ordenadas cronológicamente.
+        get("/bookings/user/{userId}/upcoming") {
+            val userId = call.parameters["userId"]?.toIntOrNull()
+                ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID inválido"))
+
+            val now = LocalDateTime.now()
+            val result = transaction {
+                Booking.find {
+                    (Bookings.userId eq userId) and
+                    (Bookings.status neq BookingStatus.CANCELLED)
+                }
+                    .filter { it.date.isAfter(now) || it.date.isEqual(now) }
+                    .sortedBy { it.date }
+                    .map { b ->
+                        BookingResponse(
+                            bookingId   = b.id.value,
+                            monitorId   = b.monitor.id.value,
+                            monitorName = b.monitor.user.name,
+                            date        = b.date.toString(),
+                            startTime   = b.startTime,
+                            endTime     = b.endTime,
+                            status      = b.status.name,
+                            notes       = b.notes ?: ""
+                        )
+                    }
+            }
+            call.respond(result)
+        }
+
         // --- 6. PRÓXIMAS SESIONES DE UN ENTRENADOR ---
         // Devuelve las reservas FUTURAS (date >= ahora) del entrenador
         // identificado por su userId, incluyendo los datos del cliente.

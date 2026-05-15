@@ -148,6 +148,24 @@ export async function getTrainerUpcomingSessions(trainerUserId) {
   return Array.isArray(data) ? data : [];
 }
 
+/**
+ * Devuelve las próximas reservas (PENDING/CONFIRMED) del usuario
+ * (lado cliente). Cada item incluye el nombre del monitor.
+ * GET /bookings/user/{userId}/upcoming
+ */
+export async function getUserUpcomingSessions(userId) {
+  const res = await fetch(
+    `${API_URL}/bookings/user/${userId}/upcoming`,
+    { headers: { 'X-User-Id': String(userId) } }
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `Error al obtener próximas sesiones: ${res.status}`);
+  }
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
 export async function healthCheck() {
   try {
     const response = await fetch(`${API_URL}/`);

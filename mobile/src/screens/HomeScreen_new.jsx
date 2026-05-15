@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { healthCheck, API_URL, getTrainerUpcomingSessions } from '../api';
+import { healthCheck, API_URL, getTrainerUpcomingSessions, getUserUpcomingSessions } from '../api';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 
 // Importamos el layout y el tema para aplicar el estilo
@@ -30,6 +30,10 @@ export default function HomeScreen({ navigation }) {
   // __ PRÓXIMAS SESIONES (sólo TRAINER) __
   const [upcomingSessions, setUpcomingSessions] = useState([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
+
+  // __ PRÓXIMAS SESIONES (cliente / no TRAINER) __
+  const [userSessions, setUserSessions] = useState([]);
+  const [loadingUserSessions, setLoadingUserSessions] = useState(false);
 
   // Carga de notificaciones
   useEffect(() => {
@@ -193,6 +197,32 @@ export default function HomeScreen({ navigation }) {
     }, [role])
   );
 
+  // Carga las próximas reservas del usuario (cliente).
+  const loadUserUpcomingSessions = async () => {
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) return;
+      setLoadingUserSessions(true);
+      const data = await getUserUpcomingSessions(userId);
+      setUserSessions(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.warn('No se pudieron cargar las próximas sesiones del usuario:', e?.message);
+      setUserSessions([]);
+    } finally {
+      setLoadingUserSessions(false);
+    }
+  };
+
+  // Para cualquier rol que NO sea TRAINER (FREE, PREMIUM...) cargamos
+  // las próximas sesiones del propio usuario al ganar el foco.
+  useFocusEffect(
+    useCallback(() => {
+      if (role && role !== 'TRAINER') {
+        loadUserUpcomingSessions();
+      }
+    }, [role])
+  );
+
   // Efecto para detectar exito del pago en Web (Stripe redirect)
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -280,6 +310,273 @@ export default function HomeScreen({ navigation }) {
       return false;
     }
   };
+
+  // Render del bloque de "Próximas sesiones" (vista USUARIO / cliente).
+  const renderUserUpcomingSessions = () => (
+    <View style={{ width: '100%', maxWidth: 560, marginTop: 24 }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 12,
+          paddingHorizontal: 4,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <MaterialCommunityIcons
+            name="calendar-heart"
+            size={18}
+            color={theme.brand}
+          />
+          <Text
+            style={{
+              color: '#fff',
+              fontSize: 17,
+              fontWeight: '800',
+              marginLeft: 8,
+            }}
+          >
+            Tus próximas sesiones
+          </Text>
+        </View>
+        {!loadingUserSessions && userSessions.length > 0 && (
+          <Text style={{ color: theme.textBody, fontSize: 12 }}>
+            {userSessions.length}{' '}
+            {userSessions.length === 1 ? 'reservada' : 'reservadas'}
+          </Text>
+        )}
+      </View>
+
+      {loadingUserSessions ? (
+        <ActivityIndicator
+          size="small"
+          color={theme.brand}
+          style={{ marginVertical: 24 }}
+        />
+      ) : userSessions.length > 0 ? (
+        <View style={{ gap: 12 }}>
+          {userSessions.map((s) => {
+            const today = isSessionToday(s.date);
+            const initial = (s.monitorName || '?').charAt(0).toUpperCase();
+            return (
+              <TouchableOpacity
+                key={s.bookingId}
+                activeOpacity={0.85}
+                onPress={() =>
+                  navigation.navigate('MonitorDetail', {
+                    monitor: { id: s.monitorId },
+                  })
+                }
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: theme.bgSecondarySoft,
+                  borderRadius: 14,
+                  padding: 14,
+                  borderWidth: 1,
+                  borderColor: theme.borderDefault,
+                }}
+              >
+                <LinearGradient
+                  colors={[theme.brand, '#15803d']}
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 22,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text
+                    style={{ color: '#fff', fontSize: 18, fontWeight: '800' }}
+                  >
+                    {initial}
+                  </Text>
+                </LinearGradient>
+
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text
+                    style={{ color: theme.textBody, fontSize: 11, fontWeight: '500' }}
+                  >
+                    Sesión con
+                  </Text>
+                  <Text
+                    style={{ color: '#fff', fontSize: 14, fontWeight: '700', marginTop: 1 }}
+                    numberOfLines={1}
+                  >
+                    {s.monitorName || 'Entrenador'}
+                  </Text>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      marginTop: 4,
+                    }}
+                  >
+                    <Ionicons
+                      name="calendar-outline"
+                      size={12}
+                      color={theme.textBrand}
+                    />
+                    <Text
+                      style={{
+                        color: theme.textBrand,
+                        fontSize: 12,
+                        marginLeft: 4,
+                        fontWeight: '600',
+                        textTransform: 'capitalize',
+                      }}
+                      numberOfLines={1}
+                    >
+                      {formatSessionDate(s.date)}
+                    </Text>
+                    <Text style={{ color: theme.textBody, fontSize: 12, marginHorizontal: 6 }}>
+                      •
+                    </Text>
+                    <Ionicons
+                      name="time-outline"
+                      size={12}
+                      color={theme.textBody}
+                    />
+                    <Text
+                      style={{ color: theme.textBody, fontSize: 12, marginLeft: 4 }}
+                    >
+                      {formatSessionRange(s)}
+                    </Text>
+                  </View>
+                </View>
+
+                {today ? (
+                  <View
+                    style={{
+                      backgroundColor: theme.brandSofter,
+                      paddingHorizontal: 10,
+                      paddingVertical: 4,
+                      borderRadius: 8,
+                      marginLeft: 8,
+                    }}
+                  >
+                    <Text style={{ color: theme.textBrand, fontSize: 11, fontWeight: '700' }}>
+                      Hoy
+                    </Text>
+                  </View>
+                ) : (
+                  <View
+                    style={{
+                      backgroundColor:
+                        s.status === 'CONFIRMED'
+                          ? theme.brandSofter
+                          : 'rgba(255,255,255,0.06)',
+                      paddingHorizontal: 10,
+                      paddingVertical: 4,
+                      borderRadius: 8,
+                      marginLeft: 8,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color:
+                          s.status === 'CONFIRMED'
+                            ? theme.textBrand
+                            : theme.textBody,
+                        fontSize: 11,
+                        fontWeight: '700',
+                      }}
+                    >
+                      {s.status === 'CONFIRMED' ? 'Confirmada' : 'Pendiente'}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : (
+        <LinearGradient
+          colors={['rgba(34,197,94,0.12)', 'rgba(34,197,94,0.02)']}
+          style={{
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: 'rgba(34,197,94,0.25)',
+            paddingVertical: 32,
+            paddingHorizontal: 22,
+            alignItems: 'center',
+          }}
+        >
+          <View
+            style={{
+              width: 58,
+              height: 58,
+              borderRadius: 29,
+              backgroundColor: theme.brandSofter,
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginBottom: 14,
+            }}
+          >
+            <MaterialCommunityIcons
+              name="dumbbell"
+              size={28}
+              color={theme.brand}
+            />
+          </View>
+          <Text
+            style={{
+              color: '#fff',
+              fontSize: 16,
+              fontWeight: '800',
+              textAlign: 'center',
+            }}
+          >
+            ¡Tu agenda está libre!
+          </Text>
+          <Text
+            style={{
+              color: theme.textBody,
+              fontSize: 13,
+              marginTop: 6,
+              textAlign: 'center',
+              lineHeight: 19,
+              maxWidth: 320,
+            }}
+          >
+            No tienes entrenamientos pendientes. Da el siguiente paso y reserva una sesión con un monitor para seguir progresando.
+          </Text>
+
+          <TouchableOpacity
+            style={{
+              marginTop: 20,
+              backgroundColor: theme.brand,
+              paddingVertical: 13,
+              paddingHorizontal: 26,
+              borderRadius: 12,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              shadowColor: theme.brand,
+              shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.3,
+              shadowRadius: 10,
+              elevation: 4,
+            }}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('MonitorList')}
+          >
+            <Ionicons
+              name="flash"
+              size={18}
+              color="#fff"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>
+              Reserva sesiones ahora
+            </Text>
+          </TouchableOpacity>
+        </LinearGradient>
+      )}
+    </View>
+  );
 
   // Render del bloque de "Próximas sesiones" (solo TRAINER).
   const renderTrainerUpcomingSessions = () => (
@@ -584,7 +881,9 @@ export default function HomeScreen({ navigation }) {
             )}
           </View>
 
-          {isTrainer && renderTrainerUpcomingSessions()}
+          {isTrainer
+            ? renderTrainerUpcomingSessions()
+            : renderUserUpcomingSessions()}
         </View>
       </ScrollView>
     </AppLayout >
