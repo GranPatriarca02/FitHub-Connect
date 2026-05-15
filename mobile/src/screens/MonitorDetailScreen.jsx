@@ -77,6 +77,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
   const [showSuccess, setShowSuccess] = useState(false);
   const [precioPagado, setPrecioPagado] = useState(0);
   const [userRole, setUserRole] = useState(null);
+  const [remainingFreeHours, setRemainingFreeHours] = useState(0);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -91,6 +92,7 @@ export default function MonitorDetailScreen({ route, navigation }) {
             const data = await res.json();
             setIsSubscribed(data.isSubscribed === true);
             if (data.userRole) setUserRole(data.userRole);
+            if (data.remainingFreeHours !== undefined) setRemainingFreeHours(data.remainingFreeHours);
           }
         } catch (e) {
           console.error("Error check subscription", e);
@@ -162,7 +164,11 @@ export default function MonitorDetailScreen({ route, navigation }) {
 
   const reserveEnd = reserveStart ? deMin(aMin(reserveStart) + reserveMinutes) : null;
   const horasReserva = reserveMinutes / 60;
-  const precioReserva = (monitorDetail.hourlyRate || 0) * horasReserva;
+  const billableHours = isSubscribed 
+    ? Math.max(0, horasReserva - remainingFreeHours)
+    : horasReserva;
+  const isCompletelyFree = isSubscribed && billableHours === 0;
+  const precioReserva = (monitorDetail.hourlyRate || 0) * billableHours;
 
   // Abrir el modal con valores por defecto que encajen
   const abrirConfiguracion = (franja) => {
@@ -253,10 +259,8 @@ export default function MonitorDetailScreen({ route, navigation }) {
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Error al crear la reserva');
-        
-        const esPremium = isSubscribed;
 
-        if (!data.clientSecret || esPremium) {
+        if (!data.clientSecret) {
           setPrecioPagado(0);
           setOccupiedSlots(prev => [...prev, {
             date: fechaSeleccionada.dateString,
@@ -507,6 +511,8 @@ export default function MonitorDetailScreen({ route, navigation }) {
                 hourlyRate={monitorDetail.hourlyRate || 0}
                 precio={precioReserva}
                 isSubscribed={isSubscribed}
+                isCompletelyFree={isCompletelyFree}
+                remainingFreeHours={remainingFreeHours}
                 cargandoPago={cargandoPago}
                 overlapConReserva={overlapConReserva}
                 onConfirmar={handleContratar}
@@ -532,7 +538,7 @@ function ReserveConfigModal({
   visible, onClose, franja, duracionesValidas,
   reserveMinutes, setReserveMinutes,
   reserveStart, setReserveStart, inicioOpciones, reserveEnd,
-  hourlyRate, precio, isSubscribed, cargandoPago,
+  hourlyRate, precio, isSubscribed, isCompletelyFree, remainingFreeHours, cargandoPago,
   overlapConReserva, onConfirmar,
 }) {
   if (!franja) return null;
@@ -657,10 +663,16 @@ function ReserveConfigModal({
                   <Text style={styles.summaryLabel}>Tarifa</Text>
                   <Text style={styles.summaryValue}>{hourlyRate}€/h × {(reserveMinutes / 60).toFixed(reserveMinutes % 60 === 0 ? 0 : 1)}h</Text>
                 </View>
+                {isSubscribed && (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Horas Premium Disp.</Text>
+                    <Text style={styles.summaryValue}>{remainingFreeHours.toFixed(1)}h</Text>
+                  </View>
+                )}
                 <View style={[styles.summaryRow, { marginTop: 8 }]}>
                   <Text style={styles.summaryTotalLabel}>Total</Text>
                   <Text style={styles.summaryTotalValue}>
-                    {isSubscribed ? 'Incluido (Premium)' : `${precio.toFixed(2)}€`}
+                    {isCompletelyFree ? 'Incluido (Premium)' : `${precio.toFixed(2)}€`}
                   </Text>
                 </View>
               </View>
@@ -679,7 +691,7 @@ function ReserveConfigModal({
                     <ActivityIndicator color="#fff" />
                   ) : (
                     <Text style={styles.mainCtaText}>
-                      {isSubscribed ? 'Confirmar reserva' : `Pagar ${precio.toFixed(2)}€`}
+                      {isCompletelyFree ? 'Confirmar reserva (Gratis)' : `Pagar ${precio.toFixed(2)}€`}
                     </Text>
                   )}
                 </LinearGradient>
