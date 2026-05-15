@@ -458,7 +458,6 @@ export async function createRoutineForSubscriber(trainerId, subscriberId, routin
     ...routine,
     isPublic: false,
     isPremium: routine.isPremium ?? true,
-    assignedToUserId: subscriberId,
   };
   const created = await createRoutine(trainerId, payload);
 
@@ -468,10 +467,21 @@ export async function createRoutineForSubscriber(trainerId, subscriberId, routin
   try {
     const k = _key(subscriberId);
     const current = _assignedRoutinesStore.get(k) || [];
-    if (!current.some((r) => String(r.id) === String(created.id))) {
+    const newId = created.routineId || created.id; // backend devuelve routineId
+    if (!current.some((r) => String(r.id) === String(newId))) {
       _assignedRoutinesStore.set(k, [
         ...current,
-        { ...created, assignedToUserId: subscriberId },
+        { 
+          id: newId, 
+          title: routine.title,
+          description: routine.description,
+          difficulty: routine.difficulty,
+          goal: routine.goal,
+          isPremium: payload.isPremium,
+          isPublic: payload.isPublic,
+          assignedToUserId: subscriberId,
+          exerciseCount: 0
+        },
       ]);
     }
   } catch (_) { /* noop */ }

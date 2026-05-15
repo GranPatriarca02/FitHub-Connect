@@ -374,13 +374,11 @@ export default function SubscriberTrainingPlanScreen({ route, navigation }) {
                 </View>
               }
               renderItem={({ item }) => (
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => handleAsignarExistente(item)}
-                  disabled={asignando}
-                >
-                  <RoutineCard routine={item} isOwner />
-                </TouchableOpacity>
+                <RoutineCard
+                  routine={item}
+                  isOwner
+                  onPress={() => !asignando && handleAsignarExistente(item)}
+                />
               )}
             />
           </LinearGradient>
@@ -404,6 +402,7 @@ export default function SubscriberTrainingPlanScreen({ route, navigation }) {
         premium={nuevaPremium}
         setPremium={setNuevaPremium}
         isTrainer={true}
+        hidePremium={true}
         onCrear={handleCrearPersonalizada}
         guardando={guardando}
         title={`Rutina personalizada para ${subscriberName}`}

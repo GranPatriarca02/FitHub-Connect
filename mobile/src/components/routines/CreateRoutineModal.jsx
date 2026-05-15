@@ -36,6 +36,7 @@ export default function CreateRoutineModal({
   objetivo, setObjetivo,
   premium, setPremium,
   isTrainer,
+  hidePremium = false,
   onCrear,
   guardando,
   // Personalización opcional de cabecera
@@ -57,7 +58,7 @@ export default function CreateRoutineModal({
             <Text style={styles.modalSub}>{subtitle}</Text>
 
             {/* Único interruptor (estilo Videos) - en la parte SUPERIOR */}
-            {isTrainer && (
+            {isTrainer && !hidePremium && (
               <View style={styles.visibilityContainer}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.visibilityTitle}>¿Contenido Premium?</Text>
