@@ -30,3 +30,18 @@ data class BookingResponse(
     val status: String,
     val notes: String?
 )
+
+// Vista de la reserva desde el lado del entrenador.
+// Incluye los datos del cliente para poder mostrarlos en el dashboard.
+@Serializable
+data class TrainerSessionResponse(
+    val bookingId: Int,
+    val clientId: Int,
+    val clientName: String,
+    val clientEmail: String,
+    val date: String,
+    val startTime: String,
+    val endTime: String,
+    val status: String,
+    val notes: String?
+)

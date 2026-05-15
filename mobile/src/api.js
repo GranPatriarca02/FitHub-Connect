@@ -126,6 +126,28 @@ export async function getTrainerSubscribers(trainerUserId) {
   return Array.isArray(data) ? data : [];
 }
 
+// ======================================================
+// SESIONES PROGRAMADAS DEL ENTRENADOR
+// ======================================================
+
+/**
+ * Devuelve las próximas reservas (PENDING/CONFIRMED) del entrenador
+ * indicado por su userId. Cada item incluye el nombre del cliente.
+ * GET /bookings/trainer/{trainerUserId}/upcoming
+ */
+export async function getTrainerUpcomingSessions(trainerUserId) {
+  const res = await fetch(
+    `${API_URL}/bookings/trainer/${trainerUserId}/upcoming`,
+    { headers: { 'X-User-Id': String(trainerUserId) } }
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `Error al obtener próximas sesiones: ${res.status}`);
+  }
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
 export async function healthCheck() {
   try {
     const response = await fetch(`${API_URL}/`);

@@ -4,6 +4,7 @@ import com.example.models.*
 import com.example.models.dto.BookingRequest
 import com.example.models.dto.BookingResponse
 import com.example.models.dto.CheckoutResponse
+import com.example.models.dto.TrainerSessionResponse
 import com.example.services.PaymentService
 import com.stripe.Stripe
 import com.stripe.model.PaymentIntent
@@ -445,6 +446,42 @@ fun Application.bookingRoutes() {
                         notes = b.notes ?: ""
                     )
                 }
+            }
+            call.respond(result)
+        }
+
+        // --- 6. PRÓXIMAS SESIONES DE UN ENTRENADOR ---
+        // Devuelve las reservas FUTURAS (date >= ahora) del entrenador
+        // identificado por su userId, incluyendo los datos del cliente.
+        // Estados incluidos: PENDING y CONFIRMED (las activas).
+        get("/bookings/trainer/{trainerUserId}/upcoming") {
+            val trainerUserId = call.parameters["trainerUserId"]?.toIntOrNull()
+                ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID inválido"))
+
+            val now = LocalDateTime.now()
+            val result = transaction {
+                val monitor = Monitor.find { Monitors.userId eq trainerUserId }.firstOrNull()
+                    ?: return@transaction emptyList<TrainerSessionResponse>()
+
+                Booking.find {
+                    (Bookings.monitorId eq monitor.id) and
+                    (Bookings.status neq BookingStatus.CANCELLED)
+                }
+                    .filter { it.date.isAfter(now) || it.date.isEqual(now) }
+                    .sortedBy { it.date }
+                    .map { b ->
+                        TrainerSessionResponse(
+                            bookingId   = b.id.value,
+                            clientId    = b.user.id.value,
+                            clientName  = b.user.name,
+                            clientEmail = b.user.email,
+                            date        = b.date.toString(),
+                            startTime   = b.startTime,
+                            endTime     = b.endTime,
+                            status      = b.status.name,
+                            notes       = b.notes
+                        )
+                    }
             }
             call.respond(result)
         }
