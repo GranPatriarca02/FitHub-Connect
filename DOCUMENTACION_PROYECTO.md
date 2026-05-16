@@ -31,6 +31,7 @@
    - 6.6 Planificación
    - 6.7 Mantenimiento
    - 6.8 Pruebas
+   - 6.9 Módulo de Comunicación en Tiempo Real (Chat)
 7. Conclusiones del Proyecto
    - 7.1 Aprendizaje
    - 7.2 Logros
@@ -358,6 +359,198 @@ Para estar seguros de que todo funciona antes de la entrega, hemos hecho estas p
 | **Premium**         | Que un usuario gratis no pueda ver rutinas privadas.     | **OK**    |
 | **Multiplataforma** | Que la app se vea igual de bien en Android y iPhone.     | **OK**    |
 
+### 6.9 Módulo de Comunicación en Tiempo Real (Chat)
+
+Para potenciar la interacción dentro de la economía de creadores (Creator Economy) y mitigar el soporte técnico limitado fuera de las sesiones presenciales, se ha diseñado e implementado un módulo de mensajería bidireccional instantánea. Este sistema permite una comunicación fluida entre los entrenadores y sus alumnos suscritos en caliente.
+
+#### 6.9.1 Arquitectura e Infraestructura del Chat
+
+El sistema híbrido combina una API REST tradicional para operaciones de consulta masiva o persistencia diferida, y un canal de WebSockets full-duplex gestionado de forma asíncrona por el servidor Ktor.
+
+- **Persistencia**: Cada mensaje se registra en un esquema relacional normalizado mediante el ORM Kotlin Exposed.
+- **Sesiones Activas**: El servidor mantiene un mapa concurrente en memoria (sessions) que vincula el identificador único del usuario (userId) con su canal de WebSocket abierto.
+- **Control de Concurrencia**: El flujo de WebSocket incorpora un mecanismo de limpieza para desconectar automáticamente sesiones duplicadas o colgadas si el mismo usuario inicia sesión desde otro dispositivo.
+
+#### 6.9.2 Diseño de la Base de Datos (E-R)
+
+Para el soporte de esta funcionalidad, se ha añadido al esquema relacional de PostgreSQL la entidad maestra de mensajes.
+
+**Tabla: chat_messages**
+Representa el histórico de interacciones entre usuarios de la plataforma.
+
+| Campo | Tipo de Datos | Restricciones / Descripción |
+| :--- | :--- | :--- |
+| id | Serial (Int) | Clave Primaria (PK). Identificador autoincremental del mensaje. |
+| sender_id | Int | Clave Foránea (FK) referenciada a users. Usuario que emite el mensaje. |
+| receiver_id | Int | Clave Foránea (FK) referenciada a users. Usuario que recibe el mensaje. |
+| content | Text | Contenido textual del mensaje enviado. |
+| created_at | DateTime | Fecha y hora exacta de la creación en formato UTC (por defecto, tiempo del sistema). |
+| is_read | Boolean | Estado de lectura del mensaje (por defecto, false). |
+
+#### 6.9.3 Documentación de la API y Protocolo de Comunicación
+
+**Endpoints HTTP (REST)**
+La comunicación tradicional mediante HTTP se utiliza para la carga inicial de datos en la interfaz móvil.
+
+- **POST `/social/chat/send`**
+  - **Descripción**: Envío de mensajes por fallback HTTP (mantenido por compatibilidad). Registra el mensaje en base de datos y lo reenvía al canal WebSocket del receptor si este se encuentra en línea.
+  - **Cabeceras**: `X-User-Id: Int` (ID del emisor).
+  - **Respuesta**: `201 Created` con el objeto `ChatMessageResponse`.
+
+- **GET `/social/chat/history/{otherUserId}`**
+  - **Descripción**: Recupera el histórico de la conversación ordenada cronológicamente entre el usuario autenticado y un tercero.
+  - **Respuesta**: `200 OK` con un listado JSON de mensajes ordenados de forma ascendente por su fecha de creación.
+
+- **GET `/social/chat/contacts`**
+  - **Descripción**: Obtiene la lista de contactos válidos basada en el modelo de suscripciones por entrenador. Si el usuario es un TRAINER, extrae sus alumnos activos; si es un usuario básico (FREE), extrae los entrenadores a los que está suscrito. Calcula dinámicamente el conteo de mensajes no leídos (unread) y su estado de conexión (isOnline).
+
+- **POST `/social/chat/read`**
+  - **Descripción**: Transiciona el estado de `is_read` a `true` para todos los mensajes recibidos de un emisor específico.
+
+**Eventos WebSocket (`/chat/{userId}`)**
+El canal WebSocket maneja una arquitectura orientada a eventos mediante el intercambio de tramas de texto en formato JSON (`Frame.Text`). El ciclo de vida de la conexión opera bajo los siguientes payloads estructurados:
+
+- **Mantenimiento de Canal (PING -> PONG)**: Evita que el socket muera por inactividad o timeouts impuestos por pasarelas de red o el hosting VPS.
+
+```json
+// Cliente envía
+{ "type": "PING" }
+// Servidor responde
+{ "type": "PONG" }
+```
+
+- **Transmisión en Tiempo Real (SEND_MESSAGE)**: El cliente envía un texto indicando el destino. El servidor lo persiste en base de datos, le asigna su ID definitivo de base de datos y lo despacha de forma asíncrona tanto al emisor (como confirmación de guardado) como al receptor si posee sesión activa.
+
+```json
+{
+  "type": "SEND_MESSAGE",
+  "receiverId": 45,
+  "content": "Hola, ¿mañana mantenemos la rutina de pierna?"
+}
+```
+
+- **Confirmación de Lectura (READ_EVENT)**: Notifica de forma reactiva al emisor original que sus mensajes han sido abiertos en la pantalla del receptor.
+
+```json
+{ "type": "READ_EVENT", "senderId": 12 }
+```
+
+#### 6.9.4 Fragmentos de Código Críticos (Backend)
+
+**1. Definición del Modelo DAO (Exposed)**
+La representación orientada a objetos del mensaje mapea las relaciones de integridad referencial con la entidad de usuarios.
+
+```kotlin
+object ChatMessages : IntIdTable("chat_messages") {
+    val senderId = reference("sender_id", Users)
+    val receiverId = reference("receiver_id", Users)
+    val content = text("content")
+    val createdAt = datetime("created_at").default(LocalDateTime.now(ZoneOffset.UTC))
+    val isRead = bool("is_read").default(false)
+}
+
+class ChatMessage(id: EntityID<Int>) : IntEntity(id) {
+    companion object : IntEntityClass<ChatMessage>(ChatMessages)
+
+    var sender by User referencedOn ChatMessages.senderId
+    var receiver by User referencedOn ChatMessages.receiverId
+    var content by ChatMessages.content
+    var createdAt by ChatMessages.createdAt
+    var isRead by ChatMessages.isRead
+}
+```
+
+**2. Pipeline de Gestión de Sesiones y Estado Online (WebSocket Routing)**
+Este fragmento controla el ciclo de vida completo de la conexión TCP persistente, la mutación segura del estado isOnline en la base de datos y la propagación reactiva del estado a toda la red de contactos (broadcast).
+
+```kotlin
+webSocket("/chat/{userId}") {
+    val myId = call.parameters["userId"]?.toIntOrNull() ?: return@webSocket
+    
+    // Forzar cierre de sesiones colgadas o duplicadas en caliente
+    sessions[myId]?.let { oldSession ->
+        try { oldSession.close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Nueva conexión detectada")) } catch(_: Exception){}
+    }
+    
+    sessions[myId] = this
+
+    // Cambiar estado a ONLINE en la Base de Datos de forma limpia
+    transaction {
+        val user = User.findById(myId)
+        user?.isOnline = true
+    }
+    broadcastStatusChange(myId, isOnline = true)
+
+    try {
+        for (frame in incoming) {
+            if (frame is Frame.Text) {
+                val text = frame.readText()
+                val json = Json.parseToJsonElement(text).jsonObject
+                
+                when (json["type"]?.jsonPrimitive?.content) {
+                    "PING" -> {
+                        try { send(Frame.Text(buildJsonObject { put("type", "PONG") }.toString())) } catch (_: Exception) {}
+                    }
+                    "SEND_MESSAGE" -> {
+                        val rId = json["receiverId"]?.jsonPrimitive?.int ?: continue
+                        val messageContent = json["content"]?.jsonPrimitive?.content ?: ""
+                        
+                        val savedMsgPayload = transaction {
+                            val s = User.findById(myId)
+                            val r = User.findById(rId)
+                            if (s != null && r != null) {
+                                val msg = ChatMessage.new { sender = s; receiver = r; content = messageContent; isRead = false }
+                                commit()
+                                
+                                buildJsonObject {
+                                    put("type", "MESSAGE")
+                                    put("id", msg.id.value)
+                                    put("senderId", myId)
+                                    put("receiverId", rId)
+                                    put("content", messageContent)
+                                    put("createdAt", System.currentTimeMillis())
+                                    put("isRead", false)
+                                }.toString()
+                            } else null
+                        }
+
+                        if (savedMsgPayload != null) {
+                            sessions[rId]?.let { receiverSession ->
+                                try { receiverSession.send(Frame.Text(savedMsgPayload)) } catch (_: Exception) {}
+                            }
+                            try { this.send(Frame.Text(savedMsgPayload)) } catch (_: Exception) {}
+                        }
+                    }
+                    "READ_EVENT" -> {
+                        val sId = json["senderId"]?.jsonPrimitive?.int ?: continue
+                        val confirmation = buildJsonObject {
+                            put("type", "READ_CONFIRMATION")
+                            put("readerId", myId)
+                        }.toString()
+                        sessions[sId]?.let { try { it.send(Frame.Text(confirmation)) } catch (_: Exception) {} }
+                    }
+                }
+            }
+        }
+    } catch (e: Exception) {
+        // Maneja cierres inesperados de conexión de la app móvil
+    } finally {
+        // SÍ O SÍ: Limpieza de sesión y paso a OFFLINE definitivo cuando muere el canal
+        sessions.remove(myId)
+        transaction {
+            val user = User.findById(myId)
+            user?.isOnline = false
+        }
+        broadcastStatusChange(myId, isOnline = false)
+    }
+}
+```
+
+#### 6.9.5 Manual de Usuario Relacionado
+
+- **Uso de la mensajería privada**: Los usuarios disponen de un acceso directo a la zona de mensajería desde su área de contactos, vinculada estrictamente al estado de sus suscripciones vigentes.
+- **Indicadores visuales**: La interfaz muestra dinámicamente un punto indicador de color verde si el entrenador o alumno se encuentra con la app abierta en primer plano (`isOnline = true`), un contador numérico con los mensajes pendientes de lectura y la doble verificación visual de mensaje leído reactiva al flujo de eventos del servidor.
+
 ---
 
 ## 7. Conclusión del Proyecto
@@ -436,7 +629,8 @@ Durante el desarrollo han surgido diversos desafíos técnicos que han requerido
 ---
 
 ## 10. Anexos
-   - 10.1 Historial de Cambios y Evolución Arquitectónica
+
+- 10.1 Historial de Cambios y Evolución Arquitectónica
 
 - **Repositorio de Código**: El código fuente completo, tanto del backend como del frontend móvil, se encuentra disponible en GitHub para su revisión técnica: [FitHub-Connect en GitHub](https://github.com/GranPatriarca02/FitHub-Connect)
 
@@ -448,6 +642,7 @@ A lo largo de las etapas finales del desarrollo, la plataforma FitHub Connect ex
 Originalmente, el sistema contemplaba un rol `GLOBAL_PREMIUM` que otorgaba a los usuarios acceso ilimitado a todos los entrenadores y rutinas de la plataforma mediante un pago único o suscripción general. Tras reevaluar el enfoque del producto, se determinó que este modelo desincentivaba a los entrenadores y centralizaba excesivamente la monetización.
 
 Por tanto, se llevó a cabo una refactorización estructural completa:
+
 - **Eliminación del Rol Premium Global:** Se eliminó por completo el rol `GLOBAL_PREMIUM` (y su predecesor genérico `PREMIUM`) de la base de datos y de la lógica de autorización. El sistema ahora opera exclusivamente con los roles `FREE` y `TRAINER` (y roles administrativos).
 - **Control de Acceso Basado en Patrocinios:** El acceso a contenido restringido (vídeos premium, rutinas exclusivas y reservas de sesiones gratuitas) ya no depende del rol del usuario, sino de la existencia de un registro activo en la tabla de `Subscriptions` que vincule al usuario directamente con el creador de dicho contenido.
 - **Límite de Reservas Gratuitas:** Para evitar el abuso de la agenda de los entrenadores por parte de usuarios suscritos, se ha implementado un límite de **4 horas mensuales gratuitas**. El backend calcula dinámicamente las horas consumidas en el ciclo de facturación actual. Si un usuario excede este límite, el sistema calcula automáticamente el precio de las horas extra y redirige al flujo de pago de Stripe.
